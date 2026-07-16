@@ -1,0 +1,24 @@
+# dependencies
+node_modules/
+
+# next.js
+.next/
+out/
+
+# env — NUNCA commitear tokens
+.env
+.env.local
+.env*.local
+
+# logs
+logs/*.log
+npm-debug.log*
+
+# misc
+.DS_Store
+*.tsbuildinfo
+next-env.d.ts
+
+# claude local session config
+.claude/settings.local.json
+.claude/settings.local.json.tmp.*
