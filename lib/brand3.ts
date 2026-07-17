@@ -1,11 +1,14 @@
 // Cliente del Brand3 Scanner API (spec §4)
-// Base: https://brand3.fly.dev/api/v1/scanner · Auth: Bearer BRAND3_TOKEN
+// Base: https://brand3.fly.dev/api/v1/scanner
+// Auth: Bearer <BRAND3_SCANNER_API_TOKEN>. Es un secreto compartido que vive
+// en la config del servidor Brand3 (Fly.io secrets); lo tiene Jesús (GsusFC).
+// No se emite desde ninguna web ni está en el repo. Mín. 24 caracteres.
 
 const BASE = 'https://brand3.fly.dev/api/v1/scanner';
 
 function headers(): Record<string, string> {
-  const token = process.env.BRAND3_TOKEN;
-  if (!token) throw new Error('BRAND3_TOKEN no configurado');
+  const token = process.env.BRAND3_SCANNER_API_TOKEN || process.env.BRAND3_TOKEN;
+  if (!token) throw new Error('BRAND3_SCANNER_API_TOKEN no configurado (pedir a Jesús)');
   return {
     Authorization: `Bearer ${token}`,
     'Content-Type': 'application/json',
