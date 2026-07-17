@@ -59,6 +59,18 @@ export async function getCompanyFiche(domain: string): Promise<BriefingLead | nu
   return all.find((l) => l.company?.domain === domain) ?? null;
 }
 
+// Todas las señales de una compañía, la más reciente primero.
+export async function getCompanySignals(companyId: string): Promise<Signal[]> {
+  if (isDemoMode()) return [];
+  const db = getServiceSupabase()!;
+  const { data } = await db
+    .from('signals')
+    .select('*')
+    .eq('company_id', companyId)
+    .order('detected_at', { ascending: false });
+  return (data as Signal[] | null) ?? [];
+}
+
 // Histórico de scans de una compañía, del más antiguo al más reciente.
 // Cada vez que se importa un informe se añade un scan; así se ve la evolución.
 export async function getCompanyScans(companyId: string): Promise<Scan[]> {

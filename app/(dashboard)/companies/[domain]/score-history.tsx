@@ -32,9 +32,9 @@ export function ScoreHistory({ scans }: { scans: Scan[] }) {
     <div>
       <h2 className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
         Histórico de scans ({n})
-        {n > 1 && (
+        {n > 1 && delta !== 0 && (
           <span
-            className={`font-mono ${delta > 0 ? 'text-[var(--success)]' : delta < 0 ? 'text-[var(--danger)]' : ''}`}
+            className={`font-mono ${delta > 0 ? 'text-[var(--success)]' : 'text-[var(--danger)]'}`}
           >
             {delta > 0 ? '+' : ''}
             {delta}

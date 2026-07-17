@@ -56,23 +56,45 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No hay ficha de empresa para ese dominio' }, { status: 400 });
     }
 
-    // Guardar el scan importado como ready
-    const { data: scanRow, error } = await db
-      .from('scans')
-      .insert({
-        company_id: coId,
-        scanner_job_id: profile.scanId ?? 0,
-        status: 'ready',
-        score: profile.score,
-        tldr: profile.tldr,
-        evidence: profile.evidence,
-        result_raw: profile.raw,
-        ui_url: profile.uiUrl,
-        completed_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    // Dedupe por informe: si ese ui_url ya está importado para la compañía,
+    // se actualiza en vez de duplicar (mismo hash = mismo scan). Un scan
+    // nuevo en B3S tiene hash nuevo y sí crea un punto en el histórico.
+    let scanRow: Scan | null = null;
+    const { data: existingScan } = profile.uiUrl
+      ? await db
+          .from('scans')
+          .select('id')
+          .eq('company_id', coId)
+          .eq('ui_url', profile.uiUrl)
+          .maybeSingle()
+      : { data: null };
+
+    const scanData = {
+      company_id: coId,
+      scanner_job_id: profile.scanId ?? 0,
+      status: 'ready',
+      score: profile.score,
+      tldr: profile.tldr,
+      evidence: profile.evidence,
+      result_raw: profile.raw,
+      ui_url: profile.uiUrl,
+      completed_at: new Date().toISOString(),
+    };
+
+    if (existingScan) {
+      const { data, error } = await db
+        .from('scans')
+        .update(scanData)
+        .eq('id', existingScan.id)
+        .select()
+        .single();
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      scanRow = data as Scan;
+    } else {
+      const { data, error } = await db.from('scans').insert(scanData).select().single();
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      scanRow = data as Scan;
+    }
 
     // Vincular el scan al lead y recalcular prioridad con el gap de marca real
     if (leadId && company) {
