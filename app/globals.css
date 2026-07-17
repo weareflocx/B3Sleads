@@ -1,21 +1,74 @@
 @import "tailwindcss";
 
+/* B3S Leads — hereda el sistema de diseño de Brand3 Scanner (web/static/main.css):
+   desk operativo, monoespaciado, claro por defecto con modo oscuro, acento rojo,
+   bordes rectos y textura de líneas sutil. Así B3S y Brand3 se ven de la misma familia. */
+
 :root {
-  --bg: #0c0c0e;
-  --surface: #141417;
-  --border: #26262b;
-  --text: #ececef;
-  --muted: #8b8b93;
-  --accent: #ff5b04;
+  color-scheme: light;
+  --bg: #eeeeee;
+  --surface: #f5f5f5;
+  --surface-2: #eeeeee;
+  --border: #e4e4e4;
+  --text: #161616;
+  --muted: #77736d;
+  --soft: #9a958e;
+
+  --accent: #ff0000;
+  --accent-soft: #ffdede;
+  --success: #1a8a1a;
+  --danger: #b84f3f;
+  --warning: #b7792b;
+
+  --nav-active-bg: rgba(255, 0, 0, 0.1);
+  --nav-active-border: rgba(255, 0, 0, 0.42);
+  --page-bg: rgba(245, 245, 245, 0.94);
+  --page-shadow: 0 10px 32px rgba(22, 22, 22, 0.05);
+  --body-bg: repeating-linear-gradient(135deg, rgba(22, 22, 22, 0.018) 0 1px, transparent 1px 7px), var(--bg);
+
+  --radius: 2px;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0b0d0e;
+  --surface: #121615;
+  --surface-2: #171b1a;
+  --border: #28302d;
+  --text: #dedbd2;
+  --muted: #9b968c;
+  --soft: #706c65;
+
+  --accent: #ff0000;
+  --accent-soft: rgba(255, 0, 0, 0.18);
+  --success: #00ff00;
+  --danger: #e07a6d;
+  --warning: #e4c76d;
+
+  --nav-active-bg: rgba(255, 0, 0, 0.14);
+  --nav-active-border: rgba(255, 0, 0, 0.46);
+  --page-bg: rgba(18, 22, 21, 0.94);
+  --page-shadow: none;
+  --body-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 280px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 96px), var(--bg);
 }
 
 body {
-  background: var(--bg);
+  background: var(--body-bg);
   color: var(--text);
-  font-feature-settings: "ss01";
+  font-family: var(--font-jetbrains, ui-monospace, "JetBrains Mono", monospace);
+  font-feature-settings: "liga" 0, "calt" 0;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
 }
 
 ::selection {
   background: var(--accent);
   color: #fff;
+}
+
+/* Estilo desk: bordes rectos en todo lo que use el radio de Tailwind. */
+.rounded-md,
+.rounded-lg {
+  border-radius: var(--radius) !important;
 }
