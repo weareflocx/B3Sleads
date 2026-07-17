@@ -46,35 +46,35 @@ export function Kanban({ initial }: { initial: BriefingLead[] }) {
               if (dragId) moveTo(dragId, col.key);
               setDragId(null);
             }}
-            className="min-w-[210px] flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3"
+            className="flex min-w-[256px] flex-1 flex-col rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3.5"
           >
-            <h3 className="mb-3 flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
+            <h3 className="mb-3.5 flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
               {col.label}
               <span className="font-mono">{items.length}</span>
             </h3>
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {items.map((bl) => (
                 <div
                   key={bl.lead.id}
                   draggable
                   onDragStart={() => setDragId(bl.lead.id)}
-                  className="cursor-grab rounded-md border border-[var(--border)] bg-[var(--bg)] p-3 text-sm active:cursor-grabbing"
+                  className="cursor-grab rounded-md border border-[var(--border)] bg-[var(--bg)] p-3.5 transition-colors hover:border-[var(--muted)] active:cursor-grabbing"
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium leading-snug">
                       {bl.company?.name ?? bl.contact?.full_name ?? 'Sin nombre'}
                     </span>
                     {bl.lead.priority_score != null && (
-                      <span className="font-mono text-xs text-[var(--muted)]">
+                      <span className="shrink-0 rounded border border-[var(--border)] px-1.5 py-0.5 font-mono text-xs text-[var(--muted)]">
                         {Math.round(bl.lead.priority_score)}
                       </span>
                     )}
                   </div>
-                  <p className="mt-1 truncate text-xs text-[var(--muted)]">
+                  <p className="mt-1.5 truncate text-xs text-[var(--muted)]">
                     {bl.company?.domain ?? (bl.contact ? 'founder sin empresa' : '')}
                   </p>
                   {bl.lead.discard_reason && (
-                    <p className="mt-1 text-xs text-red-400/70">{bl.lead.discard_reason}</p>
+                    <p className="mt-1.5 text-xs text-red-400/70">{bl.lead.discard_reason}</p>
                   )}
                 </div>
               ))}

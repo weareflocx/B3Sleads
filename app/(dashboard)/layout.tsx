@@ -33,7 +33,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <ThemeToggle />
       </header>
 
-      <div className="px-7 pb-16">
+      <div className="px-7 pb-16 pt-8">
         {isDemoMode() && (
           <div className="mb-6 border border-[var(--warning)]/40 bg-[var(--accent-soft)]/30 px-4 py-2 text-xs text-[var(--warning)]">
             Modo demo: sin Supabase configurado. Los datos son de ejemplo y los cambios no se
