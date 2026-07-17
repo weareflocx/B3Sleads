@@ -1,0 +1,17 @@
+{
+  "description": "Oferta real de FLOC*. Da contexto a la generación de mensajes. NO se pitchea en el primer contacto (spec §7): sirve para que el redactor sepa qué problema resolvemos, no para venderlo.",
+  "positioning": "Estudio de diseño estratégico que construye sistemas de marca para founders de startups. Diseñamos la estrategia, identidad, narrativa y producto que hace que inversores, usuarios y comunidades crean en el proyecto antes de entender la tecnología.",
+  "methodology": {
+    "name": "Brand3",
+    "lenses": ["Context", "Taste", "Perspective"],
+    "note": "Metodología propia que combina craft humano con ejecución acelerada por IA. El Brand3 Scanner es su versión diagnóstica."
+  },
+  "programs": [
+    { "name": "Go Sprint", "scope": "Marca + landing en 4 semanas", "price": "9K€", "for": "Founders listos para lanzar" },
+    { "name": "Go To Market", "scope": "Construcción estratégica completa en 6-8 semanas", "price": "desde 20K€", "for": "Founders preparando su ronda" },
+    { "name": "Go Beyond", "scope": "Partnership continuo, alcance a medida", "price": "custom", "for": "Marcas que necesitan evolucionar" }
+  ],
+  "customer_problem": "Founders con buena tecnología y una marca que no está a la altura. El producto funciona pero los inversores no lo entienden en los tres primeros minutos. Su web parece cualquier otro lanzamiento de Product Hunt. Han probado herramientas de IA o freelancers baratos y acabaron con algo genérico que no genera confianza. El dolor real: cualquiera puede clonar su tecnología en semanas, pero no tienen nada que haga que su proyecto se sienta distinto.",
+  "proof": "60+ marcas. Clientes de referencia: MetaMask, Eigen, Bankless, Rarible, Tutellus, Wonderland, Charms.",
+  "icp_note": "Cualquier sector. El hallazgo EVO2.7 y la revisión de julio 2026: el buyer ya no es solo cripto/IA."
+}

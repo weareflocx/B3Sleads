@@ -50,6 +50,20 @@ async function hydrateLeads(leads: Lead[]): Promise<BriefingLead[]> {
     }));
 }
 
+// Ficha completa de una compañía por dominio (estilo Explee explore).
+export async function getCompanyFiche(domain: string): Promise<BriefingLead | null> {
+  const all = await getBriefingLeads();
+  return all.find((l) => l.company.domain === domain) ?? null;
+}
+
+// Todos los founders con LinkedIn listos para contactar, por prioridad.
+export async function getFounderQueue(): Promise<BriefingLead[]> {
+  const all = await getBriefingLeads();
+  return all.filter(
+    (l) => l.contact?.linkedin_url && ['detected', 'briefed'].includes(l.lead.stage),
+  );
+}
+
 export async function updateLeadStage(
   leadId: string,
   stage: string,

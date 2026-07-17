@@ -4,7 +4,7 @@ import { isDemoMode } from '@/lib/supabase';
 const NAV = [
   { href: '/briefing', label: 'Briefing' },
   { href: '/pipeline', label: 'Pipeline' },
-  { href: '/engaged', label: 'Engaged' },
+  { href: '/founders', label: 'Founders' },
   { href: '/settings', label: 'Settings' },
 ];
 
@@ -13,7 +13,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className="mx-auto max-w-6xl px-6 pb-24">
       <header className="flex items-center justify-between py-8">
         <Link href="/briefing" className="text-lg font-bold tracking-tight">
-          FLOC<span style={{ color: 'var(--accent)' }}>*</span> Radar
+          B<span style={{ color: 'var(--accent)' }}>3</span>S Leads
         </Link>
         <nav className="flex gap-6 text-sm">
           {NAV.map((n) => (

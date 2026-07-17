@@ -1,6 +1,7 @@
 import { FUNDING_FEEDS } from '@/lib/rss-sources';
 import { isDemoMode } from '@/lib/supabase';
 import icp from '@/config/icp.json';
+import offer from '@/config/floc-offer.json';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,6 +65,26 @@ export default function SettingsPage() {
         </div>
         <p className="mt-3 text-xs text-[var(--muted)]">
           Editable en config/icp.json — alimenta la extracción de rondas y el QA del pipeline.
+        </p>
+      </div>
+
+      <h2 className="mb-3 mt-8 text-lg font-semibold">Oferta FLOC*</h2>
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4 text-sm">
+        <p className="text-[var(--muted)]">{offer.positioning}</p>
+        <div className="mt-3 space-y-1">
+          {offer.programs.map((p) => (
+            <div key={p.name} className="flex flex-wrap items-baseline gap-2">
+              <span className="font-medium">{p.name}</span>
+              <span className="font-mono text-xs text-[var(--accent)]">{p.price}</span>
+              <span className="text-xs text-[var(--muted)]">
+                {p.scope} · {p.for}
+              </span>
+            </div>
+          ))}
+        </div>
+        <p className="mt-3 text-xs text-[var(--muted)]">
+          Editable en config/floc-offer.json. Da contexto al redactor; nunca se pitchea en el
+          primer mensaje.
         </p>
       </div>
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import type { BriefingLead } from '@/lib/types';
 import { DISCARD_REASONS } from '@/lib/types';
 import { priorityBreakdown } from '@/lib/scoring';
@@ -95,7 +96,9 @@ export function LeadCard({ initial }: { initial: BriefingLead }) {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="font-semibold">
-            {bl.company.name}{' '}
+            <Link href={`/companies/${bl.company.domain}`} className="hover:underline">
+              {bl.company.name}
+            </Link>{' '}
             <a
               href={`https://${bl.company.domain}`}
               target="_blank"

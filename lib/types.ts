@@ -1,6 +1,13 @@
 // Tipos del modelo de datos (espejo de supabase/migrations/001_init.sql)
 
-export type CompanySource = 'lusha_signal' | 'rss' | 'manual' | 'engaged';
+export type CompanySource =
+  | 'lusha_signal'
+  | 'rss'
+  | 'manual'
+  | 'engaged'
+  | 'explee'
+  | 'linkedin';
+export type ContactSource = 'explee' | 'linkedin' | 'lusha' | 'engaged' | 'manual';
 export type SignalType = 'funding_round' | 'hiring' | 'launch' | 'rebrand' | 'engagement';
 export type ScanStatus = 'queued' | 'running' | 'ready' | 'failed';
 export type LeadStage =
@@ -15,6 +22,12 @@ export type LeadStage =
   | 'discarded';
 export type MessageChannel = 'linkedin' | 'email';
 
+export interface Competitor {
+  name: string;
+  domain?: string;
+}
+
+// Ficha de compañía estilo Explee: identidad + research + fit.
 export interface Company {
   id: string;
   name: string;
@@ -24,6 +37,17 @@ export interface Company {
   sector: string | null;
   source: CompanySource;
   created_at: string;
+  // Ficha (migración 002)
+  linkedin_url: string | null;
+  size: string | null;
+  city: string | null;
+  founded_year: number | null;
+  funding_stage: string | null;
+  determinants: string[] | null;
+  competitors: Competitor[] | null;
+  keywords: string[] | null;
+  icp_fit: number | null;
+  icp_reason: string | null;
 }
 
 export interface SignalDetail {
@@ -56,6 +80,7 @@ export interface Scan {
   completed_at: string | null;
 }
 
+// El founder. linkedin_url es el canal: por ahí se le escribe (a mano).
 export interface Contact {
   id: string;
   company_id: string;
@@ -66,6 +91,12 @@ export interface Contact {
   linkedin_url: string | null;
   notes: string | null;
   enriched_at: string | null;
+  // Migración 002
+  linkedin_handle: string | null; // identidad canónica, sobrevive a cambios de empresa
+  headline: string | null;
+  source: ContactSource | null;
+  last_touch_at: string | null;
+  email_verified: boolean;
 }
 
 export interface Lead {
@@ -116,5 +147,23 @@ export const DISCARD_REASONS = [
   'Fuera de ICP',
   'Marca ya resuelta',
   'Timing malo',
+  'Sin LinkedIn del founder',
   'Otro',
 ] as const;
+
+// ---------- LinkedIn: parsing manual, nunca automatizado ----------
+// Extrae el handle canónico de una URL de perfil. Acepta las formas que
+// Sergio copia del navegador. Devuelve null si no es un perfil.
+export function parseLinkedInHandle(input: string): string | null {
+  const raw = input.trim();
+  if (!raw) return null;
+  const m = raw.match(/linkedin\.com\/in\/([^/?#\s]+)/i);
+  if (m) return decodeURIComponent(m[1]).toLowerCase();
+  // Handle pelado: "sergiogarcia" o "@sergiogarcia"
+  if (/^@?[a-z0-9\-_%]{3,100}$/i.test(raw)) return raw.replace(/^@/, '').toLowerCase();
+  return null;
+}
+
+export function linkedInUrlFromHandle(handle: string): string {
+  return `https://www.linkedin.com/in/${handle}`;
+}

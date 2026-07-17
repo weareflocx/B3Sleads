@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'FLOC* Radar',
+  title: 'B3S Leads',
   description: 'Lead-gen cualificado para FLOC*. El envío es siempre humano.',
 };
 
