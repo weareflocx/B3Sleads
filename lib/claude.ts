@@ -76,6 +76,8 @@ export async function generateDraft(input: DraftInput): Promise<string> {
 }
 
 export function draftInputFromLead(bl: BriefingLead): DraftInput {
+  // El borrador se apoya en la marca (dominio + Scanner), así que exige empresa.
+  if (!bl.company) throw new Error('No se puede redactar sin empresa: añade el dominio del founder');
   const detail = bl.signal?.detail ?? {};
   const parts = [detail.round, detail.amount, (detail.investors as string[] | undefined)?.join(', ')]
     .filter(Boolean)

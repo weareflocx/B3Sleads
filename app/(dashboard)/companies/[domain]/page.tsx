@@ -30,7 +30,7 @@ function Chip({ children }: { children: React.ReactNode }) {
 export default async function CompanyPage({ params }: { params: Promise<{ domain: string }> }) {
   const { domain } = await params;
   const bl = await getCompanyFiche(decodeURIComponent(domain));
-  if (!bl) notFound();
+  if (!bl || !bl.company) notFound();
 
   const { company, contact, signal, scan, lead, message } = bl;
   const breakdown = priorityBreakdown({ company, signal, scan });

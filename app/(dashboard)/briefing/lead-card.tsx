@@ -39,6 +39,9 @@ export function LeadCard({ initial }: { initial: BriefingLead }) {
   const [discarding, setDiscarding] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // El briefing solo pasa leads con empresa (cualificados). Guard defensivo.
+  if (!bl.company) return null;
+
   if (gone) {
     return (
       <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-5 py-3 text-sm text-[var(--muted)]">

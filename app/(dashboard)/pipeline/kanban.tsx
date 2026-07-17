@@ -61,14 +61,18 @@ export function Kanban({ initial }: { initial: BriefingLead[] }) {
                   className="cursor-grab rounded-md border border-[var(--border)] bg-[var(--bg)] p-3 text-sm active:cursor-grabbing"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium">{bl.company.name}</span>
+                    <span className="font-medium">
+                      {bl.company?.name ?? bl.contact?.full_name ?? 'Sin nombre'}
+                    </span>
                     {bl.lead.priority_score != null && (
                       <span className="font-mono text-xs text-[var(--muted)]">
                         {Math.round(bl.lead.priority_score)}
                       </span>
                     )}
                   </div>
-                  <p className="mt-1 truncate text-xs text-[var(--muted)]">{bl.company.domain}</p>
+                  <p className="mt-1 truncate text-xs text-[var(--muted)]">
+                    {bl.company?.domain ?? (bl.contact ? 'founder sin empresa' : '')}
+                  </p>
                   {bl.lead.discard_reason && (
                     <p className="mt-1 text-xs text-red-400/70">{bl.lead.discard_reason}</p>
                   )}

@@ -122,10 +122,12 @@ export interface Message {
   created_at: string;
 }
 
-// Lead hidratado para el briefing (join de todas las tablas)
+// Lead hidratado para el briefing (join de todas las tablas).
+// company es opcional: un founder añadido desde LinkedIn puede no tener aún
+// empresa/dominio (hasta entonces no se puede escanear su marca).
 export interface BriefingLead {
   lead: Lead;
-  company: Company;
+  company: Company | null;
   signal: Signal | null;
   scan: Scan | null;
   contact: Contact | null;

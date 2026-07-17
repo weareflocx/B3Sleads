@@ -5,7 +5,11 @@ export const dynamic = 'force-dynamic';
 
 export default async function BriefingPage() {
   const leads = await getBriefingLeads();
-  const active = leads.filter((l) => ['detected', 'briefed'].includes(l.lead.stage));
+  // El briefing muestra leads cualificados: con empresa (ficha + Scanner).
+  // Los founders sueltos sin empresa viven en /founders hasta tener dominio.
+  const active = leads.filter(
+    (l) => ['detected', 'briefed'].includes(l.lead.stage) && l.company,
+  );
 
   return (
     <main>

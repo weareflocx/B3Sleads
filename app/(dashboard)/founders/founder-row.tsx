@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { BriefingLead } from '@/lib/types';
 
@@ -8,8 +9,11 @@ import type { BriefingLead } from '@/lib/types';
 // El envío lo hace Sergio, a mano, en LinkedIn.
 export function FounderRow({ initial }: { initial: BriefingLead }) {
   const bl = initial;
+  const router = useRouter();
   const [copied, setCopied] = useState(false);
   const [done, setDone] = useState(false);
+  const [domain, setDomain] = useState('');
+  const [savingDomain, setSavingDomain] = useState(false);
 
   if (done) {
     return (
@@ -37,6 +41,24 @@ export function FounderRow({ initial }: { initial: BriefingLead }) {
     if (res.ok) setDone(true);
   }
 
+  async function saveDomain() {
+    if (!domain.trim()) return;
+    setSavingDomain(true);
+    const res = await fetch('/api/founders/domain', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leadId: bl.lead.id, domain, companyName: bl.company?.name }),
+    });
+    setSavingDomain(false);
+    if (res.ok) router.refresh(); // recarga la fila ya con empresa + scan
+    else {
+      const j = await res.json();
+      alert(`No se pudo añadir: ${j.error}`);
+    }
+  }
+
+  const hasCompany = bl.company != null;
+
   return (
     <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -46,28 +68,31 @@ export function FounderRow({ initial }: { initial: BriefingLead }) {
             {bl.contact?.role && (
               <span className="text-sm text-[var(--muted)]">{bl.contact.role}</span>
             )}
-            <span className="text-sm text-[var(--muted)]">·</span>
-            <Link
-              href={`/companies/${bl.company.domain}`}
-              className="text-sm hover:underline"
-            >
-              {bl.company.name}
-            </Link>
+            {hasCompany && (
+              <>
+                <span className="text-sm text-[var(--muted)]">·</span>
+                <Link href={`/companies/${bl.company!.domain}`} className="text-sm hover:underline">
+                  {bl.company!.name}
+                </Link>
+              </>
+            )}
           </div>
           {bl.contact?.headline && (
             <p className="mt-1 text-xs text-[var(--muted)]">{bl.contact.headline}</p>
           )}
           <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
-            {bl.scan?.status === 'ready' && bl.scan.score != null ? (
-              <span className="font-mono">Brand3 {bl.scan.score}/100</span>
+            {hasCompany ? (
+              bl.scan?.status === 'ready' && bl.scan.score != null ? (
+                <span className="font-mono">Brand3 {bl.scan.score}/100</span>
+              ) : (
+                <span className="text-[var(--muted)]">Brand3: {bl.scan?.status ?? 'sin scan'}</span>
+              )
             ) : (
-              <span className="text-[var(--muted)]">Brand3: {bl.scan?.status ?? 'sin scan'}</span>
+              <span className="text-[var(--warning)]">Sin empresa · no se puede escanear todavía</span>
             )}
-            {bl.company.sector && <span className="text-[var(--muted)]">{bl.company.sector}</span>}
-            {bl.company.size && <span className="text-[var(--muted)]">{bl.company.size}</span>}
-            {bl.contact?.notes && (
-              <span className="text-[var(--muted)]">· {bl.contact.notes}</span>
-            )}
+            {bl.company?.sector && <span className="text-[var(--muted)]">{bl.company.sector}</span>}
+            {bl.company?.size && <span className="text-[var(--muted)]">{bl.company.size}</span>}
+            {bl.contact?.notes && <span className="text-[var(--muted)]">· {bl.contact.notes}</span>}
           </div>
         </div>
         {bl.lead.priority_score != null && (
@@ -77,22 +102,47 @@ export function FounderRow({ initial }: { initial: BriefingLead }) {
         )}
       </div>
 
-      {bl.message ? (
-        <p className="mt-3 whitespace-pre-wrap border-t border-[var(--border)] pt-3 text-sm leading-relaxed text-[var(--text)]/90">
-          {bl.message.draft}
-        </p>
-      ) : (
-        <p className="mt-3 border-t border-[var(--border)] pt-3 text-sm text-[var(--muted)]">
-          Sin borrador todavía. El pipeline lo genera cuando el scan esté listo.
-        </p>
+      {/* Founder sin empresa: completar el dominio dispara ficha + Scanner */}
+      {!hasCompany && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[var(--border)] pt-3">
+          <input
+            value={domain}
+            onChange={(e) => setDomain(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && saveDomain()}
+            placeholder="dominio de su empresa, ej: acmelabs.io"
+            className="min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-sm outline-none focus:border-[var(--accent)]"
+          />
+          <button
+            onClick={saveDomain}
+            disabled={savingDomain || !domain.trim()}
+            className="rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {savingDomain ? 'Añadiendo…' : 'Añadir empresa y escanear'}
+          </button>
+        </div>
       )}
+
+      {hasCompany &&
+        (bl.message ? (
+          <p className="mt-3 whitespace-pre-wrap border-t border-[var(--border)] pt-3 text-sm leading-relaxed text-[var(--text)]/90">
+            {bl.message.draft}
+          </p>
+        ) : (
+          <p className="mt-3 border-t border-[var(--border)] pt-3 text-sm text-[var(--muted)]">
+            Sin borrador todavía. El pipeline lo genera cuando el scan esté listo.
+          </p>
+        ))}
 
       <div className="mt-3 flex flex-wrap gap-2 text-sm">
         <button
           onClick={copyAndOpen}
           className="rounded-md bg-[var(--accent)] px-3 py-1.5 font-medium text-white transition-opacity hover:opacity-90"
         >
-          {copied ? 'Copiado ✓ · abriendo LinkedIn' : bl.message ? 'Copiar y abrir LinkedIn' : 'Abrir LinkedIn'}
+          {copied
+            ? 'Copiado ✓ · abriendo LinkedIn'
+            : bl.message
+              ? 'Copiar y abrir LinkedIn'
+              : 'Abrir LinkedIn'}
         </button>
         <button
           onClick={markContacted}
@@ -100,12 +150,14 @@ export function FounderRow({ initial }: { initial: BriefingLead }) {
         >
           → Contactado
         </button>
-        <Link
-          href={`/companies/${bl.company.domain}`}
-          className="rounded-md border border-[var(--border)] px-3 py-1.5 hover:border-[var(--muted)]"
-        >
-          Ver ficha
-        </Link>
+        {hasCompany && (
+          <Link
+            href={`/companies/${bl.company!.domain}`}
+            className="rounded-md border border-[var(--border)] px-3 py-1.5 hover:border-[var(--muted)]"
+          >
+            Ver ficha
+          </Link>
+        )}
       </div>
     </div>
   );

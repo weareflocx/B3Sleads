@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 // Import manual de founders. Sergio pega lo que ya está viendo en LinkedIn.
 // Formatos aceptados por línea:
@@ -22,6 +23,7 @@ function parseLine(line: string) {
 }
 
 export function ImportBox() {
+  const router = useRouter();
   const [text, setText] = useState('');
   const [warm, setWarm] = useState(false);
   const [log, setLog] = useState<{ input: string; status: string; detail?: string }[]>([]);
@@ -46,6 +48,7 @@ export function ImportBox() {
       else {
         setLog(json.results);
         setText('');
+        router.refresh(); // recarga la cola para ver los founders recién añadidos
       }
     } catch (e) {
       setLog([{ input: '—', status: 'error', detail: String(e) }]);

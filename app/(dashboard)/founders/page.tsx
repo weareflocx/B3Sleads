@@ -8,8 +8,10 @@ export const dynamic = 'force-dynamic';
 // escriba a mano. El envío nunca es automático (spec §9).
 export default async function FoundersPage() {
   const [queue, all] = await Promise.all([getFounderQueue(), getBriefingLeads()]);
+  // Empresas detectadas (pipeline) a las que aún no les hemos encontrado el
+  // founder en LinkedIn. Tienen empresa pero contacto sin perfil.
   const sinLinkedin = all.filter(
-    (l) => !l.contact?.linkedin_url && ['detected', 'briefed'].includes(l.lead.stage),
+    (l) => l.company && !l.contact?.linkedin_url && ['detected', 'briefed'].includes(l.lead.stage),
   );
 
   return (
@@ -47,14 +49,14 @@ export default async function FoundersPage() {
                 className="flex items-center justify-between rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm"
               >
                 <span>
-                  {bl.company.name}{' '}
+                  {bl.company?.name}{' '}
                   <span className="text-[var(--muted)]">
                     {bl.contact ? `· ${bl.contact.full_name}` : '· sin contacto'}
                   </span>
                 </span>
                 <a
                   href={`https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(
-                    bl.company.name,
+                    bl.company?.name ?? '',
                   )}`}
                   target="_blank"
                   rel="noreferrer"

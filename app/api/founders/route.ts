@@ -117,20 +117,24 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      if (companyId && companyRow) {
-        await db.from('leads').insert({
-          company_id: companyId,
-          contact_id: contact.id,
-          scan_id: scanId,
-          stage: 'detected',
-          priority_score: priorityScore({ company: companyRow, signal: null, scan: null }),
-        });
-      }
+      // SIEMPRE creamos el lead para que el founder aparezca en la cola,
+      // tenga empresa o no. Sin empresa, priority_score se calcula neutro.
+      await db.from('leads').insert({
+        company_id: companyId,
+        contact_id: contact.id,
+        scan_id: scanId,
+        stage: 'detected',
+        priority_score: companyRow
+          ? priorityScore({ company: companyRow, signal: null, scan: null })
+          : 40,
+      });
 
       results.push({
         input: handle,
         status: 'ok',
-        detail: domain ? 'contacto + ficha + scan en cola' : 'contacto creado (sin dominio, sin scan)',
+        detail: domain
+          ? 'en la cola: ficha + Brand3 Scanner lanzado'
+          : 'en la cola (añade el dominio de su empresa para escanear la marca)',
       });
     }
 

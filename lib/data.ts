@@ -21,14 +21,17 @@ export async function getBriefingLeads(): Promise<BriefingLead[]> {
 
 async function hydrateLeads(leads: Lead[]): Promise<BriefingLead[]> {
   const db = getServiceSupabase()!;
-  const companyIds = [...new Set(leads.map((l) => l.company_id))];
+  // Filtramos nulls: un founder sin empresa tiene company_id null y su
+  // contacto se carga por contact_id (no por company_id), o desaparecería.
+  const companyIds = [...new Set(leads.map((l) => l.company_id).filter(Boolean))];
+  const contactIds = [...new Set(leads.map((l) => l.contact_id).filter(Boolean))];
   const leadIds = leads.map((l) => l.id);
 
   const [companies, signals, scans, contacts, messages] = await Promise.all([
     db.from('companies').select('*').in('id', companyIds),
     db.from('signals').select('*').in('company_id', companyIds).order('detected_at', { ascending: false }),
     db.from('scans').select('*').in('company_id', companyIds),
-    db.from('contacts').select('*').in('company_id', companyIds),
+    db.from('contacts').select('*').in('id', contactIds),
     db.from('messages').select('*').in('lead_id', leadIds).order('created_at', { ascending: false }),
   ]);
 
@@ -36,24 +39,24 @@ async function hydrateLeads(leads: Lead[]): Promise<BriefingLead[]> {
   const scanById = new Map((scans.data as Scan[] | null)?.map((s) => [s.id, s]));
   const contactById = new Map((contacts.data as Contact[] | null)?.map((c) => [c.id, c]));
 
-  return leads
-    .filter((l) => companyById.has(l.company_id))
-    .map((lead) => ({
-      lead,
-      company: companyById.get(lead.company_id)!,
-      signal:
-        (signals.data as Signal[] | null)?.find((s) => s.company_id === lead.company_id) ?? null,
-      scan: lead.scan_id ? (scanById.get(lead.scan_id) ?? null) : null,
-      contact: lead.contact_id ? (contactById.get(lead.contact_id) ?? null) : null,
-      message:
-        (messages.data as Message[] | null)?.find((m) => m.lead_id === lead.id) ?? null,
-    }));
+  // No descartamos leads sin empresa: un founder suelto (solo LinkedIn) es
+  // válido y debe aparecer en su cola. company queda null hasta tener dominio.
+  return leads.map((lead) => ({
+    lead,
+    company: lead.company_id ? (companyById.get(lead.company_id) ?? null) : null,
+    signal: lead.company_id
+      ? ((signals.data as Signal[] | null)?.find((s) => s.company_id === lead.company_id) ?? null)
+      : null,
+    scan: lead.scan_id ? (scanById.get(lead.scan_id) ?? null) : null,
+    contact: lead.contact_id ? (contactById.get(lead.contact_id) ?? null) : null,
+    message: (messages.data as Message[] | null)?.find((m) => m.lead_id === lead.id) ?? null,
+  }));
 }
 
 // Ficha completa de una compañía por dominio (estilo Explee explore).
 export async function getCompanyFiche(domain: string): Promise<BriefingLead | null> {
   const all = await getBriefingLeads();
-  return all.find((l) => l.company.domain === domain) ?? null;
+  return all.find((l) => l.company?.domain === domain) ?? null;
 }
 
 // Todos los founders con LinkedIn listos para contactar, por prioridad.
