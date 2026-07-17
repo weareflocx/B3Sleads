@@ -17,7 +17,8 @@ export default async function BriefingPage() {
       </div>
       {active.length === 0 ? (
         <p className="rounded-lg border border-dashed border-[var(--border)] p-10 text-center text-[var(--muted)]">
-          Nada en cola. El pipeline nocturno traerá candidatos nuevos, o añade uno desde Engaged.
+          Nada en cola. El pipeline nocturno traerá candidatos nuevos, o añade founders desde
+          Founders.
         </p>
       ) : (
         <div className="space-y-4">

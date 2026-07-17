@@ -17,5 +17,10 @@ export function getServiceSupabase(): SupabaseClient | null {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
+// Modo demo si no hay con qué operar. Las lecturas del dashboard usan la
+// service role key en servidor (bypassa RLS de forma segura, nunca va al
+// cliente porque las páginas son server components), así que esa es la
+// clave crítica para salir de demo.
 export const isDemoMode = () =>
-  !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  (!process.env.SUPABASE_SERVICE_ROLE_KEY && !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);

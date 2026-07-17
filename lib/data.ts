@@ -1,6 +1,6 @@
 // Capa de acceso a datos. Con Supabase configurado lee de la BD;
 // sin credenciales, sirve datos demo para desarrollo de UI.
-import { getSupabase, isDemoMode } from './supabase';
+import { getServiceSupabase, isDemoMode } from './supabase';
 import { DEMO_LEADS } from './demo-data';
 import type { BriefingLead, Company, Contact, Lead, Message, Scan, Signal } from './types';
 
@@ -10,7 +10,7 @@ export async function getBriefingLeads(): Promise<BriefingLead[]> {
       (a, b) => (b.lead.priority_score ?? 0) - (a.lead.priority_score ?? 0),
     );
   }
-  const db = getSupabase()!;
+  const db = getServiceSupabase()!;
   const { data: leads, error } = await db
     .from('leads')
     .select('*')
@@ -20,7 +20,7 @@ export async function getBriefingLeads(): Promise<BriefingLead[]> {
 }
 
 async function hydrateLeads(leads: Lead[]): Promise<BriefingLead[]> {
-  const db = getSupabase()!;
+  const db = getServiceSupabase()!;
   const companyIds = [...new Set(leads.map((l) => l.company_id))];
   const leadIds = leads.map((l) => l.id);
 
@@ -70,7 +70,7 @@ export async function updateLeadStage(
   discardReason?: string,
 ): Promise<void> {
   if (isDemoMode()) return; // no-op en demo
-  const db = getSupabase()!;
+  const db = getServiceSupabase()!;
   const { error } = await db
     .from('leads')
     .update({
@@ -93,7 +93,7 @@ export async function updateLeadStage(
 
 export async function saveEditedMessage(messageId: string, editedFinal: string): Promise<void> {
   if (isDemoMode()) return;
-  const db = getSupabase()!;
+  const db = getServiceSupabase()!;
   const { error } = await db
     .from('messages')
     .update({ edited_final: editedFinal })
