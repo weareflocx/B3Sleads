@@ -36,6 +36,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
   const breakdown = priorityBreakdown({ company, signal, scan });
   const tldr =
     typeof scan?.tldr === 'string' ? scan.tldr : ((scan?.tldr as { summary?: string })?.summary ?? null);
+  const gaps = (scan?.tldr as { gaps?: string[] } | null)?.gaps ?? [];
 
   return (
     <main>
@@ -183,8 +184,18 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                 <>
                   <div className="font-mono text-sm">{scan.score ?? '—'}/100</div>
                   {tldr && <p className="mt-2 text-sm text-[var(--muted)]">“{tldr}”</p>}
+                  {gaps.length > 0 && (
+                    <ul className="mt-2 space-y-1 text-xs text-[var(--muted)]">
+                      {gaps.map((g) => (
+                        <li key={g} className="flex gap-2">
+                          <span className="text-[var(--accent)]">·</span>
+                          {g}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                   <div className="mt-3">
-                    <ScanButton domain={company.domain} companyName={company.name} scan={scan} />
+                    <ScanButton domain={company.domain} leadId={lead.id} scan={scan} />
                   </div>
                 </>
               ) : (
@@ -194,7 +205,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                       ? `Estado: ${scan.status}`
                       : 'Sin escanear. El scan es lo que hace irrepetible el mensaje.'}
                   </p>
-                  <ScanButton domain={company.domain} companyName={company.name} scan={scan} />
+                  <ScanButton domain={company.domain} leadId={lead.id} scan={scan} />
                 </div>
               )}
             </div>

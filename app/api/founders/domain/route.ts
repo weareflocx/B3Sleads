@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
-import { createScan } from '@/lib/brand3';
+import { getBrandProfile } from '@/lib/brand3';
 import { priorityScore } from '@/lib/scoring';
-import type { Company } from '@/lib/types';
+import type { Company, Scan } from '@/lib/types';
 
 // Completar el dominio de un founder que se añadió solo con su LinkedIn.
 // Crea/encuentra la compañía, la vincula al lead y lanza el Brand3 Scanner.
@@ -51,17 +51,32 @@ export async function POST(req: NextRequest) {
 
     // Lanzar el Scanner (si hay token). Sin token, se queda sin scan pero
     // la ficha ya existe y el founder sigue en la cola.
+    // Importar el scan del Observatorio público si esa marca ya está en Brand3.
     let scanId: string | null = null;
+    let scanRow: Scan | null = null;
     try {
-      const job = await createScan(`https://${domain}`);
-      const { data: scanRow } = await db
-        .from('scans')
-        .insert({ company_id: company.id, scanner_job_id: job.id, status: job.status })
-        .select()
-        .single();
-      scanId = scanRow?.id ?? null;
+      const profile = await getBrandProfile(domain);
+      if (profile.found) {
+        const { data } = await db
+          .from('scans')
+          .insert({
+            company_id: company.id,
+            scanner_job_id: profile.scanId ?? 0,
+            status: 'ready',
+            score: profile.score,
+            tldr: profile.tldr,
+            evidence: profile.evidence,
+            result_raw: profile.raw,
+            ui_url: profile.uiUrl,
+            completed_at: new Date().toISOString(),
+          })
+          .select()
+          .single();
+        scanRow = data as Scan | null;
+        scanId = scanRow?.id ?? null;
+      }
     } catch (err) {
-      console.error(`[founders/domain] scan no lanzado para ${domain}: ${err}`);
+      console.error(`[founders/domain] scan no importado para ${domain}: ${err}`);
     }
 
     await db
@@ -69,7 +84,7 @@ export async function POST(req: NextRequest) {
       .update({
         company_id: company.id,
         scan_id: scanId,
-        priority_score: priorityScore({ company, signal: null, scan: null }),
+        priority_score: priorityScore({ company, signal: null, scan: scanRow }),
         updated_at: new Date().toISOString(),
       })
       .eq('id', leadId);
@@ -77,7 +92,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       domain,
-      scanLaunched: scanId != null,
+      scanImported: scanId != null,
     });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });

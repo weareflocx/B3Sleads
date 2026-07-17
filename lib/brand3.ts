@@ -66,6 +66,83 @@ export async function getEvidence(id: number): Promise<Record<string, unknown>> 
   return res.json();
 }
 
+// ---------- Perfil público del Observatorio (SIN token) ----------
+// GET /api/brands/{domain}/profile es abierto: devuelve el análisis de una
+// marca YA escaneada en Brand3. Permite importar scans previos sin el token
+// del Scanner API. Los 170+ scans del Observatorio están disponibles así.
+const OBSERVATORY = 'https://brand3.fly.dev';
+
+export interface ImportedScan {
+  found: boolean;
+  score: number | null; // score magnetism (la óptica FLOC), o best_score
+  quadrant: string | null; // ej: "Marca sin escribir · target FLOC*"
+  tldr: { summary: string; gaps: string[] };
+  evidence: Record<string, unknown>;
+  uiUrl: string | null; // link al informe en brand3.fly.dev
+  scanId: number | null;
+  raw: Record<string, unknown>;
+}
+
+interface ScanRef {
+  score?: number;
+  score_model?: string;
+  quadrant?: string;
+  href?: string;
+  magnetism_scan_id?: number | null;
+  sv9_scan_id?: number | null;
+  source_run_id?: number | null;
+}
+
+export async function getBrandProfile(rawDomain: string): Promise<ImportedScan> {
+  const domain = rawDomain.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
+  const res = await fetch(`${OBSERVATORY}/api/brands/${encodeURIComponent(domain)}/profile`, {
+    headers: { Accept: 'application/json' },
+  });
+  if (res.status === 404) return emptyImport();
+  if (!res.ok) throw new Error(`Brand profile failed: ${res.status}`);
+  const data = (await res.json()) as Record<string, unknown>;
+
+  const profile = (data.profile ?? {}) as Record<string, unknown>;
+  const scans = (data.scans ?? []) as ScanRef[];
+  // El score de la óptica FLOC es el modelo 'magnetism' (marca definida o no).
+  const magnetism = scans.find((s) => s.score_model === 'magnetism');
+  const best = (data.best_score as number | undefined) ?? null;
+  const chosen = magnetism ?? scans[0];
+
+  const score = magnetism?.score ?? best ?? null;
+  const gaps = (profile.evidence_gaps as string[] | undefined) ?? [];
+  const summary = ((profile.summary as string) ?? (profile.audience as string) ?? '').slice(0, 400);
+  const href = chosen?.href ?? null;
+
+  return {
+    found: true,
+    score,
+    quadrant: magnetism?.quadrant ?? null,
+    tldr: { summary, gaps },
+    evidence: {
+      dimensions: (data.visual_signature_scan as Record<string, unknown> | undefined)?.dimensions ?? null,
+      proof_points: profile.proof_points ?? null,
+      offer: profile.offer ?? null,
+    },
+    uiUrl: href ? `${OBSERVATORY}${href}` : null,
+    scanId: magnetism?.magnetism_scan_id ?? chosen?.sv9_scan_id ?? chosen?.source_run_id ?? null,
+    raw: data,
+  };
+}
+
+function emptyImport(): ImportedScan {
+  return {
+    found: false,
+    score: null,
+    quadrant: null,
+    tldr: { summary: '', gaps: [] },
+    evidence: {},
+    uiUrl: null,
+    scanId: null,
+    raw: {},
+  };
+}
+
 // El schema OpenAPI de /result es abierto (additionalProperties: true).
 // Extrae el score principal probando las claves más plausibles.
 // TODO semana 1: mapear el payload real y eliminar esta heurística.
