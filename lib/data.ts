@@ -59,6 +59,20 @@ export async function getCompanyFiche(domain: string): Promise<BriefingLead | nu
   return all.find((l) => l.company?.domain === domain) ?? null;
 }
 
+// Histórico de scans de una compañía, del más antiguo al más reciente.
+// Cada vez que se importa un informe se añade un scan; así se ve la evolución.
+export async function getCompanyScans(companyId: string): Promise<Scan[]> {
+  if (isDemoMode()) return [];
+  const db = getServiceSupabase()!;
+  const { data } = await db
+    .from('scans')
+    .select('*')
+    .eq('company_id', companyId)
+    .eq('status', 'ready')
+    .order('created_at', { ascending: true });
+  return (data as Scan[] | null) ?? [];
+}
+
 // Founders en outreach en frío: con LinkedIn, aún sin contactar.
 export async function getFounderQueue(): Promise<BriefingLead[]> {
   const all = await getBriefingLeads();

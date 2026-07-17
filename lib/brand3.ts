@@ -143,6 +143,53 @@ function emptyImport(): ImportedScan {
   };
 }
 
+// ---------- Informe individual de B3S por URL (b3s.fly.dev/report/{hash}) ----------
+// Cada informe tiene una versión markdown (.md) limpia y parseable, pública.
+// Es la vía fiable para importar: pegas la URL del informe y se extraen score,
+// resumen y gaps (las secciones marcadas "_No detectado._").
+const B3S = 'https://b3s.fly.dev';
+
+export function reportHashFromUrl(url: string): string | null {
+  const m = url.match(/\/report\/([a-f0-9]{6,})/i);
+  return m ? m[1] : null;
+}
+
+export async function getReportByUrl(url: string): Promise<ImportedScan> {
+  const hash = reportHashFromUrl(url.trim());
+  if (!hash) return emptyImport();
+  const res = await fetch(`${B3S}/report/${hash}.md`, { headers: { Accept: 'text/markdown' } });
+  if (res.status === 404) return emptyImport();
+  if (!res.ok) throw new Error(`Report fetch failed: ${res.status}`);
+  const md = await res.text();
+
+  // Score: "Brand3 Score: **57/100**"
+  const scoreMatch = md.match(/Score:\s*\*\*(\d+(?:\.\d+)?)\s*\/\s*100\*\*/i);
+  const score = scoreMatch ? parseFloat(scoreMatch[1]) : null;
+
+  // Resumen: el primer blockquote (línea que empieza por "> ")
+  const summaryMatch = md.match(/^>\s*(.+)$/m);
+  const summary = (summaryMatch?.[1] ?? '').trim();
+
+  // Gaps: secciones "## X" cuyo cuerpo contiene "_No detectado._"
+  const gaps: string[] = [];
+  const sections = md.split(/\n## /).slice(1);
+  for (const s of sections) {
+    const title = s.split('\n')[0].trim();
+    if (/_No detectado\._/i.test(s)) gaps.push(`${title} no detectada en superficies públicas`);
+  }
+
+  return {
+    found: true,
+    score,
+    quadrant: null,
+    tldr: { summary: summary.slice(0, 400), gaps },
+    evidence: { model: md.match(/Modelo:\s*([^\n]+)/)?.[1]?.trim() ?? null },
+    uiUrl: `${B3S}/report/${hash}`,
+    scanId: parseInt(hash.slice(0, 8), 16) % 2147483647, // hash → int estable para scanner_job_id
+    raw: { source: 'b3s_report', hash, markdown: md.slice(0, 8000) },
+  };
+}
+
 // El schema OpenAPI de /result es abierto (additionalProperties: true).
 // Extrae el score principal probando las claves más plausibles.
 // TODO semana 1: mapear el payload real y eliminar esta heurística.

@@ -4,8 +4,10 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Scan } from '@/lib/types';
 
-// Conecta la ficha con Brand3. Importa el análisis del Observatorio público
-// (sin token): trae score, gaps y el link al informe de una marca ya escaneada.
+// Conecta la ficha con B3S. Dos vías (sin token):
+//  - pegar la URL de un informe de b3s.fly.dev (la fiable)
+//  - buscar por dominio en el Observatorio de brand3.fly.dev
+// Cada import añade un scan al histórico de la marca.
 export function ScanButton({
   domain,
   leadId,
@@ -16,80 +18,73 @@ export function ScanButton({
   scan: Scan | null;
 }) {
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<'url' | 'search' | null>(null);
+  const [url, setUrl] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
-  const [notFound, setNotFound] = useState(false);
 
-  async function importScan() {
-    setBusy(true);
+  async function importScan(body: Record<string, string>, which: 'url' | 'search') {
+    setBusy(which);
     setMsg(null);
-    setNotFound(false);
     try {
       const res = await fetch('/api/scans/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain, leadId }),
+        body: JSON.stringify({ leadId, ...body }),
       });
       const json = await res.json();
       if (json.error) setMsg(`Error: ${json.error}`);
-      else if (json.found === false) setNotFound(true);
-      else router.refresh(); // ya tiene el scan: la ficha se repinta con score + gaps
+      else if (json.found === false) setMsg(json.message);
+      else {
+        setUrl('');
+        router.refresh();
+      }
     } catch (e) {
       setMsg(`Error: ${e}`);
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
-  }
-
-  // Ya hay scan importado: enlace al informe
-  if (scan?.status === 'ready' && scan.ui_url) {
-    return (
-      <div className="flex flex-wrap items-center gap-3">
-        <a
-          href={scan.ui_url}
-          target="_blank"
-          rel="noreferrer"
-          className="rounded-md border border-[var(--border)] px-3 py-1.5 text-sm hover:border-[var(--muted)]"
-        >
-          Ver informe Brand3 ↗
-        </a>
-        <button
-          onClick={importScan}
-          disabled={busy}
-          className="text-xs text-[var(--muted)] hover:text-[var(--accent)] disabled:opacity-50"
-        >
-          {busy ? 'Actualizando…' : 're-importar'}
-        </button>
-      </div>
-    );
   }
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-3">
+      {/* Pegar la URL del informe: la vía fiable */}
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && url.trim() && importScan({ reportUrl: url }, 'url')}
+          placeholder="pega la URL del informe: b3s.fly.dev/report/…"
+          className="min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-sm outline-none focus:border-[var(--accent)]"
+        />
         <button
-          onClick={importScan}
-          disabled={busy}
+          onClick={() => importScan({ reportUrl: url }, 'url')}
+          disabled={busy !== null || !url.trim()}
           className="rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
         >
-          {busy ? 'Importando…' : 'Importar scan de Brand3'}
+          {busy === 'url' ? 'Importando…' : scan?.status === 'ready' ? 'Añadir scan' : 'Importar'}
         </button>
-        {msg && <span className="text-xs text-[var(--muted)]">{msg}</span>}
       </div>
-      {notFound && (
-        <p className="text-xs text-[var(--muted)]">
-          Esa marca aún no está en Brand3.{' '}
-          <a
-            href={`https://brand3.fly.dev/magnetism-scanner?url=https://${domain}`}
-            target="_blank"
-            rel="noreferrer"
-            className="text-[var(--accent)] hover:underline"
-          >
-            Escanéala en brand3.fly.dev ↗
-          </a>{' '}
-          y vuelve a importarla.
-        </p>
-      )}
+
+      {/* Búsqueda automática por dominio (Observatorio brand3.fly.dev) */}
+      <div className="flex items-center gap-3 text-xs">
+        <button
+          onClick={() => importScan({ domain }, 'search')}
+          disabled={busy !== null}
+          className="text-[var(--muted)] hover:text-[var(--accent)] disabled:opacity-50"
+        >
+          {busy === 'search' ? 'Buscando…' : 'o buscar por dominio en el histórico'}
+        </button>
+        <a
+          href={`https://b3s.fly.dev/`}
+          target="_blank"
+          rel="noreferrer"
+          className="text-[var(--muted)] hover:text-[var(--accent)]"
+        >
+          escanear en b3s.fly.dev ↗
+        </a>
+      </div>
+
+      {msg && <p className="text-xs text-[var(--muted)]">{msg}</p>}
     </div>
   );
 }

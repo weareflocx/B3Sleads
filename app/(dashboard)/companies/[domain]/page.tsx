@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getCompanyFiche } from '@/lib/data';
+import { getCompanyFiche, getCompanyScans } from '@/lib/data';
 import { priorityBreakdown } from '@/lib/scoring';
 import { ScanButton } from './scan-button';
+import { ScoreHistory } from './score-history';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +34,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
   if (!bl || !bl.company) notFound();
 
   const { company, contact, signal, scan, lead, message } = bl;
+  const scanHistory = await getCompanyScans(company.id);
   const breakdown = priorityBreakdown({ company, signal, scan });
   const tldr =
     typeof scan?.tldr === 'string' ? scan.tldr : ((scan?.tldr as { summary?: string })?.summary ?? null);
@@ -210,6 +212,12 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
               )}
             </div>
           </Section>
+
+          {scanHistory.length > 1 && (
+            <div className="mt-6">
+              <ScoreHistory scans={scanHistory} />
+            </div>
+          )}
 
           <Section title="Founder">
             {contact ? (

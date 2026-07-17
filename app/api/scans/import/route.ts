@@ -1,22 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
-import { getBrandProfile } from '@/lib/brand3';
+import { getBrandProfile, getReportByUrl } from '@/lib/brand3';
 import { priorityScore } from '@/lib/scoring';
 import type { Company, Scan } from '@/lib/types';
 
-// Importa un scan YA existente del Observatorio público de Brand3 y lo añade a
-// la ficha. No necesita el token del Scanner API (usa el endpoint público).
-// POST { domain, leadId?, companyId? }
+// Importa un scan existente y lo añade a la ficha. Dos vías, sin token:
+//  - reportUrl: URL de un informe de b3s.fly.dev (la fiable, parsea el .md)
+//  - domain: busca en el Observatorio de brand3.fly.dev (perfil por dominio)
+// POST { reportUrl?, domain?, leadId?, companyId? }
 export async function POST(req: NextRequest) {
   try {
-    const { domain: rawDomain, leadId, companyId } = await req.json();
-    if (!rawDomain) return NextResponse.json({ error: 'domain requerido' }, { status: 400 });
+    const { reportUrl, domain: rawDomain, leadId, companyId } = await req.json();
+    if (!reportUrl && !rawDomain) {
+      return NextResponse.json({ error: 'reportUrl o domain requerido' }, { status: 400 });
+    }
 
-    const profile = await getBrandProfile(rawDomain);
+    const profile = reportUrl ? await getReportByUrl(reportUrl) : await getBrandProfile(rawDomain);
     if (!profile.found) {
       return NextResponse.json({
         found: false,
-        message: 'Esa marca aún no está en Brand3. Escanéala en brand3.fly.dev y vuelve a importarla.',
+        message: reportUrl
+          ? 'No pude leer ese informe. Revisa que la URL sea de b3s.fly.dev/report/…'
+          : 'Esa marca aún no está en Brand3. Escanéala y pega la URL del informe.',
       });
     }
 
