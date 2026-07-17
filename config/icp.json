@@ -1,0 +1,18 @@
+{
+  "description": "Criterios ICP editables. Los usa el prompt de extracción de rondas y el QA de muestra. Patrón tomado de la revisión de Explee (criterios positivos/negativos por segmento).",
+  "profile": "Startups early-stage de cualquier sector, en lanzamiento público o con ronda reciente (pre-seed, seed o serie A), con equipos pequeños (1-50 personas).",
+  "sectors_hint": ["saas", "ai", "marketplace", "ecommerce", "web3", "fintech", "consumer", "health", "other"],
+  "positive": [
+    "Ronda reciente: pre-seed, seed o serie A",
+    "Producto en lanzamiento o lanzado hace poco",
+    "Equipo pequeño (1-50 personas)",
+    "Ambición de marca visible (contratan marketing, comunican lanzamientos)"
+  ],
+  "negative": [
+    "Serie B o posterior",
+    "Fondos de inversión, aceleradoras o vehículos anunciando su propio fondo",
+    "Agencias, consultoras o estudios de servicios",
+    "Corporaciones establecidas o scale-ups grandes (>50 empleados)",
+    "Biotech/farma/hardware pesado regulado"
+  ]
+}

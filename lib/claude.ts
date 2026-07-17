@@ -15,6 +15,26 @@ function loadPrompt(name: string): string {
   return fs.readFileSync(path.join(process.cwd(), 'prompts', name), 'utf-8');
 }
 
+interface IcpConfig {
+  profile: string;
+  positive: string[];
+  negative: string[];
+}
+
+export function loadIcp(): IcpConfig {
+  return JSON.parse(fs.readFileSync(path.join(process.cwd(), 'config', 'icp.json'), 'utf-8'));
+}
+
+// Prompt de extracción con los criterios ICP editables inyectados
+function buildExtractPrompt(): string {
+  const icp = loadIcp();
+  const bullets = (xs: string[]) => xs.map((x) => `- ${x}`).join('\n');
+  return loadPrompt('funding-extract.md')
+    .replace('{{ICP_PROFILE}}', icp.profile)
+    .replace('{{ICP_POSITIVE}}', bullets(icp.positive))
+    .replace('{{ICP_NEGATIVE}}', bullets(icp.negative));
+}
+
 // ---------- Redacción de mensajes ----------
 
 export interface DraftInput {
@@ -76,6 +96,44 @@ export function draftInputFromLead(bl: BriefingLead): DraftInput {
   };
 }
 
+// ---------- QA de muestra (patrón Explee: verificar antes de aceptar) ----------
+
+export interface QaResult {
+  on_icp: number;
+  total: number;
+  notes: string;
+}
+
+// Revisa una muestra de candidatos ya extraídos y devuelve cuántos encajan
+// de verdad en el ICP. Se registra en el log del run como control de calidad.
+export async function qaSample(
+  candidates: { company_name: string | null; sector: string | null; round: string | null; summary: string }[],
+): Promise<QaResult | null> {
+  if (!candidates.length) return null;
+  const icp = loadIcp();
+  const res = await client().messages.create({
+    model: MODEL,
+    max_tokens: 400,
+    system: `Eres el control de calidad de un pipeline de leads. ICP: ${icp.profile}\nNegativos: ${icp.negative.join('; ')}\nRecibes una muestra de candidatos aceptados. Devuelve SOLO JSON: {"on_icp": <int cuántos encajan>, "total": <int>, "notes": "<una frase sobre el ruido detectado>"}`,
+    messages: [
+      {
+        role: 'user',
+        content: candidates
+          .map((c, i) => `${i + 1}. ${c.company_name} · ${c.sector} · ${c.round} · ${c.summary}`)
+          .join('\n'),
+      },
+    ],
+  });
+  const block = res.content.find((b) => b.type === 'text');
+  if (!block || block.type !== 'text') return null;
+  try {
+    const json = block.text.match(/\{[\s\S]*\}/)?.[0];
+    return json ? (JSON.parse(json) as QaResult) : null;
+  } catch {
+    return null;
+  }
+}
+
 // ---------- Extracción de rondas desde RSS ----------
 
 export interface FundingExtraction {
@@ -91,7 +149,7 @@ export interface FundingExtraction {
 }
 
 export async function extractFunding(title: string, content: string, sourceUrl: string): Promise<FundingExtraction | null> {
-  const system = loadPrompt('funding-extract.md');
+  const system = buildExtractPrompt();
   const res = await client().messages.create({
     model: MODEL,
     max_tokens: 500,

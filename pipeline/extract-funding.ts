@@ -1,6 +1,6 @@
 // Paso 2 del pipeline: RSS → extracción de rondas con Claude API
 import { fetchFundingItems, looksLikeFunding, type FeedItem } from '../lib/rss';
-import { extractFunding, type FundingExtraction } from '../lib/claude';
+import { extractFunding, qaSample, type FundingExtraction } from '../lib/claude';
 
 export interface FundingCandidate {
   extraction: FundingExtraction;
@@ -23,6 +23,18 @@ export async function discoverFundingCandidates(maxItems = 30): Promise<FundingC
     } catch (e) {
       console.error(`[extract] error en "${item.title}": ${e}`);
     }
+  }
+
+  // QA de muestra: verificar hasta 5 aceptados antes de darlos por buenos
+  if (candidates.length) {
+    const sample = candidates.slice(0, 5).map((c) => ({
+      company_name: c.extraction.company_name,
+      sector: c.extraction.sector,
+      round: c.extraction.round,
+      summary: c.item.title,
+    }));
+    const qa = await qaSample(sample).catch(() => null);
+    if (qa) console.log(`[qa] muestra: ${qa.on_icp}/${qa.total} on-ICP — ${qa.notes}`);
   }
   return candidates;
 }

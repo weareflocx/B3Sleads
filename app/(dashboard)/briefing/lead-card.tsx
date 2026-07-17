@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { BriefingLead } from '@/lib/types';
 import { DISCARD_REASONS } from '@/lib/types';
+import { priorityBreakdown } from '@/lib/scoring';
 
 function timeAgo(iso: string): string {
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
@@ -113,11 +114,27 @@ export function LeadCard({ initial }: { initial: BriefingLead }) {
           </p>
         </div>
         {bl.lead.priority_score != null && (
-          <span className="rounded-md border border-[var(--border)] px-2 py-1 font-mono text-sm">
+          <span
+            className="rounded-md border border-[var(--border)] px-2 py-1 font-mono text-sm"
+            title="Desglose del priority score"
+          >
             {Math.round(bl.lead.priority_score)}
           </span>
         )}
       </div>
+
+      {/* Por qué está aquí este lead (patrón Explee: trace visible) */}
+      {(() => {
+        const b = priorityBreakdown({ company: bl.company, signal: bl.signal, scan: bl.scan });
+        return (
+          <p className="mt-2 font-mono text-xs text-[var(--muted)]">
+            señal {b.recencia} · ronda {b.ronda} · gap marca {b.gap_marca} · fit {b.fit_icp}
+            {b.bonus_engaged > 0 && (
+              <span className="text-green-400"> · warm +{b.bonus_engaged}</span>
+            )}
+          </p>
+        );
+      })()}
 
       {bl.scan && (
         <div className="mt-4 text-sm">

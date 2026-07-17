@@ -22,3 +22,6 @@ next-env.d.ts
 # claude local session config
 .claude/settings.local.json
 .claude/settings.local.json.tmp.*
+
+# datasets locales (datos personales, nunca commitear)
+data/

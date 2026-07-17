@@ -1,5 +1,6 @@
 import { FUNDING_FEEDS } from '@/lib/rss-sources';
 import { isDemoMode } from '@/lib/supabase';
+import icp from '@/config/icp.json';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,6 +35,36 @@ export default function SettingsPage() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      <h2 className="mb-3 mt-8 text-lg font-semibold">ICP</h2>
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4 text-sm">
+        <p className="mb-3">{icp.profile}</p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-green-400">
+              Criterios positivos
+            </h3>
+            <ul className="list-inside list-disc space-y-0.5 text-[var(--muted)]">
+              {icp.positive.map((c) => (
+                <li key={c}>{c}</li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-red-400">
+              Criterios negativos
+            </h3>
+            <ul className="list-inside list-disc space-y-0.5 text-[var(--muted)]">
+              {icp.negative.map((c) => (
+                <li key={c}>{c}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+        <p className="mt-3 text-xs text-[var(--muted)]">
+          Editable en config/icp.json — alimenta la extracción de rondas y el QA del pipeline.
+        </p>
       </div>
 
       <h2 className="mb-3 mt-8 text-lg font-semibold">Feeds RSS activos</h2>

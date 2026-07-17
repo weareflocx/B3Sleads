@@ -1,10 +1,21 @@
-// priority_score v0 (spec §8) — iterar con datos reales.
+// priority_score v0.2 (spec §8 + revisión Explee) — iterar con datos reales.
 // priority = recencia*0.4 + ronda*0.2 + gap_marca*0.3 + fit_ICP*0.1
 // gap_de_marca invertido: score bajo del Scanner = más oportunidad.
+// v0.2: fit sin sesgo crypto — el ICP es startup early-stage de CUALQUIER
+// sector; el sector solo penaliza si es desconocido.
 
 import type { Signal, Scan, Company } from './types';
 
-const ICP_SECTORS = ['web3', 'ai', 'marketplace', 'ecommerce', 'saas'];
+const KNOWN_SECTORS = [
+  'saas',
+  'ai',
+  'marketplace',
+  'ecommerce',
+  'web3',
+  'fintech',
+  'consumer',
+  'health',
+];
 
 // Normaliza importe de ronda a [0,1]. 10M€+ satura.
 function normalizeRoundSize(amountRaw: string | undefined): number {
@@ -24,23 +35,49 @@ function recency(detectedAt: string, now = new Date()): number {
   return Math.max(0, 1 - days / 30);
 }
 
-export function priorityScore(opts: {
+export interface PriorityBreakdown {
+  total: number;
+  recencia: number;      // 0-40
+  ronda: number;         // 0-20
+  gap_marca: number;     // 0-30
+  fit_icp: number;       // 0-10
+  bonus_engaged: number; // 0 | 20
+}
+
+export function priorityBreakdown(opts: {
   company: Company;
   signal: Signal | null;
   scan: Scan | null;
-}): number {
+}): PriorityBreakdown {
   const { company, signal, scan } = opts;
 
   const rec = signal ? recency(signal.detected_at) : 0.2;
   const round = normalizeRoundSize(signal?.detail?.amount as string | undefined);
   // Gap de marca: 100 - score del Scanner. Sin scan: neutro.
   const gap = scan?.score != null ? (100 - Number(scan.score)) / 100 : 0.5;
-  const fit = company.sector && ICP_SECTORS.includes(company.sector.toLowerCase()) ? 1 : 0.4;
+  // Fit: cualquier sector conocido vale; solo penaliza el desconocido.
+  const sector = company.sector?.toLowerCase() ?? null;
+  const fit = sector && KNOWN_SECTORS.includes(sector) ? 1 : sector ? 0.8 : 0.6;
+  const bonus = company.source === 'engaged' ? 20 : 0; // warm gana a cold (spec §10.3)
 
-  let score = (rec * 0.4 + round * 0.2 + gap * 0.3 + fit * 0.1) * 100;
+  const parts = {
+    recencia: Math.round(rec * 40 * 10) / 10,
+    ronda: Math.round(round * 20 * 10) / 10,
+    gap_marca: Math.round(gap * 30 * 10) / 10,
+    fit_icp: Math.round(fit * 10 * 10) / 10,
+    bonus_engaged: bonus,
+  };
+  const total =
+    Math.round(
+      Math.min(parts.recencia + parts.ronda + parts.gap_marca + parts.fit_icp + bonus, 100) * 10,
+    ) / 10;
+  return { total, ...parts };
+}
 
-  // Warm siempre gana a cold (spec §10.3)
-  if (company.source === 'engaged') score += 20;
-
-  return Math.round(Math.min(score, 100) * 10) / 10;
+export function priorityScore(opts: {
+  company: Company;
+  signal: Signal | null;
+  scan: Scan | null;
+}): number {
+  return priorityBreakdown(opts).total;
 }

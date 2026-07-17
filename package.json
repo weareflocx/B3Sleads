@@ -9,7 +9,8 @@
     "lint": "next lint",
     "pipeline:dry": "tsx pipeline/nightly.ts --dry-run",
     "pipeline:run": "tsx pipeline/nightly.ts",
-    "db:seed": "tsx scripts/seed-demo.ts"
+    "import:explee": "tsx scripts/import-explee.ts",
+    "import:explee:dry": "tsx scripts/import-explee.ts --dry-run"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.57.0",
