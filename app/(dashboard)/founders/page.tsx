@@ -1,4 +1,4 @@
-import { getFounderQueue, getBriefingLeads } from '@/lib/data';
+import { getFounderQueue, getConversations, getBriefingLeads } from '@/lib/data';
 import { ImportBox } from './import-box';
 import { FounderRow } from './founder-row';
 
@@ -7,7 +7,11 @@ export const dynamic = 'force-dynamic';
 // La pantalla del canal: founders con LinkedIn, listos para que Sergio
 // escriba a mano. El envío nunca es automático (spec §9).
 export default async function FoundersPage() {
-  const [queue, all] = await Promise.all([getFounderQueue(), getBriefingLeads()]);
+  const [queue, conversations, all] = await Promise.all([
+    getFounderQueue(),
+    getConversations(),
+    getBriefingLeads(),
+  ]);
   // Empresas detectadas (pipeline) a las que aún no les hemos encontrado el
   // founder en LinkedIn. Tienen empresa pero contacto sin perfil.
   const sinLinkedin = all.filter(
@@ -25,6 +29,24 @@ export default async function FoundersPage() {
 
       <ImportBox />
 
+      {/* Conversaciones abiertas: lo más valioso. Founders que respondieron. */}
+      {conversations.length > 0 && (
+        <section>
+          <h2 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--success)]">
+            <span className="inline-block h-2 w-2 rounded-full bg-[var(--success)]" />
+            En conversación ({conversations.length}) — te respondieron por privado
+          </h2>
+          <div className="space-y-3">
+            {conversations.map((bl) => (
+              <FounderRow key={bl.lead.id} initial={bl} conversation />
+            ))}
+          </div>
+        </section>
+      )}
+
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
+        Cola de contacto en frío
+      </h2>
       {queue.length === 0 ? (
         <p className="rounded-lg border border-dashed border-[var(--border)] p-10 text-center text-[var(--muted)]">
           Nadie en cola. Pega perfiles arriba o espera al pipeline nocturno.

@@ -59,11 +59,20 @@ export async function getCompanyFiche(domain: string): Promise<BriefingLead | nu
   return all.find((l) => l.company?.domain === domain) ?? null;
 }
 
-// Todos los founders con LinkedIn listos para contactar, por prioridad.
+// Founders en outreach en frío: con LinkedIn, aún sin contactar.
 export async function getFounderQueue(): Promise<BriefingLead[]> {
   const all = await getBriefingLeads();
   return all.filter(
     (l) => l.contact?.linkedin_url && ['detected', 'briefed'].includes(l.lead.stage),
+  );
+}
+
+// Conversaciones abiertas: founders que ya respondieron por privado. La
+// señal más fuerte del embudo y la métrica de éxito del proyecto.
+export async function getConversations(): Promise<BriefingLead[]> {
+  const all = await getBriefingLeads();
+  return all.filter(
+    (l) => l.contact?.linkedin_url && ['conversation', 'call', 'proposal'].includes(l.lead.stage),
   );
 }
 

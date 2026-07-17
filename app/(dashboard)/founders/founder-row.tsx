@@ -7,7 +7,14 @@ import type { BriefingLead } from '@/lib/types';
 
 // Una fila de la cola de LinkedIn. Fricción mínima: copiar y abrir el perfil.
 // El envío lo hace Sergio, a mano, en LinkedIn.
-export function FounderRow({ initial }: { initial: BriefingLead }) {
+// conversation = founder que ya respondió: se destaca y el avance es a 'call'.
+export function FounderRow({
+  initial,
+  conversation = false,
+}: {
+  initial: BriefingLead;
+  conversation?: boolean;
+}) {
   const bl = initial;
   const router = useRouter();
   const [copied, setCopied] = useState(false);
@@ -18,7 +25,7 @@ export function FounderRow({ initial }: { initial: BriefingLead }) {
   if (done) {
     return (
       <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--muted)]">
-        {bl.contact?.full_name} → Contactado
+        {bl.contact?.full_name} → {conversation ? 'Call' : 'Contactado'}
       </div>
     );
   }
@@ -32,11 +39,13 @@ export function FounderRow({ initial }: { initial: BriefingLead }) {
     if (bl.contact?.linkedin_url) window.open(bl.contact.linkedin_url, '_blank');
   }
 
-  async function markContacted() {
+  async function advance() {
+    // Conversación → avanza a 'call'. Cold → marca 'contacted'.
+    const stage = conversation ? 'call' : 'contacted';
     const res = await fetch('/api/leads', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ leadId: bl.lead.id, stage: 'contacted' }),
+      body: JSON.stringify({ leadId: bl.lead.id, stage }),
     });
     if (res.ok) setDone(true);
   }
@@ -60,7 +69,11 @@ export function FounderRow({ initial }: { initial: BriefingLead }) {
   const hasCompany = bl.company != null;
 
   return (
-    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+    <div
+      className={`rounded-lg border bg-[var(--surface)] p-4 ${
+        conversation ? 'border-[var(--success)]/50' : 'border-[var(--border)]'
+      }`}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-baseline gap-2">
@@ -145,10 +158,10 @@ export function FounderRow({ initial }: { initial: BriefingLead }) {
               : 'Abrir LinkedIn'}
         </button>
         <button
-          onClick={markContacted}
+          onClick={advance}
           className="rounded-md border border-green-700/50 px-3 py-1.5 text-green-400 hover:bg-green-950/40"
         >
-          → Contactado
+          {conversation ? '→ Call' : '→ Contactado'}
         </button>
         {hasCompany && (
           <Link

@@ -26,6 +26,7 @@ export function ImportBox() {
   const router = useRouter();
   const [text, setText] = useState('');
   const [warm, setWarm] = useState(false);
+  const [replied, setReplied] = useState(false);
   const [log, setLog] = useState<{ input: string; status: string; detail?: string }[]>([]);
   const [busy, setBusy] = useState(false);
 
@@ -41,7 +42,7 @@ export function ImportBox() {
       const res = await fetch('/api/founders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entries, warm }),
+        body: JSON.stringify({ entries, warm, replied }),
       });
       const json = await res.json();
       if (json.error) setLog([{ input: '—', status: 'error', detail: json.error }]);
@@ -92,9 +93,19 @@ export function ImportBox() {
             type="checkbox"
             checked={warm}
             onChange={(e) => setWarm(e.target.checked)}
+            disabled={replied}
             className="accent-[var(--accent)]"
           />
-          Interactuaron con mis posts (warm, +20 de prioridad)
+          Interactuaron con mis posts (warm, +20)
+        </label>
+        <label className="flex cursor-pointer items-center gap-2 text-xs text-[var(--success)]">
+          <input
+            type="checkbox"
+            checked={replied}
+            onChange={(e) => setReplied(e.target.checked)}
+            className="accent-[var(--success)]"
+          />
+          Ya me respondió por privado (conversación abierta)
         </label>
       </div>
       {log.length > 0 && (

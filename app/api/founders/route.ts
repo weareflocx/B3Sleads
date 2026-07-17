@@ -11,16 +11,21 @@ import type { Company } from '@/lib/types';
 // que está viendo y la pega aquí. Cero automatización, cero cookies de sesión.
 // El sistema solo estructura lo que él ya vio a ritmo humano.
 //
-// POST { entries: [{ linkedin, name?, company?, domain?, note? }], warm?: boolean }
-// warm = interactuó con los posts de Sergio → source 'engaged' → +20 de prioridad.
+// POST { entries: [...], warm?: boolean, replied?: boolean }
+// warm    = interactuó con los posts de Sergio → source 'engaged' → +20 prioridad.
+// replied = YA me respondió por privado. Es la señal más fuerte del embudo:
+//           conversación abierta (la métrica de éxito del proyecto). Entra en
+//           stage 'conversation' con prioridad máxima, no en outreach en frío.
 export async function POST(req: NextRequest) {
   try {
-    const { entries, warm } = await req.json();
+    const { entries, warm, replied } = await req.json();
     if (!Array.isArray(entries) || !entries.length) {
       return NextResponse.json({ error: 'entries requerido' }, { status: 400 });
     }
-    const companySource = warm ? 'engaged' : 'linkedin';
-    const contactSource = warm ? 'engaged' : 'linkedin';
+    const isWarm = warm || replied;
+    const companySource = isWarm ? 'engaged' : 'linkedin';
+    const contactSource = isWarm ? 'engaged' : 'linkedin';
+    const stage = replied ? 'conversation' : 'detected';
 
     const results: { input: string; status: string; detail?: string }[] = [];
     const db = isDemoMode() ? null : getServiceSupabase();
@@ -117,24 +122,37 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // SIEMPRE creamos el lead para que el founder aparezca en la cola,
-      // tenga empresa o no. Sin empresa, priority_score se calcula neutro.
+      // Una respuesta por privado es la señal más fuerte: conversación abierta.
+      // Registrarla deja rastro y contexto para el mensaje.
+      if (replied && companyId) {
+        await db.from('signals').insert({
+          company_id: companyId,
+          type: 'engagement',
+          detail: { source: 'linkedin_dm', note: 'respondió por privado' },
+        });
+      }
+
+      // SIEMPRE creamos el lead para que el founder aparezca. replied → entra
+      // ya en 'conversation' con prioridad máxima (no es outreach en frío).
+      const base = companyRow
+        ? priorityScore({ company: companyRow, signal: null, scan: null })
+        : 40;
       await db.from('leads').insert({
         company_id: companyId,
         contact_id: contact.id,
         scan_id: scanId,
-        stage: 'detected',
-        priority_score: companyRow
-          ? priorityScore({ company: companyRow, signal: null, scan: null })
-          : 40,
+        stage,
+        priority_score: replied ? 100 : base,
       });
 
       results.push({
         input: handle,
         status: 'ok',
-        detail: domain
-          ? 'en la cola: ficha + Brand3 Scanner lanzado'
-          : 'en la cola (añade el dominio de su empresa para escanear la marca)',
+        detail: replied
+          ? 'en conversación (te respondió por privado)'
+          : domain
+            ? 'en la cola: ficha + Brand3 Scanner lanzado'
+            : 'en la cola (añade el dominio de su empresa para escanear la marca)',
       });
     }
 
