@@ -1,13 +1,19 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getCompanyFiche, getCompanyScans, getCompanySignals } from '@/lib/data';
-import { priorityBreakdown } from '@/lib/scoring';
+import { leadTemperature } from '@/lib/scoring';
 import { buildPitch } from '@/lib/pitch';
+import { buildCallBriefPrompt, buildLeadContext } from '@/lib/lead-prompts';
 import { stageLabel as stageLabelFor, displayName } from '@/lib/types';
 import { ScanButton } from './scan-button';
 import { ScoreHistory } from './score-history';
 import { FollowUp } from './follow-up';
 import { FundingPanel } from './funding-panel';
+import { LeadTools } from './lead-tools';
+import { CompanyLogo } from '../../company-logo';
+import { ScoreRing } from '../../score-ring';
+import { Heat } from '../../heat';
+import { Avatar } from '../../avatar';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,14 +58,25 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
   ]);
   const fundingSignals = signals.filter((s) => s.type === 'funding_round');
   const latestFunding = fundingSignals[0] ?? null;
-  const breakdown = priorityBreakdown({ company, signal: latestFunding, scan });
   const pitch = buildPitch({ company, scan, fundingSignal: latestFunding });
+  const callBriefPrompt = buildCallBriefPrompt(bl);
+  const leadContext = buildLeadContext(bl);
 
   const tldr =
     typeof scan?.tldr === 'string' ? scan.tldr : ((scan?.tldr as { summary?: string })?.summary ?? null);
   const gaps = (scan?.tldr as { gaps?: string[] } | null)?.gaps ?? [];
   const stageLabel = stageLabelFor(lead.stage);
   const firstName = displayName(contact?.full_name).split(' ')[0] || null;
+  const temp = leadTemperature(bl);
+  const score = scan?.status === 'ready' ? scan.score : null;
+
+  // Ronda para la cabecera (lo más "vendible" arriba del todo).
+  const fd = latestFunding?.detail;
+  const fundingHeadline = latestFunding
+    ? [fd?.round, fd?.amount, (fd?.investors as string[] | undefined)?.join(', ')]
+        .filter(Boolean)
+        .join(' · ') || 'ronda registrada'
+    : company.funding_stage || null;
 
   return (
     <main>
@@ -67,48 +84,57 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
         ← Briefing
       </Link>
 
-      {/* Cabecera: identidad + estado */}
+      {/* Cabecera: identidad + estado, con logo, score y temperatura */}
       <header className="mt-5 flex flex-wrap items-start justify-between gap-5 border-b border-[var(--border)] pb-6">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight">{company.name}</h1>
-          <div className="mt-1.5 flex flex-wrap items-center gap-3 text-sm text-[var(--muted)]">
-            <a href={`https://${company.domain}`} target="_blank" rel="noreferrer" className="hover:underline">
-              {company.domain} ↗
-            </a>
-            {company.linkedin_url && (
-              <a
-                href={company.linkedin_url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-[var(--linkedin-soft)] hover:underline"
-              >
-                LinkedIn ↗
+        <div className="flex min-w-0 gap-4">
+          <CompanyLogo domain={company.domain} name={company.name} />
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold tracking-tight">{company.name}</h1>
+            <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-[var(--muted)]">
+              <a href={`https://${company.domain}`} target="_blank" rel="noreferrer" className="hover:underline">
+                {company.domain} ↗
               </a>
+              {company.linkedin_url && (
+                <a
+                  href={company.linkedin_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[var(--linkedin-soft)] hover:underline"
+                >
+                  LinkedIn ↗
+                </a>
+              )}
+            </div>
+            {fundingHeadline && (
+              <div className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-[var(--cta)]/40 bg-[var(--cta)]/8 px-2.5 py-1 text-xs text-[var(--cta)]">
+                <span className="font-semibold uppercase tracking-wider">Ronda</span>
+                <span className="text-[var(--text)]">{fundingHeadline}</span>
+              </div>
             )}
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {company.sector && <Chip>{company.sector}</Chip>}
-            {company.size && <Chip>{company.size} personas</Chip>}
-            {company.city && <Chip>{company.city}</Chip>}
-            {company.hq_country && <Chip>{company.hq_country}</Chip>}
-            {company.funding_stage && <Chip>{company.funding_stage}</Chip>}
-            <Chip>fuente: {company.source}</Chip>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {company.sector && <Chip>{company.sector}</Chip>}
+              {company.size && <Chip>{company.size} personas</Chip>}
+              {company.city && <Chip>{company.city}</Chip>}
+              {company.hq_country && <Chip>{company.hq_country}</Chip>}
+              <Chip>fuente: {company.source}</Chip>
+            </div>
           </div>
         </div>
-        <div className="flex items-stretch gap-2.5 text-right">
-          <div className="rounded-md border border-[var(--border)] px-3.5 py-2">
+        <div className="flex items-center gap-4">
+          <div className="rounded-md border border-[var(--border)] px-3.5 py-2 text-right">
             <div className="text-xs uppercase tracking-wider text-[var(--muted)]">etapa</div>
             <div className="mt-0.5 text-sm font-medium">{stageLabel}</div>
+            <div className="mt-1.5" title={`Temperatura del lead · ${temp.note}`}>
+              <Heat temp={temp} />
+            </div>
           </div>
-          {lead.priority_score != null && (
-            <div className="rounded-md border border-[var(--border)] px-3.5 py-2">
-              <div className="text-xs uppercase tracking-wider text-[var(--muted)]">prioridad</div>
-              <div
-                className="mt-0.5 font-mono text-xl leading-none"
-                title={`señal ${breakdown.recencia} · ronda ${breakdown.ronda} · gap marca ${breakdown.gap_marca} · fit ${breakdown.fit_icp}`}
-              >
-                {Math.round(lead.priority_score)}
-              </div>
+          {score != null && (
+            <div
+              className="flex flex-col items-center"
+              title={`Brand3 Score ${Math.round(Number(score))}/100`}
+            >
+              <ScoreRing score={Number(score)} size={56} />
+              <div className="mt-1 text-[10px] uppercase tracking-wider text-[var(--muted)]">Score</div>
             </div>
           )}
         </div>
@@ -213,6 +239,10 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
             </Section>
           )}
 
+          <Section title="Trabajar el lead">
+            <LeadTools callBriefPrompt={callBriefPrompt} leadContext={leadContext} />
+          </Section>
+
           {message && (
             <Section title="Borrador">
               <p className="whitespace-pre-wrap rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4 text-sm leading-relaxed">
@@ -275,16 +305,44 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
             <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
               {contact ? (
                 <>
-                  <div className="text-sm font-medium">{displayName(contact.full_name)}</div>
-                  {contact.role && (
-                    <div className="mt-0.5 text-sm text-[var(--muted)]">{contact.role}</div>
-                  )}
+                  <div className="flex gap-3">
+                    <Avatar name={displayName(contact.full_name)} />
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium">{displayName(contact.full_name)}</div>
+                      {contact.role && (
+                        <div className="mt-0.5 text-xs text-[var(--muted)]">{contact.role}</div>
+                      )}
+                      {contact.city && (
+                        <div className="mt-0.5 text-xs text-[var(--muted)]">{contact.city}</div>
+                      )}
+                    </div>
+                  </div>
                   {contact.headline && (
-                    <p className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
+                    <p className="mt-2.5 text-xs leading-relaxed text-[var(--muted)]">
                       {contact.headline}
                     </p>
                   )}
-                  <div className="mt-3.5 space-y-2">
+                  {/* Datos de contacto: email (Lusha vía MCP, 1 crédito) y teléfono
+                      (alta manual; el reveal de phone en Lusha son 10 créditos). */}
+                  {(contact.email || contact.phone) && (
+                    <div className="mt-3 space-y-1 text-xs">
+                      {contact.email && (
+                        <a
+                          href={`mailto:${contact.email}`}
+                          className="block truncate text-[var(--muted)] hover:text-[var(--text)]"
+                        >
+                          ✉ {contact.email}
+                          {!contact.email_verified && ' (no verificado)'}
+                        </a>
+                      )}
+                      {contact.phone && (
+                        <a href={`tel:${contact.phone}`} className="block text-[var(--muted)] hover:text-[var(--text)]">
+                          ☎ {contact.phone}
+                        </a>
+                      )}
+                    </div>
+                  )}
+                  <div className="mt-3.5">
                     {contact.linkedin_url ? (
                       <a
                         href={contact.linkedin_url}
@@ -298,15 +356,6 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                       <p className="text-xs text-[var(--warning)]">
                         Sin LinkedIn: no es contactable todavía.
                       </p>
-                    )}
-                    {contact.email && (
-                      <a
-                        href={`mailto:${contact.email}`}
-                        className="block truncate text-center text-xs text-[var(--muted)] hover:text-[var(--accent)]"
-                      >
-                        {contact.email}
-                        {!contact.email_verified && ' (no verificado)'}
-                      </a>
                     )}
                   </div>
                 </>

@@ -90,6 +90,8 @@ export const DEMO_LEADS: BriefingLead[] = [
       enriched_at: daysAgo(0),
       last_touch_at: null,
       email_verified: true,
+    city: null,
+    phone: null,
     },
     message: {
       id: 'demo-msg-1',
@@ -187,6 +189,8 @@ export const DEMO_LEADS: BriefingLead[] = [
       enriched_at: daysAgo(0),
       last_touch_at: null,
       email_verified: false,
+    city: null,
+    phone: null,
     },
     message: {
       id: 'demo-msg-2',
@@ -270,6 +274,8 @@ export const DEMO_LEADS: BriefingLead[] = [
       enriched_at: null,
       last_touch_at: null,
       email_verified: false,
+    city: null,
+    phone: null,
     },
     message: null,
   },

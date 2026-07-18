@@ -99,6 +99,9 @@ export interface Contact {
   source: ContactSource | null;
   last_touch_at: string | null;
   email_verified: boolean;
+  // Migración 003 (enriquecimiento; null hasta que se aplique)
+  city: string | null;
+  phone: string | null;
 }
 
 export interface Lead {

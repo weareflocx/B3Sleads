@@ -191,7 +191,8 @@ export function FounderRow({
               Ángulo para abrir
             </p>
             <p className="mt-1 text-sm leading-relaxed text-[var(--text)]/90">{opener}</p>
-            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <div className="my-3 border-t border-[var(--border)]" />
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <Link
                 href={`/companies/${bl.company!.domain}`}
                 className="text-xs text-[var(--cta)] hover:underline"
