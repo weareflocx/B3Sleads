@@ -16,17 +16,20 @@ import { Avatar } from '../avatar';
 export function FounderRow({
   initial,
   opener = null,
+  draftPrompt = null,
   temp,
   conversation = false,
 }: {
   initial: BriefingLead;
   opener?: string | null; // frase de entrada del argumentario (lib/pitch.ts, sin API)
+  draftPrompt?: string | null; // prompt autocontenido para redactar en tu Claude
   temp: Temperature; // temperatura viva del lead (lib/scoring.leadTemperature)
   conversation?: boolean;
 }) {
   const bl = initial;
   const router = useRouter();
   const [copied, setCopied] = useState(false);
+  const [promptCopied, setPromptCopied] = useState(false);
   // 'briefed' es interno del pipeline; en la UI se opera como 'detected'.
   const [stage, setStage] = useState<LeadStage>(
     bl.lead.stage === 'briefed' ? 'detected' : bl.lead.stage,
@@ -37,6 +40,13 @@ export function FounderRow({
 
   const name = displayName(bl.contact?.full_name);
   const firstName = name.split(' ')[0] || 'el founder';
+
+  async function copyPrompt() {
+    if (!draftPrompt) return;
+    await navigator.clipboard.writeText(draftPrompt);
+    setPromptCopied(true);
+    setTimeout(() => setPromptCopied(false), 2000);
+  }
 
   async function copyAndOpen() {
     if (bl.message) {
@@ -181,12 +191,23 @@ export function FounderRow({
               Ángulo para abrir
             </p>
             <p className="mt-1 text-sm leading-relaxed text-[var(--text)]/90">{opener}</p>
-            <Link
-              href={`/companies/${bl.company!.domain}`}
-              className="mt-1.5 inline-block text-xs text-[var(--cta)] hover:underline"
-            >
-              Ver argumentario completo →
-            </Link>
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <Link
+                href={`/companies/${bl.company!.domain}`}
+                className="text-xs text-[var(--cta)] hover:underline"
+              >
+                Ver argumentario completo →
+              </Link>
+              {draftPrompt && (
+                <button
+                  onClick={copyPrompt}
+                  title="Copia un prompt listo para pegar en tu Claude o tu agente y que te redacte el mensaje"
+                  className="text-xs text-[var(--muted)] transition-colors hover:text-[var(--text)]"
+                >
+                  {promptCopied ? 'Copiado ✓ · pégalo en tu Claude' : 'Copiar prompt para Claude ⧉'}
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <p className="mt-3 border-t border-[var(--border)] pt-3 text-sm text-[var(--muted)]">

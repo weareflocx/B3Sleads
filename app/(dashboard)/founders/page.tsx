@@ -1,6 +1,7 @@
 import { getFounderQueue, getConversations, getBriefingLeads } from '@/lib/data';
 import { displayName } from '@/lib/types';
 import { buildPitch } from '@/lib/pitch';
+import { buildDraftPrompt } from '@/lib/claude';
 import { leadTemperature } from '@/lib/scoring';
 import type { BriefingLead } from '@/lib/types';
 import { ImportBox } from './import-box';
@@ -53,6 +54,7 @@ export default async function FoundersPage() {
                 key={bl.lead.id}
                 initial={bl}
                 opener={opener(bl)}
+                draftPrompt={buildDraftPrompt(bl)}
                 temp={leadTemperature(bl)}
                 conversation
               />
@@ -71,7 +73,13 @@ export default async function FoundersPage() {
       ) : (
         <div className="space-y-3">
           {queue.map((bl) => (
-            <FounderRow key={bl.lead.id} initial={bl} opener={opener(bl)} temp={leadTemperature(bl)} />
+            <FounderRow
+              key={bl.lead.id}
+              initial={bl}
+              opener={opener(bl)}
+              draftPrompt={buildDraftPrompt(bl)}
+              temp={leadTemperature(bl)}
+            />
           ))}
         </div>
       )}

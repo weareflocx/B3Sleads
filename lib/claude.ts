@@ -107,6 +107,30 @@ export function draftInputFromLead(bl: BriefingLead): DraftInput {
   };
 }
 
+// Prompt autocontenido para redactar el mensaje SIN la API: junta las reglas
+// del sistema (message-system.md) con el contexto de este founder. Sergio lo
+// copia y lo pega en su Claude (el plan que ya paga) o en su agente, y le
+// devuelve el borrador. Cero coste de API, mismo material que usaría el
+// redactor automático.
+export function buildDraftPrompt(bl: BriefingLead): string | null {
+  if (!bl.company) return null;
+  const input = draftInputFromLead(bl);
+  const system = loadPrompt('message-system.md');
+  const context = [
+    `Empresa: ${input.companyName} (${input.domain})`,
+    input.hqCountry ? `País: ${input.hqCountry}` : null,
+    `Señal: ${input.signalSummary}`,
+    `Hallazgos del Brand3 Scanner sobre su marca:\n${input.scannerFindings}`,
+    input.personalAngle ? `Ángulo personal (del perfil): ${input.personalAngle}` : null,
+    input.contactName ? `Destinatario: ${input.contactName}` : null,
+    `Canal: LinkedIn (máx 500 caracteres)`,
+    `Idioma: ${input.lang === 'es' ? 'español' : 'inglés'}`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+  return `${system}\n\n---\n\n${context}`;
+}
+
 // ---------- QA de muestra (patrón Explee: verificar antes de aceptar) ----------
 
 export interface QaResult {
