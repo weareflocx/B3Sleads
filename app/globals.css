@@ -25,6 +25,12 @@
   --cta: #1a7f37;
   --cta-text: #ffffff;
 
+  /* Acciones que abren LinkedIn: azul (el canal azul del logo B3S).
+     --linkedin para fondos de botón, --linkedin-soft para enlaces de texto. */
+  --linkedin: #0000ff;
+  --linkedin-text: #ffffff;
+  --linkedin-soft: #0000ff;
+
   --nav-active-bg: rgba(255, 0, 0, 0.1);
   --nav-active-border: rgba(255, 0, 0, 0.42);
   --page-bg: rgba(245, 245, 245, 0.94);
@@ -52,6 +58,10 @@
 
   --cta: #00d554;
   --cta-text: #0b0d0e;
+
+  --linkedin: #0000ff;
+  --linkedin-text: #ffffff;
+  --linkedin-soft: #8080ff;
 
   --nav-active-bg: rgba(255, 0, 0, 0.14);
   --nav-active-border: rgba(255, 0, 0, 0.46);

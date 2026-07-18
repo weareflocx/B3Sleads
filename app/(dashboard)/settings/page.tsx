@@ -18,7 +18,13 @@ export default function SettingsPage() {
     { key: 'Modelo de redacción', value: process.env.CLAUDE_MODEL || 'claude-sonnet-4-6' },
     { key: 'Idioma por defecto', value: 'en (es si la empresa es española)' },
     { key: 'Supabase', value: isDemoMode() ? 'no configurado (modo demo)' : 'conectado' },
-    { key: 'Brand3 token', value: process.env.BRAND3_TOKEN ? 'configurado' : 'falta (pedir a Jesús)' },
+    {
+      key: 'Brand3 token',
+      value:
+        process.env.BRAND3_SCANNER_API_TOKEN || process.env.BRAND3_TOKEN
+          ? 'configurado'
+          : 'falta (solo necesario para lanzar scans nuevos)',
+    },
     { key: 'Anthropic API key', value: process.env.ANTHROPIC_API_KEY ? 'configurada' : 'falta' },
   ];
 
@@ -43,7 +49,7 @@ export default function SettingsPage() {
         <p className="mb-3">{icp.profile}</p>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-green-400">
+            <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-[var(--success)]">
               Criterios positivos
             </h3>
             <ul className="list-inside list-disc space-y-0.5 text-[var(--muted)]">
@@ -53,7 +59,7 @@ export default function SettingsPage() {
             </ul>
           </div>
           <div>
-            <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-red-400">
+            <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-[var(--danger)]">
               Criterios negativos
             </h3>
             <ul className="list-inside list-disc space-y-0.5 text-[var(--muted)]">

@@ -83,7 +83,7 @@ export default async function FoundersPage() {
                   )}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-xs text-[var(--cta)] hover:underline"
+                  className="text-xs text-[var(--linkedin-soft)] hover:underline"
                 >
                   Buscar founder en LinkedIn ↗
                 </a>

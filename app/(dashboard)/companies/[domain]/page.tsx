@@ -81,7 +81,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                 href={company.linkedin_url}
                 target="_blank"
                 rel="noreferrer"
-                className="text-[var(--accent)] hover:underline"
+                className="text-[var(--linkedin-soft)] hover:underline"
               >
                 LinkedIn ↗
               </a>
@@ -221,7 +221,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
               </p>
               <Link
                 href="/founders"
-                className="mt-2 inline-block text-xs text-[var(--accent)] hover:underline"
+                className="mt-2 inline-block text-xs text-[var(--cta)] hover:underline"
               >
                 Copiar y enviar desde la cola de founders →
               </Link>
@@ -291,7 +291,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                         href={contact.linkedin_url}
                         target="_blank"
                         rel="noreferrer"
-                        className="block rounded-md bg-[var(--cta)] px-3 py-2 text-center text-sm font-medium text-[var(--cta-text)] transition-opacity hover:opacity-90"
+                        className="block rounded-md bg-[var(--linkedin)] px-3 py-2 text-center text-sm font-medium text-[var(--linkedin-text)] transition-opacity hover:opacity-90"
                       >
                         Abrir LinkedIn ↗
                       </a>

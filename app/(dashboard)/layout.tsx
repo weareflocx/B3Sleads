@@ -2,13 +2,7 @@ import Link from 'next/link';
 import { isDemoMode } from '@/lib/supabase';
 import { ThemeToggle } from './theme-toggle';
 import { Logo } from './logo';
-
-const NAV = [
-  { href: '/briefing', label: 'briefing' },
-  { href: '/pipeline', label: 'pipeline' },
-  { href: '/founders', label: 'founders' },
-  { href: '/settings', label: 'settings' },
-];
+import { Nav } from './nav';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -19,17 +13,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <Logo />
           <span className="ml-2 text-xs font-semibold text-[var(--muted)]">Leads</span>
         </Link>
-        <nav className="flex flex-wrap justify-center gap-4 text-xs">
-          {NAV.map((n) => (
-            <Link
-              key={n.href}
-              href={n.href}
-              className="text-[var(--muted)] transition-colors hover:text-[var(--accent)]"
-            >
-              {n.label}
-            </Link>
-          ))}
-        </nav>
+        <Nav />
         <ThemeToggle />
       </header>
 

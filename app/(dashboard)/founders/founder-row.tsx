@@ -150,7 +150,7 @@ export function FounderRow({
       <div className="mt-3 flex flex-wrap gap-2 text-sm">
         <button
           onClick={copyAndOpen}
-          className="rounded-md bg-[var(--cta)] px-3 py-1.5 font-medium text-[var(--cta-text)] transition-opacity hover:opacity-90"
+          className="rounded-md bg-[var(--linkedin)] px-3 py-1.5 font-medium text-[var(--linkedin-text)] transition-opacity hover:opacity-90"
         >
           {copied
             ? 'Copiado ✓ · abriendo LinkedIn'

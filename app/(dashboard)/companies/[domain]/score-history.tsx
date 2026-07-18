@@ -70,7 +70,7 @@ export function ScoreHistory({ scans }: { scans: Scan[] }) {
                   href={s.ui_url}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-xs text-[var(--accent)] hover:underline"
+                  className="text-xs text-[var(--cta)] hover:underline"
                 >
                   informe ↗
                 </a>

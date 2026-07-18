@@ -108,13 +108,16 @@ export function LeadCard({ initial }: { initial: BriefingLead }) {
               rel="noreferrer"
               className="text-sm font-normal text-[var(--muted)] hover:underline"
             >
-              {bl.company.domain}
+              {bl.company.name === bl.company.domain ? 'web ↗' : bl.company.domain}
             </a>
           </h2>
           <p className="mt-1 flex items-center gap-2 text-sm text-[var(--muted)]">
             <span
               className="inline-block h-2 w-2 rounded-full"
-              style={{ background: bl.company.source === 'engaged' ? '#22c55e' : 'var(--accent)' }}
+              style={{
+                background:
+                  bl.company.source === 'engaged' ? 'var(--success)' : 'var(--accent)',
+              }}
             />
             {signalLabel(bl)}
           </p>
@@ -136,7 +139,7 @@ export function LeadCard({ initial }: { initial: BriefingLead }) {
           <p className="mt-2 font-mono text-xs text-[var(--muted)]">
             señal {b.recencia} · ronda {b.ronda} · gap marca {b.gap_marca} · fit {b.fit_icp}
             {b.bonus_engaged > 0 && (
-              <span className="text-green-400"> · warm +{b.bonus_engaged}</span>
+              <span className="text-[var(--success)]"> · warm +{b.bonus_engaged}</span>
             )}
           </p>
         );
@@ -153,7 +156,7 @@ export function LeadCard({ initial }: { initial: BriefingLead }) {
                   href={bl.scan.ui_url}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-[var(--accent)] hover:underline"
+                  className="text-[var(--cta)] hover:underline"
                 >
                   Ver informe completo ↗
                 </a>
@@ -176,7 +179,7 @@ export function LeadCard({ initial }: { initial: BriefingLead }) {
               href={bl.contact.linkedin_url}
               target="_blank"
               rel="noreferrer"
-              className="text-[var(--accent)] hover:underline"
+              className="text-[var(--linkedin-soft)] hover:underline"
             >
               LinkedIn ↗
             </a>
@@ -199,7 +202,7 @@ export function LeadCard({ initial }: { initial: BriefingLead }) {
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               rows={4}
-              className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] p-3 text-sm leading-relaxed outline-none focus:border-[var(--accent)]"
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] p-3 text-sm leading-relaxed outline-none transition-colors focus:border-[var(--cta)]"
             />
           ) : (
             <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--text)]/90">
@@ -209,9 +212,9 @@ export function LeadCard({ initial }: { initial: BriefingLead }) {
           <div className="mt-3 flex flex-wrap gap-2 text-sm">
             <button
               onClick={copyAndOpen}
-              className="rounded-md bg-[var(--cta)] px-3 py-1.5 font-medium text-[var(--cta-text)] transition-opacity hover:opacity-90"
+              className="rounded-md bg-[var(--linkedin)] px-3 py-1.5 font-medium text-[var(--linkedin-text)] transition-opacity hover:opacity-90"
             >
-              {copied ? 'Copiado ✓' : 'Copiar'}
+              {copied ? 'Copiado ✓ · abriendo LinkedIn' : 'Copiar y abrir LinkedIn'}
             </button>
             <button
               onClick={() => setEditing(!editing)}
@@ -234,7 +237,7 @@ export function LeadCard({ initial }: { initial: BriefingLead }) {
         <button
           onClick={() => patchLead('contacted')}
           disabled={busy !== null}
-          className="rounded-md border border-green-700/50 px-3 py-1.5 text-green-400 hover:bg-green-950/40 disabled:opacity-50"
+          className="rounded-md border border-[var(--cta)]/50 px-3 py-1.5 text-[var(--cta)] transition-colors hover:bg-[var(--cta)]/10 disabled:opacity-50"
         >
           → Contactado
         </button>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import type { BriefingLead, LeadStage } from '@/lib/types';
 import { STAGES, displayName } from '@/lib/types';
 
@@ -61,20 +62,37 @@ export function Kanban({ initial }: { initial: BriefingLead[] }) {
                   className="cursor-grab rounded-md border border-[var(--border)] bg-[var(--bg)] p-3.5 transition-colors hover:border-[var(--muted)] active:cursor-grabbing"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium leading-snug">
-                      {bl.company?.name ?? (displayName(bl.contact?.full_name) || 'Sin nombre')}
-                    </span>
+                    {bl.company ? (
+                      <Link
+                        href={`/companies/${bl.company.domain}`}
+                        className="min-w-0 flex-1 truncate text-sm font-medium leading-snug hover:underline"
+                      >
+                        {bl.company.name}
+                      </Link>
+                    ) : (
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium leading-snug">
+                        {displayName(bl.contact?.full_name) || 'Sin nombre'}
+                      </span>
+                    )}
                     {bl.lead.priority_score != null && (
                       <span className="shrink-0 rounded border border-[var(--border)] px-1.5 py-0.5 font-mono text-xs text-[var(--muted)]">
                         {Math.round(bl.lead.priority_score)}
                       </span>
                     )}
                   </div>
+                  {/* Si el nombre de la empresa es el propio dominio, repetirlo
+                      no aporta: mejor enseñar quién es el founder. */}
                   <p className="mt-1.5 truncate text-xs text-[var(--muted)]">
-                    {bl.company?.domain ?? (bl.contact ? 'founder sin empresa' : '')}
+                    {bl.company
+                      ? bl.company.name === bl.company.domain
+                        ? displayName(bl.contact?.full_name) || bl.company.domain
+                        : bl.company.domain
+                      : bl.contact
+                        ? 'founder sin empresa'
+                        : ''}
                   </p>
                   {bl.lead.discard_reason && (
-                    <p className="mt-1.5 text-xs text-red-400/70">{bl.lead.discard_reason}</p>
+                    <p className="mt-1.5 text-xs text-[var(--danger)]/80">{bl.lead.discard_reason}</p>
                   )}
                 </div>
               ))}

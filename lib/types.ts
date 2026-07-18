@@ -1,5 +1,7 @@
 // Tipos del modelo de datos (espejo de supabase/migrations/001_init.sql)
 
+import { GIVEN_NAMES } from './names';
+
 export type CompanySource =
   | 'lusha_signal'
   | 'rss'
@@ -170,14 +172,27 @@ export function linkedInUrlFromHandle(handle: string): string {
   return `https://www.linkedin.com/in/${handle}`;
 }
 
+// "joaocurado" → ["joao", "curado"] si el prefijo es un nombre de pila
+// conocido (prefijo más largo primero; el resto debe tener ≥4 letras para
+// no partir apellidos tipo "jansen"). Si hay duda, no se parte.
+function splitConcatenated(token: string): string[] {
+  const t = token.toLowerCase();
+  if (t.length < 7 || GIVEN_NAMES.has(t)) return [token];
+  for (let i = Math.min(t.length - 4, 12); i >= 3; i--) {
+    if (GIVEN_NAMES.has(t.slice(0, i))) return [t.slice(0, i), t.slice(i)];
+  }
+  return [token];
+}
+
 // "javier-palomino-fernandez-4b8a9" → "Javier Palomino Fernandez".
-// Descarta los sufijos con dígitos que LinkedIn añade a los handles.
+// Descarta los sufijos con dígitos que LinkedIn añade a los handles y
+// parte nombres pegados sin guion ("manojphatak" → "Manoj Phatak").
 export function humanizeHandle(handle: string): string {
-  const parts = handle
-    .split('-')
-    .filter((p) => p && !/\d/.test(p))
-    .map((p) => p.charAt(0).toUpperCase() + p.slice(1));
-  return parts.join(' ') || handle;
+  let parts = handle.split('-').filter((p) => p && !/\d/.test(p));
+  if (parts.length === 1) parts = splitConcatenated(parts[0]);
+  return (
+    parts.map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(' ') || handle
+  );
 }
 
 // Nombre para mostrar: si lo guardado parece un handle (minúsculas con
