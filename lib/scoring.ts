@@ -6,6 +6,18 @@
 
 import type { Signal, Scan, Company } from './types';
 
+// Temperatura del lead en llamas (0-5) a partir del priority score.
+// ≥90 = respondió o señal máxima; los umbrales bajan de 15 en 15.
+export function heatLevel(priority: number | null): number {
+  if (priority == null) return 0;
+  if (priority >= 90) return 5;
+  if (priority >= 75) return 4;
+  if (priority >= 60) return 3;
+  if (priority >= 45) return 2;
+  if (priority >= 25) return 1;
+  return 0;
+}
+
 const KNOWN_SECTORS = [
   'saas',
   'ai',

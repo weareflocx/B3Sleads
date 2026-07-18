@@ -3,12 +3,14 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { displayName } from '@/lib/types';
-import type { BriefingLead } from '@/lib/types';
+import { displayName, STAGES } from '@/lib/types';
+import type { BriefingLead, LeadStage } from '@/lib/types';
+import { ScoreRing } from '../score-ring';
+import { Heat } from '../heat';
 
 // Una fila de la cola de LinkedIn. Fricción mínima: copiar y abrir el perfil.
 // El envío lo hace Sergio, a mano, en LinkedIn.
-// conversation = founder que ya respondió: se destaca y el avance es a 'call'.
+// conversation = founder que ya respondió: se destaca en verde.
 export function FounderRow({
   initial,
   conversation = false,
@@ -19,17 +21,10 @@ export function FounderRow({
   const bl = initial;
   const router = useRouter();
   const [copied, setCopied] = useState(false);
-  const [done, setDone] = useState(false);
+  const [stage, setStage] = useState<LeadStage>(bl.lead.stage);
+  const [savingStage, setSavingStage] = useState(false);
   const [domain, setDomain] = useState('');
   const [savingDomain, setSavingDomain] = useState(false);
-
-  if (done) {
-    return (
-      <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--muted)]">
-        {displayName(bl.contact?.full_name)} → {conversation ? 'Call' : 'Contactado'}
-      </div>
-    );
-  }
 
   async function copyAndOpen() {
     if (bl.message) {
@@ -40,15 +35,23 @@ export function FounderRow({
     if (bl.contact?.linkedin_url) window.open(bl.contact.linkedin_url, '_blank');
   }
 
-  async function advance() {
-    // Conversación → avanza a 'call'. Cold → marca 'contacted'.
-    const stage = conversation ? 'call' : 'contacted';
+  // Cambiar la etapa desde el desplegable. La card NUNCA desaparece en
+  // cliente: tras guardar, router.refresh() la recoloca en la sección que
+  // toque (o la saca de /founders si ya no es operable aquí, p.ej. cerrado).
+  async function changeStage(next: LeadStage) {
+    const prev = stage;
+    setStage(next);
+    setSavingStage(true);
+    const body: Record<string, string> = { leadId: bl.lead.id, stage: next };
+    if (next === 'discarded') body.discardReason = 'Otro';
     const res = await fetch('/api/leads', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ leadId: bl.lead.id, stage }),
+      body: JSON.stringify(body),
     });
-    if (res.ok) setDone(true);
+    setSavingStage(false);
+    if (res.ok) router.refresh();
+    else setStage(prev);
   }
 
   async function saveDomain() {
@@ -68,6 +71,7 @@ export function FounderRow({
   }
 
   const hasCompany = bl.company != null;
+  const score = bl.scan?.status === 'ready' ? bl.scan.score : null;
 
   return (
     <div
@@ -96,10 +100,15 @@ export function FounderRow({
           )}
           <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
             {hasCompany ? (
-              bl.scan?.status === 'ready' && bl.scan.score != null ? (
-                <span className="font-mono">Brand3 {bl.scan.score}/100</span>
+              score != null ? (
+                <span className="flex items-center gap-1.5">
+                  <span className="text-[var(--muted)]">Score</span>
+                  <ScoreRing score={score} size={30} />
+                </span>
               ) : (
-                <span className="text-[var(--muted)]">Brand3: {bl.scan?.status ?? 'sin scan'}</span>
+                <span className="text-[var(--muted)]">
+                  Score: {bl.scan?.status === 'queued' || bl.scan?.status === 'running' ? 'escaneando…' : 'sin scan'}
+                </span>
               )
             ) : (
               <span className="text-[var(--warning)]">Sin empresa · no se puede escanear todavía</span>
@@ -109,11 +118,7 @@ export function FounderRow({
             {bl.contact?.notes && <span className="text-[var(--muted)]">· {bl.contact.notes}</span>}
           </div>
         </div>
-        {bl.lead.priority_score != null && (
-          <span className="rounded-md border border-[var(--border)] px-2 py-1 font-mono text-sm">
-            {Math.round(bl.lead.priority_score)}
-          </span>
-        )}
+        <Heat priority={bl.lead.priority_score} />
       </div>
 
       {/* Founder sin empresa: completar el dominio dispara ficha + Scanner */}
@@ -147,10 +152,19 @@ export function FounderRow({
           </p>
         ))}
 
-      <div className="mt-3 flex flex-wrap gap-2 text-sm">
+      {/* Orden: Ver ficha (blanco) → LinkedIn (contorno azul) → etapa (select) */}
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+        {hasCompany && (
+          <Link
+            href={`/companies/${bl.company!.domain}`}
+            className="rounded-md border border-[var(--border)] bg-white px-3 py-1.5 font-medium text-black transition-opacity hover:opacity-85"
+          >
+            Ver ficha
+          </Link>
+        )}
         <button
           onClick={copyAndOpen}
-          className="rounded-md bg-[var(--linkedin)] px-3 py-1.5 font-medium text-[var(--linkedin-text)] transition-opacity hover:opacity-90"
+          className="rounded-md border border-[var(--linkedin-soft)] px-3 py-1.5 font-medium text-[var(--linkedin-soft)] transition-colors hover:bg-[var(--linkedin-soft)]/10"
         >
           {copied
             ? 'Copiado ✓ · abriendo LinkedIn'
@@ -158,20 +172,21 @@ export function FounderRow({
               ? 'Copiar y abrir LinkedIn'
               : 'Abrir LinkedIn'}
         </button>
-        <button
-          onClick={advance}
-          className="rounded-md border border-[var(--cta)]/50 px-3 py-1.5 text-[var(--cta)] transition-colors hover:bg-[var(--cta)]/10"
-        >
-          {conversation ? '→ Call' : '→ Contactado'}
-        </button>
-        {hasCompany && (
-          <Link
-            href={`/companies/${bl.company!.domain}`}
-            className="rounded-md border border-[var(--border)] px-3 py-1.5 hover:border-[var(--muted)]"
+        <label className="ml-auto flex items-center gap-1.5 text-xs text-[var(--muted)]">
+          Etapa
+          <select
+            value={stage}
+            disabled={savingStage}
+            onChange={(e) => changeStage(e.target.value as LeadStage)}
+            className="rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5 text-sm text-[var(--text)] outline-none transition-colors focus:border-[var(--cta)] disabled:opacity-50"
           >
-            Ver ficha
-          </Link>
-        )}
+            {STAGES.map((s) => (
+              <option key={s.key} value={s.key}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
     </div>
   );
