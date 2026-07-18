@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { displayName, STAGES } from '@/lib/types';
 import type { BriefingLead, LeadStage } from '@/lib/types';
+import type { Temperature } from '@/lib/scoring';
 import { ScoreRing } from '../score-ring';
 import { Heat } from '../heat';
 import { Avatar } from '../avatar';
@@ -15,10 +16,12 @@ import { Avatar } from '../avatar';
 export function FounderRow({
   initial,
   opener = null,
+  temp,
   conversation = false,
 }: {
   initial: BriefingLead;
-  opener?: string | null; // primer ángulo del argumentario (lib/pitch.ts, sin API)
+  opener?: string | null; // frase de entrada del argumentario (lib/pitch.ts, sin API)
+  temp: Temperature; // temperatura viva del lead (lib/scoring.leadTemperature)
   conversation?: boolean;
 }) {
   const bl = initial;
@@ -129,7 +132,7 @@ export function FounderRow({
 
         {/* Métricas a la derecha: temperatura (llamas) + score */}
         <div className="flex shrink-0 flex-col items-end gap-2">
-          <Heat priority={bl.lead.priority_score} />
+          <Heat temp={temp} />
           {score != null ? (
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">Score</span>

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { displayName } from './types';
 import type { BriefingLead } from './types';
+import { parseScanReport, reportMarkdown, reportDigest } from './scan-report';
 
 const MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-4-6';
 
@@ -83,15 +84,22 @@ export function draftInputFromLead(bl: BriefingLead): DraftInput {
   const parts = [detail.round, detail.amount, (detail.investors as string[] | undefined)?.join(', ')]
     .filter(Boolean)
     .join(' · ');
-  const tldrText =
-    typeof bl.scan?.tldr === 'string' ? bl.scan.tldr : JSON.stringify(bl.scan?.tldr ?? {});
+  // Material del Scanner: si tenemos el informe completo, un digest por-marca
+  // (fortalezas + huecos concretos con su plan) para que el mensaje sea único.
+  // Si no, el resumen del tldr como respaldo.
+  const md = reportMarkdown(bl.scan?.result_raw);
+  const scannerFindings = md
+    ? reportDigest(parseScanReport(md))
+    : typeof bl.scan?.tldr === 'string'
+      ? bl.scan.tldr
+      : JSON.stringify(bl.scan?.tldr ?? {});
   const isSpanish = (bl.company.hq_country ?? '').toLowerCase().match(/spain|españa|es\b/);
   return {
     companyName: bl.company.name,
     domain: bl.company.domain,
     hqCountry: bl.company.hq_country,
     signalSummary: parts || 'señal de momento detectada',
-    scannerFindings: tldrText.slice(0, 3000),
+    scannerFindings: scannerFindings.slice(0, 3000),
     personalAngle: bl.contact?.notes ?? null,
     contactName: displayName(bl.contact?.full_name) || null,
     channel: 'linkedin',
