@@ -1,4 +1,5 @@
 import { getFounderQueue, getConversations, getBriefingLeads } from '@/lib/data';
+import { displayName } from '@/lib/types';
 import { ImportBox } from './import-box';
 import { FounderRow } from './founder-row';
 
@@ -73,7 +74,7 @@ export default async function FoundersPage() {
                 <span>
                   {bl.company?.name}{' '}
                   <span className="text-[var(--muted)]">
-                    {bl.contact ? `· ${bl.contact.full_name}` : '· sin contacto'}
+                    {bl.contact ? `· ${displayName(bl.contact.full_name)}` : '· sin contacto'}
                   </span>
                 </span>
                 <a
@@ -82,7 +83,7 @@ export default async function FoundersPage() {
                   )}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-xs text-[var(--accent)] hover:underline"
+                  className="text-xs text-[var(--cta)] hover:underline"
                 >
                   Buscar founder en LinkedIn ↗
                 </a>

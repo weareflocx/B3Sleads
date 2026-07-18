@@ -2,6 +2,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import fs from 'node:fs';
 import path from 'node:path';
+import { displayName } from './types';
 import type { BriefingLead } from './types';
 
 const MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-4-6';
@@ -92,7 +93,7 @@ export function draftInputFromLead(bl: BriefingLead): DraftInput {
     signalSummary: parts || 'señal de momento detectada',
     scannerFindings: tldrText.slice(0, 3000),
     personalAngle: bl.contact?.notes ?? null,
-    contactName: bl.contact?.full_name ?? null,
+    contactName: displayName(bl.contact?.full_name) || null,
     channel: 'linkedin',
     lang: isSpanish ? 'es' : 'en',
   };

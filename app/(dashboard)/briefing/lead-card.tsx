@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import type { BriefingLead } from '@/lib/types';
-import { DISCARD_REASONS } from '@/lib/types';
+import { DISCARD_REASONS, displayName } from '@/lib/types';
 import { priorityBreakdown } from '@/lib/scoring';
 
 function timeAgo(iso: string): string {
@@ -168,7 +168,7 @@ export function LeadCard({ initial }: { initial: BriefingLead }) {
       {bl.contact && (
         <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
           <span>
-            {bl.contact.full_name}
+            {displayName(bl.contact.full_name)}
             {bl.contact.role ? `, ${bl.contact.role}` : ''}
           </span>
           {bl.contact.linkedin_url && (
@@ -209,7 +209,7 @@ export function LeadCard({ initial }: { initial: BriefingLead }) {
           <div className="mt-3 flex flex-wrap gap-2 text-sm">
             <button
               onClick={copyAndOpen}
-              className="rounded-md bg-[var(--accent)] px-3 py-1.5 font-medium text-white transition-opacity hover:opacity-90"
+              className="rounded-md bg-[var(--cta)] px-3 py-1.5 font-medium text-[var(--cta-text)] transition-opacity hover:opacity-90"
             >
               {copied ? 'Copiado ✓' : 'Copiar'}
             </button>

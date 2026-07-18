@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import { getBrandProfile } from '@/lib/brand3';
 import { priorityScore } from '@/lib/scoring';
-import { parseLinkedInHandle, linkedInUrlFromHandle } from '@/lib/types';
+import { parseLinkedInHandle, linkedInUrlFromHandle, humanizeHandle } from '@/lib/types';
 import type { Company } from '@/lib/types';
 
 // Alta manual de founders desde LinkedIn.
@@ -32,37 +32,50 @@ export async function POST(req: NextRequest) {
 
     for (const e of entries) {
       const handle = parseLinkedInHandle(e.linkedin ?? '');
-      if (!handle) {
-        results.push({ input: e.linkedin ?? '(vacío)', status: 'error', detail: 'URL de LinkedIn no válida' });
+      const domain = (e.domain ?? '')
+        .toLowerCase()
+        .replace(/^https?:\/\//, '')
+        .replace(/^www\./, '')
+        .split('/')[0];
+
+      // Vale con founder, con marca, o con ambos. Sin ninguno, error.
+      if (!handle && !domain) {
+        results.push({
+          input: e.linkedin || e.domain || '(vacío)',
+          status: 'error',
+          detail: 'Hace falta el LinkedIn del founder o el dominio de la marca',
+        });
         continue;
       }
-      const linkedinUrl = linkedInUrlFromHandle(handle);
+      const linkedinUrl = handle ? linkedInUrlFromHandle(handle) : null;
 
       if (!db) {
         results.push({
-          input: handle,
+          input: handle ?? domain,
           status: 'demo',
-          detail: `Se registraría ${e.name || handle}${e.domain ? ` (${e.domain})` : ''} y se lanzaría el Scanner`,
+          detail: `Se registraría ${e.name || handle || domain} y se buscaría su scan en B3S`,
         });
         continue;
       }
 
       // Dedupe por handle: la identidad del founder sobrevive al cambio de empresa
-      const { data: existing } = await db
-        .from('contacts')
-        .select('id, full_name')
-        .eq('linkedin_handle', handle)
-        .maybeSingle();
-      if (existing) {
-        results.push({ input: handle, status: 'dup', detail: `Ya existe: ${existing.full_name}` });
-        continue;
+      if (handle) {
+        const { data: existing } = await db
+          .from('contacts')
+          .select('id, full_name')
+          .eq('linkedin_handle', handle)
+          .maybeSingle();
+        if (existing) {
+          results.push({ input: handle, status: 'dup', detail: `Ya existe: ${existing.full_name}` });
+          continue;
+        }
       }
 
       // Compañía: por dominio si lo hay, si no una ficha mínima por nombre
       let companyId: string | null = null;
       let companyRow: Company | null = null;
-      const domain = (e.domain ?? '').toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
 
+      let companyWasNew = false;
       if (domain) {
         const { data: existingCo } = await db
           .from('companies')
@@ -79,31 +92,44 @@ export async function POST(req: NextRequest) {
             .select()
             .single();
           if (error) {
-            results.push({ input: handle, status: 'error', detail: error.message });
+            results.push({ input: handle ?? domain, status: 'error', detail: error.message });
             continue;
           }
           companyId = newCo.id;
           companyRow = newCo as Company;
+          companyWasNew = true;
         }
       }
 
-      const { data: contact, error: cErr } = await db
-        .from('contacts')
-        .insert({
-          company_id: companyId,
-          full_name: e.name || handle,
-          role: e.role || null,
-          linkedin_url: linkedinUrl,
-          linkedin_handle: handle,
-          headline: e.headline || null,
-          notes: e.note || null,
-          source: contactSource,
-        })
-        .select()
-        .single();
-      if (cErr) {
-        results.push({ input: handle, status: 'error', detail: cErr.message });
+      // Solo marca, sin founder, y la marca ya existía → nada nuevo que crear
+      if (!handle && !companyWasNew) {
+        results.push({ input: domain, status: 'dup', detail: 'Esa marca ya estaba en el radar' });
         continue;
+      }
+
+      // Contacto solo si hay founder. El nombre se humaniza desde el handle
+      // (estilo LinkedIn: "javier-palomino" → "Javier Palomino").
+      let contactId: string | null = null;
+      if (handle) {
+        const { data: contact, error: cErr } = await db
+          .from('contacts')
+          .insert({
+            company_id: companyId,
+            full_name: e.name || humanizeHandle(handle),
+            role: e.role || null,
+            linkedin_url: linkedinUrl,
+            linkedin_handle: handle,
+            headline: e.headline || null,
+            notes: e.note || null,
+            source: contactSource,
+          })
+          .select()
+          .single();
+        if (cErr) {
+          results.push({ input: handle, status: 'error', detail: cErr.message });
+          continue;
+        }
+        contactId = contact.id;
       }
 
       // Importar el scan del Observatorio público si esa marca ya está en
@@ -153,20 +179,25 @@ export async function POST(req: NextRequest) {
         : 40;
       await db.from('leads').insert({
         company_id: companyId,
-        contact_id: contact.id,
+        contact_id: contactId,
         scan_id: scanId,
         stage,
         priority_score: replied ? 100 : base,
       });
 
+      const scanNote = domain
+        ? scanId
+          ? 'scan de B3S importado'
+          : 'sin scan en B3S aún (pega la URL del informe en su ficha)'
+        : 'añade el dominio de su marca para traer el scan';
       results.push({
-        input: handle,
+        input: handle ?? domain,
         status: 'ok',
         detail: replied
-          ? 'en conversación (te respondió por privado)'
-          : domain
-            ? 'en la cola: ficha + Brand3 Scanner lanzado'
-            : 'en la cola (añade el dominio de su empresa para escanear la marca)',
+          ? `en conversación (te respondió por privado) · ${scanNote}`
+          : handle
+            ? `en la cola · ${scanNote}`
+            : `marca en el radar · ${scanNote} · busca a su founder en LinkedIn`,
       });
     }
 

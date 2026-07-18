@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { BriefingLead, LeadStage } from '@/lib/types';
-import { STAGES } from '@/lib/types';
+import { STAGES, displayName } from '@/lib/types';
 
 // Columnas visibles del kanban (detected y briefed se agrupan como "Detectado")
 const COLUMNS: { key: LeadStage; label: string; includes: LeadStage[] }[] = [
@@ -62,7 +62,7 @@ export function Kanban({ initial }: { initial: BriefingLead[] }) {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <span className="min-w-0 flex-1 truncate text-sm font-medium leading-snug">
-                      {bl.company?.name ?? bl.contact?.full_name ?? 'Sin nombre'}
+                      {bl.company?.name ?? (displayName(bl.contact?.full_name) || 'Sin nombre')}
                     </span>
                     {bl.lead.priority_score != null && (
                       <span className="shrink-0 rounded border border-[var(--border)] px-1.5 py-0.5 font-mono text-xs text-[var(--muted)]">

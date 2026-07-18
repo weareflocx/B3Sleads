@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { displayName } from '@/lib/types';
 import type { BriefingLead } from '@/lib/types';
 
 // Una fila de la cola de LinkedIn. Fricción mínima: copiar y abrir el perfil.
@@ -25,7 +26,7 @@ export function FounderRow({
   if (done) {
     return (
       <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--muted)]">
-        {bl.contact?.full_name} → {conversation ? 'Call' : 'Contactado'}
+        {displayName(bl.contact?.full_name)} → {conversation ? 'Call' : 'Contactado'}
       </div>
     );
   }
@@ -77,7 +78,7 @@ export function FounderRow({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-baseline gap-2">
-            <span className="font-semibold">{bl.contact?.full_name}</span>
+            <span className="font-semibold">{displayName(bl.contact?.full_name)}</span>
             {bl.contact?.role && (
               <span className="text-sm text-[var(--muted)]">{bl.contact.role}</span>
             )}
@@ -123,12 +124,12 @@ export function FounderRow({
             onChange={(e) => setDomain(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && saveDomain()}
             placeholder="dominio de su empresa, ej: acmelabs.io"
-            className="min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-sm outline-none focus:border-[var(--accent)]"
+            className="min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-sm outline-none transition-colors focus:border-[var(--cta)]"
           />
           <button
             onClick={saveDomain}
             disabled={savingDomain || !domain.trim()}
-            className="rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+            className="rounded-md bg-[var(--cta)] px-3 py-1.5 text-sm font-medium text-[var(--cta-text)] transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {savingDomain ? 'Añadiendo…' : 'Añadir empresa y escanear'}
           </button>
@@ -149,7 +150,7 @@ export function FounderRow({
       <div className="mt-3 flex flex-wrap gap-2 text-sm">
         <button
           onClick={copyAndOpen}
-          className="rounded-md bg-[var(--accent)] px-3 py-1.5 font-medium text-white transition-opacity hover:opacity-90"
+          className="rounded-md bg-[var(--cta)] px-3 py-1.5 font-medium text-[var(--cta-text)] transition-opacity hover:opacity-90"
         >
           {copied
             ? 'Copiado ✓ · abriendo LinkedIn'
@@ -159,7 +160,7 @@ export function FounderRow({
         </button>
         <button
           onClick={advance}
-          className="rounded-md border border-green-700/50 px-3 py-1.5 text-green-400 hover:bg-green-950/40"
+          className="rounded-md border border-[var(--cta)]/50 px-3 py-1.5 text-[var(--cta)] transition-colors hover:bg-[var(--cta)]/10"
         >
           {conversation ? '→ Call' : '→ Contactado'}
         </button>

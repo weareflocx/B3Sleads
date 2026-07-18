@@ -67,7 +67,7 @@ export function FollowUp({
           value={stage}
           onChange={(e) => changeStage(e.target.value as LeadStage)}
           disabled={saving === 'stage'}
-          className="rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5 text-sm outline-none focus:border-[var(--accent)]"
+          className="rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5 text-sm outline-none focus:border-[var(--cta)]"
         >
           {STAGES.map((s) => (
             <option key={s.key} value={s.key}>
@@ -110,12 +110,12 @@ export function FollowUp({
           onChange={(e) => setNotes(e.target.value)}
           rows={3}
           placeholder="ej: respondió interesado, le mando el informe el lunes"
-          className="mt-1.5 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] p-2.5 text-sm leading-relaxed outline-none focus:border-[var(--accent)]"
+          className="mt-1.5 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] p-2.5 text-sm leading-relaxed outline-none focus:border-[var(--cta)]"
         />
         <button
           onClick={saveNotes}
           disabled={saving === 'notes' || notes === savedNotes || !contactId}
-          className="mt-1.5 rounded-md border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--muted)] transition-colors hover:border-[var(--nav-active-border)] hover:text-[var(--accent)] disabled:opacity-40"
+          className="mt-1.5 rounded-md border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--muted)] transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)] disabled:opacity-40"
         >
           {saving === 'notes' ? 'Guardando…' : notes === savedNotes ? 'Guardado' : 'Guardar notas'}
         </button>

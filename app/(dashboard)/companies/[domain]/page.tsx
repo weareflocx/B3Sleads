@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { getCompanyFiche, getCompanyScans, getCompanySignals } from '@/lib/data';
 import { priorityBreakdown } from '@/lib/scoring';
 import { buildPitch } from '@/lib/pitch';
-import { STAGES } from '@/lib/types';
+import { STAGES, displayName } from '@/lib/types';
 import { ScanButton } from './scan-button';
 import { ScoreHistory } from './score-history';
 import { FollowUp } from './follow-up';
@@ -60,7 +60,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
   const gaps = (scan?.tldr as { gaps?: string[] } | null)?.gaps ?? [];
   const stageLabel =
     STAGES.find((s) => s.key === lead.stage)?.label ?? (lead.stage === 'lost' ? 'Perdido' : lead.stage);
-  const firstName = contact?.full_name?.split(' ')[0] ?? null;
+  const firstName = displayName(contact?.full_name).split(' ')[0] || null;
 
   return (
     <main>
@@ -276,7 +276,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
             <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
               {contact ? (
                 <>
-                  <div className="text-sm font-medium">{contact.full_name}</div>
+                  <div className="text-sm font-medium">{displayName(contact.full_name)}</div>
                   {contact.role && (
                     <div className="mt-0.5 text-sm text-[var(--muted)]">{contact.role}</div>
                   )}
@@ -291,7 +291,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                         href={contact.linkedin_url}
                         target="_blank"
                         rel="noreferrer"
-                        className="block rounded-md bg-[var(--accent)] px-3 py-2 text-center text-sm font-medium text-white transition-opacity hover:opacity-90"
+                        className="block rounded-md bg-[var(--cta)] px-3 py-2 text-center text-sm font-medium text-[var(--cta-text)] transition-opacity hover:opacity-90"
                       >
                         Abrir LinkedIn ↗
                       </a>

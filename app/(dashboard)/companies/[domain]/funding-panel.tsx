@@ -102,26 +102,26 @@ export function FundingPanel({
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="2.4M EUR"
-              className="w-28 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5 text-sm outline-none focus:border-[var(--accent)]"
+              className="w-28 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5 text-sm outline-none focus:border-[var(--cta)]"
             />
           </div>
           <input
             value={investors}
             onChange={(e) => setInvestors(e.target.value)}
             placeholder="inversores, separados por comas"
-            className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5 text-sm outline-none focus:border-[var(--accent)]"
+            className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5 text-sm outline-none focus:border-[var(--cta)]"
           />
           <input
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5 text-sm outline-none focus:border-[var(--accent)]"
+            className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5 text-sm outline-none focus:border-[var(--cta)]"
           />
           <div className="flex gap-2">
             <button
               onClick={save}
               disabled={busy}
-              className="rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+              className="rounded-md bg-[var(--cta)] px-3 py-1.5 text-sm font-medium text-[var(--cta-text)] disabled:opacity-50"
             >
               {busy ? 'Guardando…' : 'Guardar ronda'}
             </button>
@@ -136,7 +136,7 @@ export function FundingPanel({
       ) : (
         <button
           onClick={() => setOpen(true)}
-          className="mt-3 rounded-md border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--muted)] transition-colors hover:border-[var(--nav-active-border)] hover:text-[var(--accent)]"
+          className="mt-3 rounded-md border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--muted)] transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)]"
         >
           {latest ? 'Registrar otra ronda' : 'Registrar ronda'}
         </button>

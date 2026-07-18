@@ -54,12 +54,12 @@ export function ScanButton({
           onChange={(e) => setUrl(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && url.trim() && importScan({ reportUrl: url }, 'url')}
           placeholder="pega la URL del informe: b3s.fly.dev/report/…"
-          className="min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-sm outline-none focus:border-[var(--accent)]"
+          className="min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-sm outline-none focus:border-[var(--cta)]"
         />
         <button
           onClick={() => importScan({ reportUrl: url }, 'url')}
           disabled={busy !== null || !url.trim()}
-          className="rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+          className="rounded-md bg-[var(--cta)] px-3 py-1.5 text-sm font-medium text-[var(--cta-text)] disabled:opacity-50"
         >
           {busy === 'url' ? 'Importando…' : scan?.status === 'ready' ? 'Añadir scan' : 'Importar'}
         </button>
@@ -70,7 +70,7 @@ export function ScanButton({
         <button
           onClick={() => importScan({ domain }, 'search')}
           disabled={busy !== null}
-          className="text-[var(--muted)] hover:text-[var(--accent)] disabled:opacity-50"
+          className="text-[var(--muted)] hover:text-[var(--cta)] disabled:opacity-50"
         >
           {busy === 'search' ? 'Buscando…' : 'o buscar por dominio en el histórico'}
         </button>
@@ -78,7 +78,7 @@ export function ScanButton({
           href={`https://b3s.fly.dev/`}
           target="_blank"
           rel="noreferrer"
-          className="text-[var(--muted)] hover:text-[var(--accent)]"
+          className="text-[var(--muted)] hover:text-[var(--cta)]"
         >
           escanear en b3s.fly.dev ↗
         </a>

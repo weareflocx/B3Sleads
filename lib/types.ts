@@ -169,3 +169,21 @@ export function parseLinkedInHandle(input: string): string | null {
 export function linkedInUrlFromHandle(handle: string): string {
   return `https://www.linkedin.com/in/${handle}`;
 }
+
+// "javier-palomino-fernandez-4b8a9" → "Javier Palomino Fernandez".
+// Descarta los sufijos con dígitos que LinkedIn añade a los handles.
+export function humanizeHandle(handle: string): string {
+  const parts = handle
+    .split('-')
+    .filter((p) => p && !/\d/.test(p))
+    .map((p) => p.charAt(0).toUpperCase() + p.slice(1));
+  return parts.join(' ') || handle;
+}
+
+// Nombre para mostrar: si lo guardado parece un handle (minúsculas con
+// guiones, sin espacios), se humaniza. Si ya es un nombre, se respeta.
+export function displayName(name: string | null | undefined): string {
+  if (!name) return '';
+  if (!name.includes(' ') && /^[a-z0-9%._-]+$/.test(name)) return humanizeHandle(name);
+  return name;
+}

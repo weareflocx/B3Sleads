@@ -20,6 +20,11 @@
   --danger: #b84f3f;
   --warning: #b7792b;
 
+  /* Acción primaria: verde (el canal verde del logo B3S). El rojo queda
+     para identidad de marca y acciones destructivas, no para CTAs. */
+  --cta: #1a7f37;
+  --cta-text: #ffffff;
+
   --nav-active-bg: rgba(255, 0, 0, 0.1);
   --nav-active-border: rgba(255, 0, 0, 0.42);
   --page-bg: rgba(245, 245, 245, 0.94);
@@ -44,6 +49,9 @@
   --success: #00ff00;
   --danger: #e07a6d;
   --warning: #e4c76d;
+
+  --cta: #00d554;
+  --cta-text: #0b0d0e;
 
   --nav-active-bg: rgba(255, 0, 0, 0.14);
   --nav-active-border: rgba(255, 0, 0, 0.46);
