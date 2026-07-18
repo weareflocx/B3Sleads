@@ -136,9 +136,10 @@ export interface BriefingLead {
   message: Message | null;
 }
 
+// Etapas que se ofrecen en la UI. 'briefed' NO está: es un estado interno
+// del pipeline nocturno (dossier preparado) que se muestra como 'Detectado'.
 export const STAGES: { key: LeadStage; label: string }[] = [
   { key: 'detected', label: 'Detectado' },
-  { key: 'briefed', label: 'Briefed' },
   { key: 'contacted', label: 'Contactado' },
   { key: 'conversation', label: 'Conversación' },
   { key: 'call', label: 'Call' },
@@ -146,6 +147,14 @@ export const STAGES: { key: LeadStage; label: string }[] = [
   { key: 'won', label: 'Cerrado' },
   { key: 'discarded', label: 'Descartado' },
 ];
+
+// Etiqueta legible de cualquier etapa, incluidas las internas ('briefed' =
+// dossier listo del pipeline → se cuenta como 'Detectado'; 'lost' = Perdido).
+export function stageLabel(stage: LeadStage): string {
+  if (stage === 'briefed') return 'Detectado';
+  if (stage === 'lost') return 'Perdido';
+  return STAGES.find((s) => s.key === stage)?.label ?? stage;
+}
 
 export const DISCARD_REASONS = [
   'Fuera de ICP',

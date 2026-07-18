@@ -1,9 +1,19 @@
 import { getFounderQueue, getConversations, getBriefingLeads } from '@/lib/data';
 import { displayName } from '@/lib/types';
+import { buildPitch } from '@/lib/pitch';
+import type { BriefingLead } from '@/lib/types';
 import { ImportBox } from './import-box';
 import { FounderRow } from './founder-row';
 
 export const dynamic = 'force-dynamic';
+
+// Primer ángulo del argumentario (determinista, sin API) para abrir la
+// conversación. Requiere empresa + scan; si no, la card pide el scan.
+function opener(bl: BriefingLead): string | null {
+  if (!bl.company || !bl.scan) return null;
+  const p = buildPitch({ company: bl.company, scan: bl.scan, fundingSignal: bl.signal });
+  return p.angulos[0] ?? p.lectura[0] ?? null;
+}
 
 // La pantalla del canal: founders con LinkedIn, listos para que Sergio
 // escriba a mano. El envío nunca es automático (spec §9).
@@ -39,7 +49,7 @@ export default async function FoundersPage() {
           </h2>
           <div className="space-y-3">
             {conversations.map((bl) => (
-              <FounderRow key={bl.lead.id} initial={bl} conversation />
+              <FounderRow key={bl.lead.id} initial={bl} opener={opener(bl)} conversation />
             ))}
           </div>
         </section>
@@ -55,7 +65,7 @@ export default async function FoundersPage() {
       ) : (
         <div className="space-y-3">
           {queue.map((bl) => (
-            <FounderRow key={bl.lead.id} initial={bl} />
+            <FounderRow key={bl.lead.id} initial={bl} opener={opener(bl)} />
           ))}
         </div>
       )}

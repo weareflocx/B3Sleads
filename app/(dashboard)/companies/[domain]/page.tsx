@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { getCompanyFiche, getCompanyScans, getCompanySignals } from '@/lib/data';
 import { priorityBreakdown } from '@/lib/scoring';
 import { buildPitch } from '@/lib/pitch';
-import { STAGES, displayName } from '@/lib/types';
+import { stageLabel as stageLabelFor, displayName } from '@/lib/types';
 import { ScanButton } from './scan-button';
 import { ScoreHistory } from './score-history';
 import { FollowUp } from './follow-up';
@@ -58,8 +58,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
   const tldr =
     typeof scan?.tldr === 'string' ? scan.tldr : ((scan?.tldr as { summary?: string })?.summary ?? null);
   const gaps = (scan?.tldr as { gaps?: string[] } | null)?.gaps ?? [];
-  const stageLabel =
-    STAGES.find((s) => s.key === lead.stage)?.label ?? (lead.stage === 'lost' ? 'Perdido' : lead.stage);
+  const stageLabel = stageLabelFor(lead.stage);
   const firstName = displayName(contact?.full_name).split(' ')[0] || null;
 
   return (

@@ -7,24 +7,33 @@ import { displayName, STAGES } from '@/lib/types';
 import type { BriefingLead, LeadStage } from '@/lib/types';
 import { ScoreRing } from '../score-ring';
 import { Heat } from '../heat';
+import { Avatar } from '../avatar';
 
 // Una fila de la cola de LinkedIn. Fricción mínima: copiar y abrir el perfil.
 // El envío lo hace Sergio, a mano, en LinkedIn.
 // conversation = founder que ya respondió: se destaca en verde.
 export function FounderRow({
   initial,
+  opener = null,
   conversation = false,
 }: {
   initial: BriefingLead;
+  opener?: string | null; // primer ángulo del argumentario (lib/pitch.ts, sin API)
   conversation?: boolean;
 }) {
   const bl = initial;
   const router = useRouter();
   const [copied, setCopied] = useState(false);
-  const [stage, setStage] = useState<LeadStage>(bl.lead.stage);
+  // 'briefed' es interno del pipeline; en la UI se opera como 'detected'.
+  const [stage, setStage] = useState<LeadStage>(
+    bl.lead.stage === 'briefed' ? 'detected' : bl.lead.stage,
+  );
   const [savingStage, setSavingStage] = useState(false);
   const [domain, setDomain] = useState('');
   const [savingDomain, setSavingDomain] = useState(false);
+
+  const name = displayName(bl.contact?.full_name);
+  const firstName = name.split(' ')[0] || 'el founder';
 
   async function copyAndOpen() {
     if (bl.message) {
@@ -37,7 +46,7 @@ export function FounderRow({
 
   // Cambiar la etapa desde el desplegable. La card NUNCA desaparece en
   // cliente: tras guardar, router.refresh() la recoloca en la sección que
-  // toque (o la saca de /founders si ya no es operable aquí, p.ej. cerrado).
+  // toque (o la saca de /founders si ya no es operable aquí).
   async function changeStage(next: LeadStage) {
     const prev = stage;
     setStage(next);
@@ -63,7 +72,7 @@ export function FounderRow({
       body: JSON.stringify({ leadId: bl.lead.id, domain, companyName: bl.company?.name }),
     });
     setSavingDomain(false);
-    if (res.ok) router.refresh(); // recarga la fila ya con empresa + scan
+    if (res.ok) router.refresh();
     else {
       const j = await res.json();
       alert(`No se pudo añadir: ${j.error}`);
@@ -72,6 +81,7 @@ export function FounderRow({
 
   const hasCompany = bl.company != null;
   const score = bl.scan?.status === 'ready' ? bl.scan.score : null;
+  const scanning = bl.scan?.status === 'queued' || bl.scan?.status === 'running';
 
   return (
     <div
@@ -79,46 +89,56 @@ export function FounderRow({
         conversation ? 'border-[var(--success)]/50' : 'border-[var(--border)]'
       }`}
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-baseline gap-2">
-            <span className="font-semibold">{displayName(bl.contact?.full_name)}</span>
-            {bl.contact?.role && (
-              <span className="text-sm text-[var(--muted)]">{bl.contact.role}</span>
-            )}
-            {hasCompany && (
-              <>
-                <span className="text-sm text-[var(--muted)]">·</span>
-                <Link href={`/companies/${bl.company!.domain}`} className="text-sm hover:underline">
-                  {bl.company!.name}
-                </Link>
-              </>
-            )}
-          </div>
-          {bl.contact?.headline && (
-            <p className="mt-1 text-xs text-[var(--muted)]">{bl.contact.headline}</p>
-          )}
-          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
+      <div className="flex items-start justify-between gap-3">
+        {/* Identidad: avatar + nombre, marca debajo, headline y meta */}
+        <div className="flex min-w-0 gap-3">
+          <Avatar name={name} />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-baseline gap-2">
+              <span className="font-semibold">{name}</span>
+              {bl.contact?.role && (
+                <span className="text-xs text-[var(--muted)]">{bl.contact.role}</span>
+              )}
+            </div>
             {hasCompany ? (
-              score != null ? (
-                <span className="flex items-center gap-1.5">
-                  <span className="text-[var(--muted)]">Score</span>
-                  <ScoreRing score={score} size={30} />
-                </span>
-              ) : (
-                <span className="text-[var(--muted)]">
-                  Score: {bl.scan?.status === 'queued' || bl.scan?.status === 'running' ? 'escaneando…' : 'sin scan'}
-                </span>
-              )
+              <Link
+                href={`/companies/${bl.company!.domain}`}
+                className="text-sm text-[var(--muted)] hover:text-[var(--text)] hover:underline"
+              >
+                {bl.company!.name}
+              </Link>
             ) : (
-              <span className="text-[var(--warning)]">Sin empresa · no se puede escanear todavía</span>
+              <span className="text-xs text-[var(--warning)]">
+                Sin empresa · no se puede escanear todavía
+              </span>
             )}
-            {bl.company?.sector && <span className="text-[var(--muted)]">{bl.company.sector}</span>}
-            {bl.company?.size && <span className="text-[var(--muted)]">{bl.company.size}</span>}
-            {bl.contact?.notes && <span className="text-[var(--muted)]">· {bl.contact.notes}</span>}
+            {bl.contact?.headline && (
+              <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
+                {bl.contact.headline}
+              </p>
+            )}
+            {(bl.company?.sector || bl.company?.size || bl.contact?.notes) && (
+              <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
+                {bl.company?.sector && <span>{bl.company.sector}</span>}
+                {bl.company?.size && <span>{bl.company.size}</span>}
+                {bl.contact?.notes && <span>· {bl.contact.notes}</span>}
+              </div>
+            )}
           </div>
         </div>
-        <Heat priority={bl.lead.priority_score} />
+
+        {/* Métricas a la derecha: temperatura (llamas) + score */}
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          <Heat priority={bl.lead.priority_score} />
+          {score != null ? (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">Score</span>
+              <ScoreRing score={score} size={34} />
+            </div>
+          ) : hasCompany ? (
+            <span className="text-xs text-[var(--muted)]">{scanning ? 'escaneando…' : 'sin scan'}</span>
+          ) : null}
+        </div>
       </div>
 
       {/* Founder sin empresa: completar el dominio dispara ficha + Scanner */}
@@ -141,18 +161,37 @@ export function FounderRow({
         </div>
       )}
 
+      {/* Contexto para escribir: el borrador si existe; si no, el primer ángulo
+          del argumentario (determinista, sin API). El borrador con IA aparece
+          aquí cuando el pipeline corre con ANTHROPIC_API_KEY. */}
       {hasCompany &&
         (bl.message ? (
-          <p className="mt-3 whitespace-pre-wrap border-t border-[var(--border)] pt-3 text-sm leading-relaxed text-[var(--text)]/90">
-            {bl.message.draft}
-          </p>
+          <div className="mt-3 border-t border-[var(--border)] pt-3">
+            <p className="text-[10px] uppercase tracking-wider text-[var(--muted)]">Borrador</p>
+            <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-[var(--text)]/90">
+              {bl.message.draft}
+            </p>
+          </div>
+        ) : opener ? (
+          <div className="mt-3 border-t border-[var(--border)] pt-3">
+            <p className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
+              Ángulo para abrir
+            </p>
+            <p className="mt-1 text-sm leading-relaxed text-[var(--text)]/90">{opener}</p>
+            <Link
+              href={`/companies/${bl.company!.domain}`}
+              className="mt-1.5 inline-block text-xs text-[var(--cta)] hover:underline"
+            >
+              Ver argumentario completo →
+            </Link>
+          </div>
         ) : (
           <p className="mt-3 border-t border-[var(--border)] pt-3 text-sm text-[var(--muted)]">
-            Sin borrador todavía. El pipeline lo genera cuando el scan esté listo.
+            Añade su scan de B3S para generar el argumentario para hablar con {firstName}.
           </p>
         ))}
 
-      {/* Orden: Ver ficha (blanco) → LinkedIn (contorno azul) → etapa (select) */}
+      {/* Acciones: Ver ficha (blanco) → LinkedIn (contorno azul) → etapa */}
       <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
         {hasCompany && (
           <Link
