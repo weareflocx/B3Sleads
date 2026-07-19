@@ -3,13 +3,13 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
+// Home no está en la nav: se va pulsando el logo. Settings vive en la
+// cuenta de usuario (chip de abajo a la izquierda).
 const NAV = [
-  { href: '/home', label: 'home' },
   { href: '/briefing', label: 'briefing' },
   { href: '/pipeline', label: 'pipeline' },
   { href: '/founders', label: 'founders' },
   { href: '/leaderboard', label: 'leaderboard' },
-  { href: '/settings', label: 'settings' },
 ];
 
 // La sección activa se marca con el rojo de identidad (mismo patrón que la

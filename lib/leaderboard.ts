@@ -24,7 +24,15 @@ export const STAGE_POINTS: Record<LeadStage, number> = {
   discarded: 0,
 };
 
-export const TEAM_LABEL = 'equipo FLOC*';
+// Los leads sin atribución (pipeline nocturno, o anteriores al login) se
+// atribuyen a Sergio, el dueño del radar hasta que entre el resto del equipo.
+export const OWNER_EMAIL = 'sergio@wearefloc.com';
+
+// Etiqueta legible de un usuario: la parte local del email, capitalizada.
+// (El nombre de user_metadata no está en leads; el email es la identidad.)
+export function userLabel(email: string): string {
+  return email.split('@')[0].replace(/^./, (c) => c.toUpperCase());
+}
 
 export interface UserRow {
   user: string;
@@ -39,7 +47,7 @@ export interface UserRow {
 export function usersRanking(leads: BriefingLead[]): UserRow[] {
   const byUser = new Map<string, UserRow>();
   for (const bl of leads) {
-    const key = bl.lead.created_by_email?.trim() || TEAM_LABEL;
+    const key = bl.lead.created_by_email?.trim() || OWNER_EMAIL;
     const row = byUser.get(key) ?? { user: key, leads: 0, conversations: 0, won: 0, points: 0 };
     row.leads += 1;
     row.points += STAGE_POINTS[bl.lead.stage] ?? 0;

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { getBriefingLeads } from '@/lib/data';
-import { usersRanking, foundersRanking, startupsRanking, TEAM_LABEL } from '@/lib/leaderboard';
+import { usersRanking, foundersRanking, startupsRanking, userLabel } from '@/lib/leaderboard';
 import { stageLabel } from '@/lib/types';
 import { Heat } from '../heat';
 import { ScoreRing } from '../score-ring';
@@ -57,9 +57,9 @@ export default async function LeaderboardPage() {
         users.map((u, i) => (
           <Row key={u.user} first={i === 0}>
             <RankBadge n={i + 1} />
-            <Avatar name={u.user === TEAM_LABEL ? 'F L' : u.user} size={32} />
+            <Avatar name={userLabel(u.user)} size={32} />
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium">{u.user}</div>
+              <div className="truncate text-sm font-medium">{userLabel(u.user)}</div>
               <div className="text-xs text-[var(--muted)]">
                 {u.leads} {u.leads === 1 ? 'lead' : 'leads'} · {u.conversations} en conversación
                 {u.won > 0 && ` · ${u.won} ${u.won === 1 ? 'cierre' : 'cierres'}`}
@@ -74,8 +74,8 @@ export default async function LeaderboardPage() {
       )}
       <p className="pt-1 text-[11px] leading-relaxed text-[var(--soft)]">
         Puntos por fase alcanzada con cada lead: detectado 1 · contactado 3 · conversación 8 ·
-        call 12 · propuesta 20 · cierre 40. Los leads sin atribución (pipeline o anteriores al
-        login) cuentan como {TEAM_LABEL}.
+        call 12 · propuesta 20 · cierre 40. Cada alta se atribuye al usuario logueado; cuando el
+        resto del equipo se registre, cada uno verá su progresión.
       </p>
     </div>
   );

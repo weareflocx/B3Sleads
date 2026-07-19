@@ -1,13 +1,26 @@
+import Link from 'next/link';
 import { FUNDING_FEEDS } from '@/lib/rss-sources';
 import { isDemoMode } from '@/lib/supabase';
+import { currentUser } from '@/lib/auth';
+import { getBriefingLeads } from '@/lib/data';
+import { usersRanking, OWNER_EMAIL } from '@/lib/leaderboard';
 import icp from '@/config/icp.json';
 import offer from '@/config/floc-offer.json';
+import { ProfileCard } from './profile-card';
+import { ThemeCard } from './theme-card';
 
 export const dynamic = 'force-dynamic';
 
-// Settings mínimo (spec §10.4). En MVP la configuración vive en variables
-// de entorno; esta pantalla la muestra en solo lectura.
-export default function SettingsPage() {
+// Cuenta del usuario (se llega desde el chip de abajo a la izquierda):
+// perfil, personalización y tu actividad. Debajo, la configuración del
+// sistema (conexiones, ICP, oferta, feeds). Pensado para crecer con más
+// secciones (histórico de acciones cuando estén las notas).
+export default async function SettingsPage() {
+  const user = await currentUser();
+  const leads = await getBriefingLeads();
+  const me = user.email ?? OWNER_EMAIL;
+  const mine = usersRanking(leads).find((r) => r.user === me);
+
   const rows = [
     { key: 'Presupuesto créditos Lusha/mes', value: process.env.CREDIT_BUDGET_MONTHLY || '100' },
     { key: 'Scans máx/noche', value: process.env.SCAN_MAX_PER_NIGHT || '10' },
@@ -30,7 +43,51 @@ export default function SettingsPage() {
 
   return (
     <main className="max-w-2xl">
-      <h1 className="mb-6 text-2xl font-bold tracking-tight">Settings</h1>
+      <h1 className="mb-6 text-2xl font-bold tracking-tight">Tu cuenta</h1>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <ProfileCard initialName={user.name} email={user.email} />
+        <ThemeCard />
+      </div>
+
+      {/* Tu actividad: el embrión del histórico de acciones */}
+      <h2 className="mb-3 mt-8 text-lg font-semibold">Tu actividad</h2>
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+        {mine ? (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            {[
+              { label: 'leads', value: mine.leads },
+              { label: 'en conversación', value: mine.conversations },
+              { label: 'cierres', value: mine.won },
+              { label: 'puntos', value: mine.points },
+            ].map((s) => (
+              <div key={s.label}>
+                <div className="font-mono text-2xl leading-none">{s.value}</div>
+                <div className="mt-1 text-xs text-[var(--muted)]">{s.label}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-[var(--muted)]">
+            Aún no tienes leads atribuidos. Añade founders desde{' '}
+            <Link href="/founders" className="text-[var(--cta)] hover:underline">
+              Founders
+            </Link>{' '}
+            y empieza a sumar.
+          </p>
+        )}
+        <p className="mt-3 border-t border-[var(--border)] pt-2.5 text-[11px] leading-relaxed text-[var(--soft)]">
+          Compite en el{' '}
+          <Link href="/leaderboard" className="text-[var(--cta)] hover:underline">
+            leaderboard
+          </Link>
+          . El histórico detallado de acciones (notas, cambios de etapa, informes) llegará con la
+          bitácora de notas.
+        </p>
+      </div>
+
+      {/* Sistema */}
+      <h2 className="mb-3 mt-8 text-lg font-semibold">Sistema</h2>
       <div className="overflow-hidden rounded-lg border border-[var(--border)]">
         <table className="w-full text-sm">
           <tbody>

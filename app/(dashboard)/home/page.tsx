@@ -54,11 +54,11 @@ export default async function HomePage() {
       hint: `${contacted.length} contactados · ${won.length} cerrados. Arrastra entre etapas.`,
     },
     {
-      href: '/settings',
-      title: 'Settings',
+      href: '/leaderboard',
+      title: 'Leaderboard',
       value: sinScan.length ? String(sinScan.length) : '✓',
       label: sinScan.length ? 'marcas sin scan de B3S' : 'todo escaneado',
-      hint: 'ICP, oferta FLOC*, feeds del radar y estado de las conexiones.',
+      hint: 'Usuarios, founders y startups: se puntúa avanzar, no acumular.',
     },
   ];
 
