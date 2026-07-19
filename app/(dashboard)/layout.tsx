@@ -3,18 +3,22 @@ import { isDemoMode } from '@/lib/supabase';
 import { ThemeToggle } from './theme-toggle';
 import { Logo } from './logo';
 import { Nav } from './nav';
+import { UserMenu } from './user-menu';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="mx-auto my-6 min-h-[calc(100vh-48px)] w-[min(1200px,calc(100%-32px))] border border-[var(--border)] bg-[var(--page-bg)] shadow-[var(--page-shadow)]">
       {/* Cabecera tipo terminal, como Brand3: logo · nav · tema */}
       <header className="grid grid-cols-[auto_1fr_auto] items-center gap-3 border-b border-[var(--border)] px-7 py-3">
-        <Link href="/briefing" aria-label="B3S Leads" className="flex items-center">
+        <Link href="/home" aria-label="B3S Leads" className="flex items-center">
           <Logo />
           <span className="ml-2 text-xs font-semibold text-[var(--muted)]">Leads</span>
         </Link>
         <Nav />
-        <ThemeToggle />
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <UserMenu />
+        </div>
       </header>
 
       <div className="px-7 pb-16 pt-8">
