@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/* Tipografías: Geist para titulares y textos largos (landing), JetBrains Mono
+   para el desk operativo y los acentos técnicos. font-sans / font-mono. */
+@theme inline {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, "JetBrains Mono", monospace;
+}
+
 /* B3S Leads — hereda el sistema de diseño de Brand3 Scanner (web/static/main.css):
    desk operativo, monoespaciado, claro por defecto con modo oscuro, acento rojo,
    bordes rectos y textura de líneas sutil. Así B3S y Brand3 se ven de la misma familia. */
