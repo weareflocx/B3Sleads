@@ -8,6 +8,7 @@ const NAV = [
   { href: '/briefing', label: 'briefing' },
   { href: '/pipeline', label: 'pipeline' },
   { href: '/founders', label: 'founders' },
+  { href: '/leaderboard', label: 'leaderboard' },
   { href: '/settings', label: 'settings' },
 ];
 

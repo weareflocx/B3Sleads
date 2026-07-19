@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import { getBrandProfile } from '@/lib/brand3';
+import { currentUserEmail } from '@/lib/auth';
 import { priorityScore } from '@/lib/scoring';
 import { parseLinkedInHandle, linkedInUrlFromHandle, humanizeHandle } from '@/lib/types';
 import type { Company } from '@/lib/types';
@@ -29,6 +30,8 @@ export async function POST(req: NextRequest) {
 
     const results: { input: string; status: string; detail?: string }[] = [];
     const db = isDemoMode() ? null : getServiceSupabase();
+    // Atribución para el leaderboard: quién añade este lead
+    const addedBy = await currentUserEmail();
 
     for (const e of entries) {
       const handle = parseLinkedInHandle(e.linkedin ?? '');
@@ -177,13 +180,20 @@ export async function POST(req: NextRequest) {
       const base = companyRow
         ? priorityScore({ company: companyRow, signal: null, scan: null })
         : 40;
-      await db.from('leads').insert({
+      const leadRow: Record<string, unknown> = {
         company_id: companyId,
         contact_id: contactId,
         scan_id: scanId,
         stage,
         priority_score: replied ? 100 : base,
-      });
+      };
+      // created_by_email requiere la migración 004; si aún no está, reintenta sin él
+      if (addedBy) leadRow.created_by_email = addedBy;
+      const { error: leadErr } = await db.from('leads').insert(leadRow);
+      if (leadErr && /created_by_email/.test(leadErr.message)) {
+        delete leadRow.created_by_email;
+        await db.from('leads').insert(leadRow);
+      }
 
       const scanNote = domain
         ? scanId

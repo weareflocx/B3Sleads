@@ -113,6 +113,9 @@ export interface Lead {
   priority_score: number | null;
   discard_reason: string | null;
   updated_at: string;
+  // Migración 004 (leaderboard): quién añadió el lead. undefined/null hasta
+  // aplicar la migración o en leads del pipeline → cuentan como equipo.
+  created_by_email?: string | null;
 }
 
 export interface Message {
