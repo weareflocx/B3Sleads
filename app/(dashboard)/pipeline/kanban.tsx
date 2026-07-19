@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import type { BriefingLead, LeadStage } from '@/lib/types';
-import { STAGES, displayName } from '@/lib/types';
+import { STAGES, displayName, companyLabel } from '@/lib/types';
 
 // Columnas visibles del kanban (detected y briefed se agrupan como "Detectado")
 const COLUMNS: { key: LeadStage; label: string; includes: LeadStage[] }[] = [
@@ -67,7 +67,7 @@ export function Kanban({ initial }: { initial: BriefingLead[] }) {
                         href={`/companies/${bl.company.domain}`}
                         className="min-w-0 flex-1 truncate text-sm font-medium leading-snug hover:underline"
                       >
-                        {bl.company.name}
+                        {companyLabel(bl.company.name, bl.company.domain)}
                       </Link>
                     ) : (
                       <span className="min-w-0 flex-1 truncate text-sm font-medium leading-snug">

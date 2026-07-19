@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { getBriefingLeads } from '@/lib/data';
 import { leadTemperature } from '@/lib/scoring';
-import { displayName } from '@/lib/types';
+import { displayName, companyLabel } from '@/lib/types';
 import { Heat } from '../heat';
 import { ScoreRing } from '../score-ring';
 
@@ -127,7 +127,9 @@ export default async function HomePage() {
           <div className="grid gap-3 sm:grid-cols-3">
             {hottest.map(({ bl, temp }) => {
               const score = bl.scan?.status === 'ready' ? bl.scan.score : null;
-              const name = displayName(bl.contact?.full_name) || bl.company?.name || '—';
+              const name =
+                displayName(bl.contact?.full_name) ||
+                (bl.company ? companyLabel(bl.company.name, bl.company.domain) : '—');
               const target = bl.company ? `/companies/${bl.company.domain}` : '/founders';
               return (
                 <Link
@@ -138,10 +140,8 @@ export default async function HomePage() {
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium">{name}</div>
                     {bl.company && (
-                      <div className="truncate text-xs text-[var(--muted)]">
-                        {bl.company.name === bl.company.domain
-                          ? bl.company.domain
-                          : `${bl.company.name} · ${bl.company.domain}`}
+                      <div className="truncate font-mono text-xs text-[var(--muted)]">
+                        {bl.company.domain}
                       </div>
                     )}
                     <div className="mt-1.5">

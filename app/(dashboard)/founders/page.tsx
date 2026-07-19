@@ -1,5 +1,5 @@
 import { getFounderQueue, getConversations, getBriefingLeads } from '@/lib/data';
-import { displayName } from '@/lib/types';
+import { displayName, companyLabel } from '@/lib/types';
 import { buildPitch } from '@/lib/pitch';
 import { buildDraftPrompt } from '@/lib/claude';
 import { leadTemperature } from '@/lib/scoring';
@@ -96,7 +96,7 @@ export default async function FoundersPage() {
                 className="flex items-center justify-between rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm"
               >
                 <span>
-                  {bl.company?.name}{' '}
+                  {bl.company ? companyLabel(bl.company.name, bl.company.domain) : ''}{' '}
                   <span className="text-[var(--muted)]">
                     {bl.contact ? `· ${displayName(bl.contact.full_name)}` : '· sin contacto'}
                   </span>

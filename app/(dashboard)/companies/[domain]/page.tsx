@@ -4,7 +4,7 @@ import { getCompanyFiche, getCompanyScans, getCompanySignals } from '@/lib/data'
 import { leadTemperature } from '@/lib/scoring';
 import { buildPitch } from '@/lib/pitch';
 import { buildCallBriefPrompt, buildLeadContext } from '@/lib/lead-prompts';
-import { stageLabel as stageLabelFor, displayName } from '@/lib/types';
+import { stageLabel as stageLabelFor, displayName, companyLabel } from '@/lib/types';
 import { ScanButton } from './scan-button';
 import { ScoreHistory } from './score-history';
 import { FollowUp } from './follow-up';
@@ -87,10 +87,12 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
       {/* Cabecera: identidad + estado, con logo, score y temperatura */}
       <header className="mt-5 flex flex-wrap items-start justify-between gap-5 border-b border-[var(--border)] pb-6">
         <div className="flex min-w-0 gap-4">
-          <CompanyLogo domain={company.domain} name={company.name} />
+          <CompanyLogo domain={company.domain} name={companyLabel(company.name, company.domain)} />
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold tracking-tight">{company.name}</h1>
-            <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-[var(--muted)]">
+            <h1 className="text-3xl font-semibold tracking-tight">
+              {companyLabel(company.name, company.domain)}
+            </h1>
+            <div className="mt-1 flex flex-wrap items-center gap-3 font-mono text-sm text-[var(--muted)]">
               <a href={`https://${company.domain}`} target="_blank" rel="noreferrer" className="hover:underline">
                 {company.domain} ↗
               </a>

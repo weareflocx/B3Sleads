@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import type { BriefingLead } from '@/lib/types';
-import { DISCARD_REASONS, displayName } from '@/lib/types';
+import { DISCARD_REASONS, displayName, companyLabel } from '@/lib/types';
 import { priorityBreakdown } from '@/lib/scoring';
 
 function timeAgo(iso: string): string {
@@ -100,15 +100,15 @@ export function LeadCard({ initial }: { initial: BriefingLead }) {
         <div>
           <h2 className="font-semibold">
             <Link href={`/companies/${bl.company.domain}`} className="hover:underline">
-              {bl.company.name}
+              {companyLabel(bl.company.name, bl.company.domain)}
             </Link>{' '}
             <a
               href={`https://${bl.company.domain}`}
               target="_blank"
               rel="noreferrer"
-              className="text-sm font-normal text-[var(--muted)] hover:underline"
+              className="font-mono text-sm font-normal text-[var(--muted)] hover:underline"
             >
-              {bl.company.name === bl.company.domain ? 'web ↗' : bl.company.domain}
+              {bl.company.domain} ↗
             </a>
           </h2>
           <p className="mt-1 flex items-center gap-2 text-sm text-[var(--muted)]">

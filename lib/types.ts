@@ -217,3 +217,16 @@ export function displayName(name: string | null | undefined): string {
   if (!name.includes(' ') && /^[a-z0-9%._-]+$/.test(name)) return humanizeHandle(name);
   return name;
 }
+
+// Nombre de marca para mostrar. Muchas empresas se crean solo con dominio
+// (name === domain): en vez de repetir "bzeromaterials.com" como título,
+// se deriva "Bzeromaterials". Si hay nombre propio, se respeta.
+export function companyLabel(name: string, domain?: string | null): string {
+  if (!domain || name !== domain) return name;
+  const base = domain.split('.')[0];
+  return base
+    .split('-')
+    .filter(Boolean)
+    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+    .join(' ');
+}

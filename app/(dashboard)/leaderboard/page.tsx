@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { getBriefingLeads } from '@/lib/data';
 import { usersRanking, foundersRanking, startupsRanking, userLabel } from '@/lib/leaderboard';
-import { stageLabel } from '@/lib/types';
+import { stageLabel, companyLabel } from '@/lib/types';
 import { Heat } from '../heat';
 import { ScoreRing } from '../score-ring';
 import { Avatar } from '../avatar';
@@ -137,11 +137,9 @@ export default async function LeaderboardPage() {
             <RankBadge n={i + 1} />
             <div className="min-w-0 flex-1">
               <Link href={`/companies/${s.domain}`} className="text-sm font-medium hover:underline">
-                {s.name}
+                {companyLabel(s.name, s.domain)}
               </Link>
-              {s.name !== s.domain && (
-                <div className="truncate text-xs text-[var(--muted)]">{s.domain}</div>
-              )}
+              <div className="truncate font-mono text-xs text-[var(--muted)]">{s.domain}</div>
             </div>
             <ScoreRing score={s.score} size={40} />
           </Row>

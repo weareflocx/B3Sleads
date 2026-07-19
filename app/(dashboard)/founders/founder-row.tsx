@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { displayName, STAGES } from '@/lib/types';
+import { displayName, companyLabel, STAGES } from '@/lib/types';
 import type { BriefingLead, LeadStage } from '@/lib/types';
 import type { Temperature } from '@/lib/scoring';
 import { ScoreRing } from '../score-ring';
@@ -118,7 +118,7 @@ export function FounderRow({
                 href={`/companies/${bl.company!.domain}`}
                 className="text-sm text-[var(--muted)] hover:text-[var(--text)] hover:underline"
               >
-                {bl.company!.name}
+                {companyLabel(bl.company!.name, bl.company!.domain)}
               </Link>
             ) : (
               <span className="text-xs text-[var(--warning)]">

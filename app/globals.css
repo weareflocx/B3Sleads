@@ -97,3 +97,17 @@ body {
 .rounded-lg {
   border-radius: var(--radius) !important;
 }
+
+/* Tipografía híbrida en toda la plataforma (mismo criterio que la landing):
+   Geist para titulares y bloques de texto largos; JetBrains Mono para datos,
+   etiquetas técnicas y acentos. Las cabeceras-etiqueta (uppercase
+   tracking-wider) y todo lo marcado .font-mono siguen en mono. */
+h1:not(.font-mono),
+h2:not(.font-mono):not(.tracking-wider):not([class*="tracking-["]),
+h3:not(.font-mono):not(.tracking-wider):not([class*="tracking-["]),
+p:not(.font-mono),
+blockquote,
+textarea,
+li:not(.font-mono) {
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
