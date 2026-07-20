@@ -2,8 +2,17 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { parseLinkedInHandle, humanizeHandle } from '@/lib/types';
 import type { PreviewRow } from '@/app/api/founders/preview/route';
+
+interface LogRow {
+  input: string;
+  status: string;
+  detail?: string;
+  domain?: string;
+  name?: string;
+}
 
 // Añadir al radar. Vale con el founder, con la marca, o con ambos:
 //  - LinkedIn → el nombre se autocompleta desde el handle (editable)
@@ -20,15 +29,16 @@ export function ImportBox() {
   const [domain, setDomain] = useState('');
   const [note, setNote] = useState('');
 
-  // Modo lote
-  const [text, setText] = useState('');
+  // Modo lote: dos módulos, se emparejan por fila
+  const [foundersText, setFoundersText] = useState('');
+  const [brandsText, setBrandsText] = useState('');
   const [preview, setPreview] = useState<PreviewRow[] | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
 
   // Común
   const [warm, setWarm] = useState(false);
   const [replied, setReplied] = useState(false);
-  const [log, setLog] = useState<{ input: string; status: string; detail?: string }[]>([]);
+  const [log, setLog] = useState<LogRow[]>([]);
   const [busy, setBusy] = useState(false);
 
   // Autocompletar el nombre desde el handle, estilo LinkedIn
@@ -46,7 +56,8 @@ export function ImportBox() {
     setNameEdited(false);
     setDomain('');
     setNote('');
-    setText('');
+    setFoundersText('');
+    setBrandsText('');
     setPreview(null);
   }
 
@@ -61,7 +72,7 @@ export function ImportBox() {
       const json = await res.json();
       if (json.error) setLog([{ input: '—', status: 'error', detail: json.error }]);
       else {
-        setLog(json.results);
+        setLog(json.results as LogRow[]);
         resetForm();
         router.refresh();
       }
@@ -84,8 +95,22 @@ export function ImportBox() {
     ]);
   }
 
+  // Empareja founders y marcas por fila en el texto que entiende el parser.
+  function pairedText(): string {
+    const f = foundersText.split('\n').map((l) => l.trim());
+    const b = brandsText.split('\n').map((l) => l.trim());
+    const n = Math.max(f.length, b.length);
+    const lines: string[] = [];
+    for (let i = 0; i < n; i++) {
+      const line = [f[i], b[i]].filter(Boolean).join(' ');
+      if (line.trim()) lines.push(line);
+    }
+    return lines.join('\n');
+  }
+
   // Paso 1 del lote: analizar (parsea + busca scan + detecta duplicados)
   async function analyze() {
+    const text = pairedText();
     if (!text.trim()) return;
     setAnalyzing(true);
     setLog([]);
@@ -126,6 +151,7 @@ export function ImportBox() {
   const nuevos = preview?.filter((r) => r.status === 'new').length ?? 0;
   const dups = preview?.filter((r) => r.status === 'dup').length ?? 0;
   const invalidos = preview?.filter((r) => r.status === 'invalid').length ?? 0;
+  const loteHasInput = !!(foundersText.trim() || brandsText.trim());
 
   return (
     <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
@@ -145,7 +171,7 @@ export function ImportBox() {
       <p className="mt-1 text-xs text-[var(--muted)]">
         {mode === 'uno'
           ? 'Con el founder, con la marca, o con ambos. El nombre se completa solo desde la URL; con dominio se busca su scan en B3S.'
-          : 'Una línea por founder. Pega la URL de LinkedIn y/o el dominio en cualquier orden; Analizar deduce el nombre, busca su scan y avisa de duplicados antes de añadir.'}
+          : 'Pega varios de golpe: los founders a la izquierda y sus marcas a la derecha, uno por línea. La fila 1 de founders empareja con la fila 1 de marcas.'}
       </p>
 
       {mode === 'uno' ? (
@@ -245,26 +271,45 @@ export function ImportBox() {
               onClick={() => setPreview(null)}
               className="text-xs text-[var(--muted)] transition-colors hover:text-[var(--text)]"
             >
-              ← editar texto
+              ← editar
             </button>
             <Checkboxes {...{ warm, setWarm, replied, setReplied }} />
           </div>
         </>
       ) : (
         <>
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            rows={5}
-            placeholder={
-              'https://www.linkedin.com/in/janedoe · Jane Doe · acmelabs.io · comentó mi post\nlinkedin.com/in/maxweber  verdeo.eu\nAna Ruiz  linkedin.com/in/anaruiz'
-            }
-            className={`mt-3.5 ${inputCls}`}
-          />
+          <div className="mt-3.5 grid gap-2.5 sm:grid-cols-2">
+            <div>
+              <label htmlFor="lf" className="text-xs text-[var(--muted)]">
+                Founders · una URL de LinkedIn por línea
+              </label>
+              <textarea
+                id="lf"
+                value={foundersText}
+                onChange={(e) => setFoundersText(e.target.value)}
+                rows={5}
+                placeholder={'linkedin.com/in/janedoe\nlinkedin.com/in/maxweber\nAna Ruiz  linkedin.com/in/anaruiz'}
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label htmlFor="lb" className="text-xs text-[var(--muted)]">
+                Marcas · un dominio por línea (empareja por fila)
+              </label>
+              <textarea
+                id="lb"
+                value={brandsText}
+                onChange={(e) => setBrandsText(e.target.value)}
+                rows={5}
+                placeholder={'acmelabs.io\nverdeo.eu\n'}
+                className={inputCls}
+              />
+            </div>
+          </div>
           <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
             <button
               onClick={analyze}
-              disabled={analyzing || !text.trim()}
+              disabled={analyzing || !loteHasInput}
               className="rounded-md border border-[var(--cta)] px-4 py-2 text-sm font-medium text-[var(--cta)] transition-colors hover:bg-[var(--cta)]/10 disabled:opacity-40"
             >
               {analyzing ? 'Analizando…' : 'Analizar'}
@@ -275,9 +320,9 @@ export function ImportBox() {
       )}
 
       {log.length > 0 && (
-        <ul className="mt-4 space-y-1 rounded-md border border-[var(--border)] bg-[var(--bg)] p-3 font-mono text-xs">
+        <ul className="mt-4 space-y-1.5 rounded-md border border-[var(--border)] bg-[var(--bg)] p-3 text-xs">
           {log.map((r, i) => (
-            <li key={i}>
+            <li key={i} className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span
                 className={
                   r.status === 'ok'
@@ -288,9 +333,17 @@ export function ImportBox() {
                 }
               >
                 {r.status === 'ok' ? '✓' : r.status === 'error' ? '✗' : '·'}
-              </span>{' '}
-              {r.input}
-              {r.detail ? ` — ${r.detail}` : ''}
+              </span>
+              <span className="font-medium">{r.name || r.input}</span>
+              {r.detail && <span className="text-[var(--muted)]">— {r.detail}</span>}
+              {r.status === 'ok' && r.domain && (
+                <Link
+                  href={`/companies/${r.domain}`}
+                  className="ml-auto rounded-md border border-[var(--border)] px-2 py-0.5 font-medium text-[var(--text)] transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)]"
+                >
+                  Ver ficha →
+                </Link>
+              )}
             </li>
           ))}
         </ul>
@@ -320,7 +373,7 @@ function Checkboxes({
           disabled={replied}
           className="accent-[var(--cta)]"
         />
-        Interactuaron con mis posts (+20)
+        Interactuaron con mis posts
       </label>
       <label className="flex cursor-pointer items-center gap-2 text-xs text-[var(--success)]">
         <input
@@ -329,7 +382,7 @@ function Checkboxes({
           onChange={(e) => setReplied(e.target.checked)}
           className="accent-[var(--cta)]"
         />
-        Ya me respondió por privado
+        Respondió por DM
       </label>
     </>
   );
@@ -343,9 +396,7 @@ function PreviewRowView({ row: r }: { row: PreviewRow }) {
         dim ? 'opacity-70' : ''
       }`}
     >
-      <span className="font-medium">
-        {r.name || (r.domain ?? '(sin nombre)')}
-      </span>
+      <span className="font-medium">{r.name || (r.domain ?? '(sin nombre)')}</span>
       {r.handle && (
         <span className="font-mono text-xs text-[var(--linkedin-soft)]">in/{r.handle}</span>
       )}

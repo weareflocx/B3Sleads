@@ -32,12 +32,7 @@ export default async function FoundersPage() {
 
   return (
     <main className="space-y-6">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-2xl font-bold tracking-tight">Founders</h1>
-        <span className="text-sm text-[var(--muted)]">
-          {queue.length} en cola de LinkedIn · máx 5-8 mensajes nuevos al día
-        </span>
-      </div>
+      <h1 className="text-2xl font-bold tracking-tight">Founders</h1>
 
       <ImportBox />
 

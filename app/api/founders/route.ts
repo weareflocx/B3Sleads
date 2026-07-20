@@ -28,7 +28,13 @@ export async function POST(req: NextRequest) {
     const contactSource = isWarm ? 'engaged' : 'linkedin';
     const stage = replied ? 'conversation' : 'detected';
 
-    const results: { input: string; status: string; detail?: string }[] = [];
+    const results: {
+      input: string;
+      status: string;
+      detail?: string;
+      domain?: string; // para enlazar a la ficha desde el frontend
+      name?: string;
+    }[] = [];
     const db = isDemoMode() ? null : getServiceSupabase();
     // Atribución para el leaderboard: quién añade este lead
     const addedBy = await currentUserEmail();
@@ -205,8 +211,10 @@ export async function POST(req: NextRequest) {
           : 'sin scan en B3S aún (pega la URL del informe en su ficha)'
         : 'añade el dominio de su marca para traer el scan';
       results.push({
-        input: handle ?? domain,
+        input: e.name || (handle ? humanizeHandle(handle) : domain),
         status: 'ok',
+        domain: domain || undefined,
+        name: e.name || (handle ? humanizeHandle(handle) : undefined),
         detail: replied
           ? `en conversación (te respondió por privado) · ${scanNote}`
           : handle
