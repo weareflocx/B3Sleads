@@ -14,6 +14,7 @@ import { CompanyLogo } from '../../company-logo';
 import { ScoreRing } from '../../score-ring';
 import { Heat } from '../../heat';
 import { Avatar } from '../../avatar';
+import { EditableText } from '../../editable-text';
 
 export const dynamic = 'force-dynamic';
 
@@ -89,9 +90,14 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
         <div className="flex min-w-0 gap-4">
           <CompanyLogo domain={company.domain} name={companyLabel(company.name, company.domain)} />
           <div className="min-w-0">
-            <h1 className="text-3xl font-semibold tracking-tight">
-              {companyLabel(company.name, company.domain)}
-            </h1>
+            <EditableText
+              initial={companyLabel(company.name, company.domain)}
+              kind="company"
+              id={company.id}
+              as="h1"
+              className="text-3xl font-semibold tracking-tight"
+              label="Editar nombre de la marca"
+            />
             <div className="mt-1 flex flex-wrap items-center gap-3 font-mono text-sm text-[var(--muted)]">
               <a href={`https://${company.domain}`} target="_blank" rel="noreferrer" className="hover:underline">
                 {company.domain} ↗
@@ -313,7 +319,13 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                   <div className="flex gap-3">
                     <Avatar name={displayName(contact.full_name)} />
                     <div className="min-w-0">
-                      <div className="text-sm font-medium">{displayName(contact.full_name)}</div>
+                      <EditableText
+                        initial={displayName(contact.full_name)}
+                        kind="contact"
+                        id={contact.id}
+                        className="text-sm font-medium"
+                        label="Editar nombre del founder"
+                      />
                       {contact.role && (
                         <div className="mt-0.5 text-xs text-[var(--muted)]">{contact.role}</div>
                       )}
