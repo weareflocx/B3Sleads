@@ -76,11 +76,20 @@ export interface ImportedScan {
   found: boolean;
   score: number | null; // score magnetism (la óptica FLOC), o best_score
   quadrant: string | null; // ej: "Marca sin escribir · target FLOC*"
+  brandName: string | null; // nombre comercial real ("B-Zero", no el dominio)
   tldr: { summary: string; gaps: string[] };
   evidence: Record<string, unknown>;
   uiUrl: string | null; // link al informe en brand3.fly.dev
   scanId: number | null;
   raw: Record<string, unknown>;
+}
+
+// El nombre comercial va en el H1 del informe: "# Brand3 Scanner — B-Zero".
+export function brandNameFromMarkdown(md: string): string | null {
+  const m =
+    md.match(/^#\s*Brand3 Scanner\s*[—–]\s*(.+?)\s*$/m) ||
+    md.match(/^#\s*Brand3 Scanner\s+-\s+(.+?)\s*$/m);
+  return m ? m[1].trim() : null;
 }
 
 interface ScanRef {
@@ -114,10 +123,19 @@ export async function getBrandProfile(rawDomain: string): Promise<ImportedScan> 
   const summary = ((profile.summary as string) ?? (profile.audience as string) ?? '').slice(0, 400);
   const href = chosen?.href ?? null;
 
+  const brandName =
+    ((profile.name as string) ||
+      (data.name as string) ||
+      (data.brand as string) ||
+      (profile.brand_name as string) ||
+      null) ??
+    null;
+
   return {
     found: true,
     score,
     quadrant: magnetism?.quadrant ?? null,
+    brandName: brandName ? brandName.trim() : null,
     tldr: { summary, gaps },
     evidence: {
       dimensions: (data.visual_signature_scan as Record<string, unknown> | undefined)?.dimensions ?? null,
@@ -135,6 +153,7 @@ function emptyImport(): ImportedScan {
     found: false,
     score: null,
     quadrant: null,
+    brandName: null,
     tldr: { summary: '', gaps: [] },
     evidence: {},
     uiUrl: null,
@@ -182,6 +201,7 @@ export async function getReportByUrl(url: string): Promise<ImportedScan> {
     found: true,
     score,
     quadrant: null,
+    brandName: brandNameFromMarkdown(md),
     tldr: { summary: summary.slice(0, 400), gaps },
     evidence: { model: md.match(/Modelo:\s*([^\n]+)/)?.[1]?.trim() ?? null },
     uiUrl: `${B3S}/report/${hash}`,

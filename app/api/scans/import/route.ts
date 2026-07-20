@@ -56,6 +56,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No hay ficha de empresa para ese dominio' }, { status: 400 });
     }
 
+    // Nombre comercial real del Scanner. Solo pisa el nombre si era un
+    // placeholder (vacío o igual al dominio); nunca sobreescribe uno propio.
+    if (profile.brandName && company && (!company.name || company.name === company.domain)) {
+      await db.from('companies').update({ name: profile.brandName }).eq('id', coId);
+      company = { ...company, name: profile.brandName };
+    }
+
     // Dedupe por informe: si ese ui_url ya está importado para la compañía,
     // se actualiza en vez de duplicar (mismo hash = mismo scan). Un scan
     // nuevo en B3S tiene hash nuevo y sí crea un punto en el histórico.

@@ -113,12 +113,15 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                 <span className="text-[var(--text)]">{fundingHeadline}</span>
               </div>
             )}
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-3 flex flex-wrap items-center gap-2">
               {company.sector && <Chip>{company.sector}</Chip>}
               {company.size && <Chip>{company.size} personas</Chip>}
               {company.city && <Chip>{company.city}</Chip>}
               {company.hq_country && <Chip>{company.hq_country}</Chip>}
-              <Chip>fuente: {company.source}</Chip>
+              {/* Fuente: sutil, no compite con los atributos de la marca */}
+              <span className="rounded-md bg-[var(--surface-2)] px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">
+                {company.source}
+              </span>
             </div>
           </div>
         </div>

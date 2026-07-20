@@ -159,6 +159,10 @@ export async function POST(req: NextRequest) {
               .select()
               .single();
             scanId = scanRow?.id ?? null;
+            // Nombre comercial real del Scanner si la ficha entró solo con dominio
+            if (profile.brandName && (!e.company || companyRow?.name === domain)) {
+              await db.from('companies').update({ name: profile.brandName }).eq('id', companyId);
+            }
           }
         } catch (err) {
           console.error(`[founders] scan no importado para ${domain}: ${err}`);
