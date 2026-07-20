@@ -1,0 +1,11 @@
+# B3S Leads en Netlify. La app es Next.js con SSR + middleware (auth), no
+# estático: necesita el plugin oficial de Next, que gestiona las funciones
+# serverless y el runtime. Las variables de entorno se ponen en
+# Site settings → Environment variables (no aquí, para no versionar secretos).
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

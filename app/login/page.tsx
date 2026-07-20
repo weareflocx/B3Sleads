@@ -3,7 +3,7 @@
 import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { getBrowserSupabase } from '@/lib/supabase-browser';
+import { getBrowserSupabase, authConfigured } from '@/lib/supabase-browser';
 import { Logo } from '../(dashboard)/logo';
 
 // Login de onboarding: enlace mágico por email o Google. Sin contraseñas.
@@ -19,28 +19,31 @@ function LoginForm() {
   async function sendMagicLink() {
     if (!email.trim()) return;
     setState('sending');
-    const supabase = getBrowserSupabase();
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
-    });
-    if (error) {
-      setState('error');
-      setDetail(error.message);
-    } else {
+    try {
+      const supabase = getBrowserSupabase();
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      });
+      if (error) throw error;
       setState('sent');
+    } catch (e) {
+      setState('error');
+      setDetail(e instanceof Error ? e.message : String(e));
     }
   }
 
   async function loginWithGoogle() {
-    const supabase = getBrowserSupabase();
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
-    });
-    if (error) {
+    try {
+      const supabase = getBrowserSupabase();
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: `${window.location.origin}/auth/callback` },
+      });
+      if (error) throw error;
+    } catch (e) {
       setState('error');
-      setDetail(error.message);
+      setDetail(e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -57,6 +60,14 @@ function LoginForm() {
           <p className="mt-1 text-xs text-[var(--muted)]">
             Sin contraseñas: te mandamos un enlace de acceso al email.
           </p>
+
+          {!authConfigured() && (
+            <div className="mt-4 rounded-md border border-[var(--warning)]/40 bg-[var(--warning)]/10 p-3 text-xs text-[var(--warning)]">
+              Login no disponible: faltan las claves de Supabase en el build. Configúralas en el
+              hosting (variables NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY) y vuelve
+              a desplegar.
+            </div>
+          )}
 
           {state === 'sent' ? (
             <div className="mt-5 rounded-md border border-[var(--cta)]/40 bg-[var(--cta)]/8 p-3 text-sm">
