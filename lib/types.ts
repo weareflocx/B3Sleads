@@ -54,7 +54,8 @@ export interface Company {
 }
 
 export interface SignalDetail {
-  amount?: string;
+  amount?: string; // lo que se muestra: "6M€"
+  amount_eur?: number; // normalizado, para ordenar y sumar
   round?: string;
   investors?: string[];
   source_url?: string;

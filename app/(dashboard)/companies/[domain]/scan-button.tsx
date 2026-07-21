@@ -107,7 +107,24 @@ export function ScanButton({
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-3">
+      {/* Una sola fila: pegar un informe existente y lanzar uno nuevo son la
+          misma decisión, así que las acciones van juntas. El input se queda
+          en lo que mide una URL de informe, no ocupa todo el ancho. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && url.trim() && importScan({ reportUrl: url }, 'url')}
+          placeholder="pega un informe: b3s.fly.dev/report/…"
+          className="min-w-0 max-w-xs flex-1 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-sm outline-none focus:border-[var(--cta)]"
+        />
+        <button
+          onClick={() => importScan({ reportUrl: url }, 'url')}
+          disabled={busy !== null || !url.trim()}
+          className="rounded-md border border-[var(--cta)] px-3 py-1.5 text-sm font-medium text-[var(--cta)] transition-colors hover:bg-[var(--cta)] hover:text-[var(--cta-text)] disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--cta)]"
+        >
+          {busy === 'url' ? 'Importando…' : 'Importar'}
+        </button>
         <button
           onClick={launchScan}
           disabled={busy !== null || scan?.status === 'running' || scan?.status === 'queued'}
@@ -127,24 +144,6 @@ export function ScanButton({
         {scan?.status === 'failed' && (
           <span className="text-xs text-[var(--danger)]">El último scan falló; puedes reintentarlo.</span>
         )}
-      </div>
-
-      {/* Un informe previo también puede vincularse por su URL estable. */}
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && url.trim() && importScan({ reportUrl: url }, 'url')}
-          placeholder="o pega un informe: b3s.fly.dev/report/…"
-          className="min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-sm outline-none focus:border-[var(--cta)]"
-        />
-        <button
-          onClick={() => importScan({ reportUrl: url }, 'url')}
-          disabled={busy !== null || !url.trim()}
-          className="rounded-md bg-[var(--cta)] px-3 py-1.5 text-sm font-medium text-[var(--cta-text)] disabled:opacity-50"
-        >
-          {busy === 'url' ? 'Importando…' : 'Importar'}
-        </button>
       </div>
 
       {/* Búsqueda del último resultado por dominio en B3S API. */}
