@@ -90,28 +90,33 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
 
       {/* Cabecera: identidad + estado, con logo, score y temperatura */}
       <header className="mt-5 flex flex-wrap items-start justify-between gap-5 border-b border-[var(--border)] pb-6">
+        {/* El bloque de identidad cuadra en altura con la caja de etapa (86px):
+            logo, nombre, dominio y ronda. La fuente del lead salía aquí y no
+            aportaba a la conversación; la ronda sí. */}
         <div className="flex min-w-0 gap-4">
           <EditableImage
             target={{ kind: 'company', id: company.id }}
             initial={company.logo_url}
             label="Cambiar logo de la marca"
+            placement="inside"
           >
             <CompanyLogo
               domain={company.domain}
               name={companyLabel(company.name, company.domain)}
               src={company.logo_url}
+              size={86}
             />
           </EditableImage>
-          <div className="min-w-0">
+          <div className="flex min-w-0 flex-col justify-between" style={{ minHeight: 86 }}>
             <EditableText
               initial={companyLabel(company.name, company.domain)}
               kind="company"
               id={company.id}
               as="h1"
-              className="text-3xl font-semibold tracking-tight"
+              className="text-3xl font-semibold leading-none tracking-tight"
               label="Editar nombre de la marca"
             />
-            <div className="mt-1 flex flex-wrap items-center gap-3 font-mono text-sm text-[var(--muted)]">
+            <div className="flex flex-wrap items-center gap-3 font-mono text-sm text-[var(--muted)]">
               <a href={`https://${company.domain}`} target="_blank" rel="noreferrer" className="hover:underline">
                 {company.domain} ↗
               </a>
@@ -126,38 +131,34 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                 </a>
               )}
             </div>
-            {/* Ronda e inversores en la misma línea y a la misma altura: quién
-                entró es tan cabecera como cuánto levantaron, y cada fondo es
-                una puerta, así que se puede pulsar. */}
-            {(fundingHeadline || headlineInvestors.length > 0) && (
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                {fundingHeadline && (
-                  <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--cta)]/40 bg-[var(--cta)]/8 px-2.5 py-1 text-xs text-[var(--cta)]">
-                    <span className="font-semibold uppercase tracking-wider">Ronda</span>
-                    <span className="text-[var(--text)]">{fundingHeadline}</span>
-                  </span>
-                )}
-                {headlineInvestors.map((inv) => (
-                  <Link
-                    key={inv.slug}
-                    href={inv.href}
-                    title={`Ficha de ${inv.name}`}
-                    className="inline-flex items-center rounded-md border border-[var(--border)] px-2.5 py-1 text-xs text-[var(--muted)] transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)]"
-                  >
-                    {inv.name}
-                  </Link>
-                ))}
-              </div>
-            )}
-            <div className="mt-3 flex flex-wrap items-center gap-2">
+            {/* Ronda, inversores y atributos en una sola línea. Sin ronda no se
+                deja el hueco vacío: se dice que no se ha detectado, que es una
+                señal en sí misma y un recordatorio de que se puede registrar. */}
+            <div className="flex flex-wrap items-center gap-2">
+              {fundingHeadline ? (
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--cta)]/40 bg-[var(--cta)]/8 px-2.5 py-1 text-xs text-[var(--cta)]">
+                  <span className="font-semibold uppercase tracking-wider">Ronda</span>
+                  <span className="text-[var(--text)]">{fundingHeadline}</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center rounded-md border border-dashed border-[var(--border)] px-2.5 py-1 text-xs text-[var(--soft)]">
+                  Ronda no detectada
+                </span>
+              )}
+              {headlineInvestors.map((inv) => (
+                <Link
+                  key={inv.slug}
+                  href={inv.href}
+                  title={`Ficha de ${inv.name}`}
+                  className="inline-flex items-center rounded-md border border-[var(--border)] px-2.5 py-1 text-xs text-[var(--muted)] transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)]"
+                >
+                  {inv.name}
+                </Link>
+              ))}
               {company.sector && <Chip>{company.sector}</Chip>}
               {company.size && <Chip>{company.size} personas</Chip>}
               {company.city && <Chip>{company.city}</Chip>}
               {company.hq_country && <Chip>{company.hq_country}</Chip>}
-              {/* Fuente: sutil, no compite con los atributos de la marca */}
-              <span className="rounded-md bg-[var(--surface-2)] px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">
-                {company.source}
-              </span>
             </div>
           </div>
         </div>

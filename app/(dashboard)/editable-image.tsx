@@ -20,11 +20,15 @@ export function EditableImage({
   initial,
   children,
   label = 'Cambiar imagen',
+  placement = 'outside',
 }: {
   target: Target;
   initial: string | null;
   children: ReactNode;
   label?: string;
+  // En imágenes pequeñas el lápiz se sale por la esquina para no taparlas;
+  // en un logo grande cabe dentro y queda más limpio.
+  placement?: 'outside' | 'inside';
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -86,14 +90,19 @@ export function EditableImage({
   }
 
   return (
-    <span className="group/img relative inline-block">
-      <span className={busy ? 'opacity-50' : undefined}>{children}</span>
+    // inline-flex en vez de inline-block: el inline-block deja el hueco del
+    // descender bajo la imagen y el bloque dejaba de cuadrar con la caja de
+    // etapa por unos píxeles.
+    <span className="group/img relative inline-flex align-top leading-none">
+      <span className={`flex ${busy ? 'opacity-50' : ''}`}>{children}</span>
 
       <button
         onClick={() => setEditing((v) => !v)}
         title={label}
         aria-label={label}
-        className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] opacity-0 transition-opacity hover:text-[var(--text)] group-hover/img:opacity-100 focus:opacity-100"
+        className={`absolute flex h-5 w-5 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] opacity-0 transition-opacity hover:text-[var(--text)] group-hover/img:opacity-100 focus:opacity-100 ${
+          placement === 'inside' ? 'bottom-1 right-1' : '-bottom-1 -right-1'
+        }`}
       >
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path
