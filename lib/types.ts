@@ -51,6 +51,8 @@ export interface Company {
   keywords: string[] | null;
   icp_fit: number | null;
   icp_reason: string | null;
+  // Migración 008: logo pegado a mano (null hasta aplicarla)
+  logo_url: string | null;
 }
 
 export interface SignalDetail {
@@ -104,6 +106,8 @@ export interface Contact {
   // Migración 003 (enriquecimiento; null hasta que se aplique)
   city: string | null;
   phone: string | null;
+  // Migración 008: foto pegada a mano
+  avatar_url: string | null;
 }
 
 // El fondo (migración 007). Su cartera no se guarda: se deriva de las rondas.
@@ -117,6 +121,7 @@ export interface Investor {
   kind: string;
   thesis: string | null;
   notes: string | null;
+  logo_url: string | null;
   company_id: string | null;
   created_at: string;
 }

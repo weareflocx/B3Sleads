@@ -92,7 +92,7 @@ export default async function LeaderboardPage() {
         founders.map((f, i) => (
           <Row key={`${f.name}-${f.domain}`} first={i === 0}>
             <RankBadge n={i + 1} />
-            <Avatar name={f.name} size={32} />
+            <Avatar name={f.name} size={32} src={f.avatarUrl} />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-baseline gap-x-2">
                 <span className="truncate text-sm font-medium">{f.name}</span>

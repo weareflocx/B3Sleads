@@ -11,6 +11,7 @@ import { getCompanyScans } from '@/lib/data';
 import { investorSearchUrl } from '@/lib/investors';
 import { companyLabel } from '@/lib/types';
 import { CompanyLogo } from '../../company-logo';
+import { EditableImage } from '../../editable-image';
 import { ScoreRing } from '../../score-ring';
 import { ScanButton } from '../../companies/[domain]/scan-button';
 import { InvestorField } from './investor-field';
@@ -57,7 +58,17 @@ export default async function InvestorPage({ params }: { params: Promise<{ slug:
 
       <header className="mt-5 flex flex-wrap items-start justify-between gap-5 border-b border-[var(--border)] pb-6">
         <div className="flex min-w-0 gap-4">
-          <CompanyLogo domain={investor.website ?? ''} name={investor.name} />
+          <EditableImage
+            target={{ kind: 'investor', slug }}
+            initial={investor.logo_url}
+            label="Cambiar logo del fondo"
+          >
+            <CompanyLogo
+              domain={investor.website ?? ''}
+              name={investor.name}
+              src={investor.logo_url}
+            />
+          </EditableImage>
           <div className="min-w-0">
             <h1 className="text-3xl font-semibold tracking-tight">{investor.name}</h1>
             <div className="mt-1 flex flex-wrap items-center gap-3 font-mono text-sm text-[var(--muted)]">
@@ -120,7 +131,12 @@ export default async function InvestorPage({ params }: { params: Promise<{ slug:
                     href={`/companies/${company.domain}`}
                     className="flex items-center gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3 transition-colors hover:border-[var(--cta)]"
                   >
-                    <CompanyLogo domain={company.domain} name={companyLabel(company.name, company.domain)} size={32} />
+                    <CompanyLogo
+                      domain={company.domain}
+                      name={companyLabel(company.name, company.domain)}
+                      size={32}
+                      src={company.logo_url}
+                    />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium">
                         {companyLabel(company.name, company.domain)}

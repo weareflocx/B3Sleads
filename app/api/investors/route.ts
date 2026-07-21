@@ -5,7 +5,7 @@ import type { Company, Investor } from '@/lib/types';
 // Edición de la ficha de un fondo. El campo que más pesa es `website`:
 // al fijarlo se materializa (o se reutiliza) su ficha de compañía, y desde
 // ese momento el fondo se puede escanear con B3S como cualquier marca.
-// PATCH { slug, name?, website?, thesis?, hq?, linkedinUrl?, notes? }
+// PATCH { slug, name?, website?, thesis?, hq?, linkedinUrl?, notes?, logoUrl? }
 
 function normalizeDomain(raw: string): string {
   return raw
@@ -39,6 +39,7 @@ export async function PATCH(req: NextRequest) {
     if (typeof body.hq === 'string') update.hq = body.hq.trim() || null;
     if (typeof body.notes === 'string') update.notes = body.notes.trim() || null;
     if (typeof body.linkedinUrl === 'string') update.linkedin_url = body.linkedinUrl.trim() || null;
+    if (typeof body.logoUrl === 'string') update.logo_url = body.logoUrl.trim() || null;
 
     if (typeof body.website === 'string') {
       const domain = normalizeDomain(body.website);

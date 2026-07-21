@@ -12,6 +12,7 @@ import { FollowUp } from './follow-up';
 import { FundingPanel } from './funding-panel';
 import { LeadTools } from './lead-tools';
 import { CompanyLogo } from '../../company-logo';
+import { EditableImage } from '../../editable-image';
 import { ScoreRing } from '../../score-ring';
 import { Heat } from '../../heat';
 import { Avatar } from '../../avatar';
@@ -90,7 +91,17 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
       {/* Cabecera: identidad + estado, con logo, score y temperatura */}
       <header className="mt-5 flex flex-wrap items-start justify-between gap-5 border-b border-[var(--border)] pb-6">
         <div className="flex min-w-0 gap-4">
-          <CompanyLogo domain={company.domain} name={companyLabel(company.name, company.domain)} />
+          <EditableImage
+            target={{ kind: 'company', id: company.id }}
+            initial={company.logo_url}
+            label="Cambiar logo de la marca"
+          >
+            <CompanyLogo
+              domain={company.domain}
+              name={companyLabel(company.name, company.domain)}
+              src={company.logo_url}
+            />
+          </EditableImage>
           <div className="min-w-0">
             <EditableText
               initial={companyLabel(company.name, company.domain)}
@@ -341,7 +352,13 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
               {contact ? (
                 <>
                   <div className="flex gap-3">
-                    <Avatar name={displayName(contact.full_name)} />
+                    <EditableImage
+                    target={{ kind: 'contact', id: contact.id }}
+                    initial={contact.avatar_url}
+                    label="Cambiar foto del founder"
+                  >
+                    <Avatar name={displayName(contact.full_name)} src={contact.avatar_url} />
+                  </EditableImage>
                     <div className="min-w-0">
                       <EditableText
                         initial={displayName(contact.full_name)}

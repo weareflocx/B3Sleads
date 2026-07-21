@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 // Logo de la empresa: el monograma (iniciales, sin datos externos) SIEMPRE va
 // debajo como base fiable. Encima se intenta el logo público de Clearbit por
@@ -16,12 +16,21 @@ export function CompanyLogo({
   domain,
   name,
   size = 52,
+  src,
 }: {
   domain: string;
   name: string;
   size?: number;
+  // Logo pegado a mano. Manda sobre Clearbit: si Sergio lo ha puesto, es
+  // porque el automático no servía.
+  src?: string | null;
 }) {
+  // Fuente efectiva: lo pegado a mano manda; si no, Clearbit por dominio.
+  const source = src?.trim() || (domain ? `https://logo.clearbit.com/${domain}` : '');
   const [loaded, setLoaded] = useState(false);
+  // Al cambiar de fuente se vuelve a ocultar hasta que la nueva cargue, para
+  // no enseñar un hueco roto si la URL nueva no vale.
+  useEffect(() => setLoaded(false), [source]);
   const initials =
     name
       .split(/\s+/)
@@ -46,16 +55,19 @@ export function CompanyLogo({
       >
         {initials}
       </span>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={`https://logo.clearbit.com/${domain}`}
-        alt={`Logo de ${name}`}
-        onLoad={(e) => {
-          if (e.currentTarget.naturalWidth > 1) setLoaded(true);
-        }}
-        className="absolute inset-0 h-full w-full bg-white object-contain transition-opacity"
-        style={{ opacity: loaded ? 1 : 0 }}
-      />
+      {source ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={source}
+          referrerPolicy="no-referrer"
+          alt={`Logo de ${name}`}
+          onLoad={(e) => {
+            if (e.currentTarget.naturalWidth > 1) setLoaded(true);
+          }}
+          className="absolute inset-0 h-full w-full bg-white object-contain transition-opacity"
+          style={{ opacity: loaded ? 1 : 0 }}
+        />
+      ) : null}
     </span>
   );
 }

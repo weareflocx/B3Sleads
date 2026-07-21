@@ -44,6 +44,7 @@ export const DEMO_LEADS: BriefingLead[] = [
       keywords: ['pagos b2b', 'marketplace', 'liquidación', 'kyc', 'fintech'],
       icp_fit: 92,
       icp_reason: 'Seed reciente, equipo de 20, fintech B2B con producto lanzado.',
+      logo_url: null,
     },
     signal: {
       id: 'demo-sg-1',
@@ -92,6 +93,7 @@ export const DEMO_LEADS: BriefingLead[] = [
       email_verified: true,
     city: null,
     phone: null,
+    avatar_url: null,
     },
     message: {
       id: 'demo-msg-1',
@@ -143,6 +145,7 @@ export const DEMO_LEADS: BriefingLead[] = [
       keywords: ['csrd', 'huella de carbono', 'erp', 'industria', 'compliance'],
       icp_fit: 78,
       icp_reason: 'Serie A reciente, 40 personas, SaaS B2B en mercado regulado en expansión.',
+      logo_url: null,
     },
     signal: {
       id: 'demo-sg-2',
@@ -191,6 +194,7 @@ export const DEMO_LEADS: BriefingLead[] = [
       email_verified: false,
     city: null,
     phone: null,
+    avatar_url: null,
     },
     message: {
       id: 'demo-msg-2',
@@ -238,6 +242,7 @@ export const DEMO_LEADS: BriefingLead[] = [
       keywords: ['clínicas', 'automatización', 'agentes ia', 'salud privada'],
       icp_fit: 85,
       icp_reason: 'Pre-seed, 6 personas, en lanzamiento. Founder interactuó con posts de Sergio.',
+      logo_url: null,
     },
     signal: {
       id: 'demo-sg-3',
@@ -276,6 +281,7 @@ export const DEMO_LEADS: BriefingLead[] = [
       email_verified: false,
     city: null,
     phone: null,
+    avatar_url: null,
     },
     message: null,
   },

@@ -9,6 +9,7 @@ import type { Temperature } from '@/lib/scoring';
 import { ScoreRing } from '../score-ring';
 import { Heat } from '../heat';
 import { Avatar } from '../avatar';
+import { EditableImage } from '../editable-image';
 
 // Una fila de la cola de LinkedIn. Fricción mínima: copiar y abrir el perfil.
 // El envío lo hace Sergio, a mano, en LinkedIn.
@@ -105,7 +106,17 @@ export function FounderRow({
       <div className="flex items-start justify-between gap-3">
         {/* Identidad: avatar + nombre, marca debajo, headline y meta */}
         <div className="flex min-w-0 gap-3">
-          <Avatar name={name} />
+          {bl.contact ? (
+            <EditableImage
+              target={{ kind: 'contact', id: bl.contact.id }}
+              initial={bl.contact.avatar_url}
+              label="Cambiar foto del founder"
+            >
+              <Avatar name={name} src={bl.contact.avatar_url} />
+            </EditableImage>
+          ) : (
+            <Avatar name={name} />
+          )}
           <div className="min-w-0">
             <div className="flex flex-wrap items-baseline gap-2">
               <span className="font-semibold">{name}</span>

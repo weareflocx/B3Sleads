@@ -60,6 +60,7 @@ export function usersRanking(leads: BriefingLead[]): UserRow[] {
 
 export interface FounderRow {
   name: string;
+  avatarUrl: string | null;
   company: string | null;
   domain: string | null;
   stage: LeadStage;
@@ -82,6 +83,7 @@ export function foundersRanking(leads: BriefingLead[]): FounderRow[] {
         (STAGE_POINTS[bl.lead.stage] ?? 0) * 2 + Math.round(temp.score / 5) + (bl.signal ? 5 : 0);
       return {
         name: displayName(bl.contact!.full_name),
+        avatarUrl: bl.contact!.avatar_url ?? null,
         company: bl.company?.name ?? null,
         domain: bl.company?.domain ?? null,
         stage: bl.lead.stage,
