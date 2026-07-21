@@ -66,11 +66,6 @@ export default async function InvestorPage({ params }: { params: Promise<{ slug:
                 field="website"
                 initial={investor.website ?? ''}
                 placeholder="añadir web del fondo"
-                render={(v) => (
-                  <a href={`https://${v}`} target="_blank" rel="noreferrer" className="hover:underline">
-                    {v} ↗
-                  </a>
-                )}
               />
               <a
                 href={investorSearchUrl(investor.name)}
@@ -216,16 +211,6 @@ export default async function InvestorPage({ params }: { params: Promise<{ slug:
                   field="linkedinUrl"
                   initial={investor.linkedin_url ?? ''}
                   placeholder="url de la company page"
-                  render={(v) => (
-                    <a
-                      href={v}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="break-all text-[var(--linkedin)] hover:underline"
-                    >
-                      abrir ↗
-                    </a>
-                  )}
                 />
               </div>
               <div>

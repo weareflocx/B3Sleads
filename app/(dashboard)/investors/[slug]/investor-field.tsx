@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 // Mismo gesto que EditableText, pero para cualquier campo de la ficha del
@@ -14,14 +14,12 @@ export function InvestorField({
   initial,
   placeholder,
   multiline = false,
-  render,
 }: {
   slug: string;
   field: 'website' | 'thesis' | 'hq' | 'linkedinUrl' | 'notes' | 'name';
   initial: string;
   placeholder: string;
   multiline?: boolean;
-  render?: (value: string) => ReactNode;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -98,10 +96,40 @@ export function InvestorField({
 
   const filled = Boolean(value.trim());
 
+  // El render depende del campo y vive aquí: una función no puede cruzar
+  // la frontera servidor → cliente.
+  function display() {
+    if (field === 'website') {
+      return (
+        <a
+          href={`https://${value}`}
+          target="_blank"
+          rel="noreferrer"
+          className="hover:underline"
+        >
+          {value} ↗
+        </a>
+      );
+    }
+    if (field === 'linkedinUrl') {
+      return (
+        <a
+          href={value}
+          target="_blank"
+          rel="noreferrer"
+          className="break-all text-[var(--linkedin)] hover:underline"
+        >
+          abrir ↗
+        </a>
+      );
+    }
+    return value;
+  }
+
   return (
     <span className="group inline-flex max-w-full items-start gap-2">
       {filled ? (
-        <span className={saving ? 'opacity-50' : ''}>{render ? render(value) : value}</span>
+        <span className={saving ? 'opacity-50' : ''}>{display()}</span>
       ) : (
         <button
           onClick={() => setEditing(true)}
