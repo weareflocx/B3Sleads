@@ -140,6 +140,18 @@ export interface Lead {
   created_by_email?: string | null;
 }
 
+// Una entrada de la bitácora del lead (migración 003).
+export type NoteKind = 'note' | 'call_report' | 'insight';
+
+export interface Note {
+  id: string;
+  lead_id: string | null;
+  company_id: string | null;
+  body: string;
+  kind: NoteKind;
+  created_at: string;
+}
+
 export interface Message {
   id: string;
   lead_id: string;

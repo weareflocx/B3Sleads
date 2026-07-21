@@ -2,7 +2,7 @@
 // sin credenciales, sirve datos demo para desarrollo de UI.
 import { getServiceSupabase, isDemoMode } from './supabase';
 import { DEMO_LEADS } from './demo-data';
-import type { BriefingLead, Company, Contact, Lead, Message, Scan, Signal } from './types';
+import type { BriefingLead, Company, Contact, Lead, Message, Note, Scan, Signal } from './types';
 
 export async function getBriefingLeads(): Promise<BriefingLead[]> {
   if (isDemoMode()) {
@@ -73,6 +73,18 @@ export async function getCompanySignals(companyId: string): Promise<Signal[]> {
 
 // Histórico de scans de una compañía, del más antiguo al más reciente.
 // Cada vez que se importa un informe se añade un scan; así se ve la evolución.
+// Bitácora del lead, de la más reciente a la más antigua.
+export async function getLeadNotes(leadId: string): Promise<Note[]> {
+  if (isDemoMode()) return [];
+  const db = getServiceSupabase()!;
+  const { data } = await db
+    .from('notes')
+    .select('*')
+    .eq('lead_id', leadId)
+    .order('created_at', { ascending: false });
+  return (data as Note[] | null) ?? [];
+}
+
 export async function getCompanyScans(companyId: string): Promise<Scan[]> {
   if (isDemoMode()) return [];
   const db = getServiceSupabase()!;

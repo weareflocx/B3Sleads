@@ -5,23 +5,13 @@ import { useRouter } from 'next/navigation';
 import type { Lead, LeadStage } from '@/lib/types';
 import { STAGES, DISCARD_REASONS } from '@/lib/types';
 
-// Seguimiento del lead: etapa del pipeline y notas de la conversación.
+// Seguimiento del lead: etapa del pipeline. Las notas viven ahora en la
+// bitácora (NotesLog), con fecha y hora por entrada.
 // La etapa se guarda al cambiar; descartar exige motivo (spec §10.1).
-export function FollowUp({
-  lead,
-  contactId,
-  initialNotes,
-}: {
-  lead: Lead;
-  contactId: string | null;
-  initialNotes: string | null;
-}) {
+export function FollowUp({ lead }: { lead: Lead }) {
   const router = useRouter();
   const [stage, setStage] = useState<LeadStage>(lead.stage);
-  const [discardReason, setDiscardReason] = useState('');
-  const [notes, setNotes] = useState(initialNotes ?? '');
-  const [savedNotes, setSavedNotes] = useState(initialNotes ?? '');
-  const [saving, setSaving] = useState<'stage' | 'notes' | null>(null);
+  const [saving, setSaving] = useState<'stage' | null>(null);
 
   async function changeStage(next: LeadStage, reason?: string) {
     if (next === 'discarded' && !reason) {
@@ -39,18 +29,6 @@ export function FollowUp({
       setStage(next);
       router.refresh();
     }
-  }
-
-  async function saveNotes() {
-    if (!contactId) return;
-    setSaving('notes');
-    const res = await fetch('/api/contacts', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contactId, notes }),
-    });
-    setSaving(null);
-    if (res.ok) setSavedNotes(notes);
   }
 
   const fmt = (iso: string) =>
@@ -99,27 +77,6 @@ export function FollowUp({
       <p className="mt-2 text-xs text-[var(--muted)]">
         Última actividad: {fmt(lead.updated_at)}
       </p>
-
-      <div className="mt-3 border-t border-[var(--border)] pt-3">
-        <label htmlFor="notes" className="text-xs text-[var(--muted)]">
-          Notas de seguimiento (qué se ha hablado, ángulo personal)
-        </label>
-        <textarea
-          id="notes"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          rows={3}
-          placeholder="ej: respondió interesado, le mando el informe el lunes"
-          className="mt-1.5 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] p-2.5 text-sm leading-relaxed outline-none focus:border-[var(--cta)]"
-        />
-        <button
-          onClick={saveNotes}
-          disabled={saving === 'notes' || notes === savedNotes || !contactId}
-          className="mt-1.5 rounded-md border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--muted)] transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)] disabled:opacity-40"
-        >
-          {saving === 'notes' ? 'Guardando…' : notes === savedNotes ? 'Guardado' : 'Guardar notas'}
-        </button>
-      </div>
     </div>
   );
 }

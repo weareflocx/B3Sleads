@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getCompanyFiche, getCompanyScans, getCompanySignals } from '@/lib/data';
+import { getCompanyFiche, getCompanyScans, getCompanySignals, getLeadNotes } from '@/lib/data';
 import { leadTemperature } from '@/lib/scoring';
 import { buildPitch } from '@/lib/pitch';
 import { buildCallBriefPrompt, buildLeadContext } from '@/lib/lead-prompts';
@@ -9,6 +9,7 @@ import { resolveInvestors } from '@/lib/investors';
 import { ScanButton } from './scan-button';
 import { ScoreHistory } from './score-history';
 import { FollowUp } from './follow-up';
+import { NotesLog } from './notes-log';
 import { FundingPanel } from './funding-panel';
 import { LeadTools } from './lead-tools';
 import { CompanyLogo } from '../../company-logo';
@@ -55,9 +56,10 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
   if (!bl || !bl.company) notFound();
 
   const { company, contact, scan, lead, message } = bl;
-  const [scanHistory, signals] = await Promise.all([
+  const [scanHistory, signals, notes] = await Promise.all([
     getCompanyScans(company.id),
     getCompanySignals(company.id),
+    getLeadNotes(lead.id),
   ]);
   const fundingSignals = signals.filter((s) => s.type === 'funding_round');
   const latestFunding = fundingSignals[0] ?? null;
@@ -431,7 +433,18 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
           </Section>
 
           <Section title="Seguimiento">
-            <FollowUp lead={lead} contactId={contact?.id ?? null} initialNotes={contact?.notes ?? null} />
+            <FollowUp lead={lead} />
+          </Section>
+
+          <Section title="Bitácora">
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+              <NotesLog
+                leadId={lead.id}
+                companyId={company.id}
+                contactId={contact?.id ?? null}
+                notes={notes}
+              />
+            </div>
           </Section>
 
           <Section title="Financiación">
