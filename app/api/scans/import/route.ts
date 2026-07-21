@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
-import { getBrandProfile, getReportByUrl } from '@/lib/brand3';
+import { apiConfigured, getBrandProfile, getReportByUrl } from '@/lib/brand3';
 import { persistImportedScan } from '@/lib/b3s-scan-storage';
 import { priorityScore } from '@/lib/scoring';
 import type { Company, Scan } from '@/lib/types';
@@ -13,6 +13,16 @@ export async function POST(req: NextRequest) {
     const { reportUrl, domain: rawDomain, leadId, companyId } = await req.json();
     if (!reportUrl && !rawDomain) {
       return NextResponse.json({ error: 'reportUrl o domain requerido' }, { status: 400 });
+    }
+
+    // El histórico por dominio sólo existe en la API autenticada. Importar un
+    // informe por su URL sí funciona sin token (Markdown público).
+    if (!reportUrl && !apiConfigured()) {
+      return NextResponse.json({
+        found: false,
+        message:
+          'Buscar por dominio necesita el token de la API de B3S. Pega la URL del informe (b3s.fly.dev/report/…) y lo importo igual.',
+      });
     }
 
     const profile = reportUrl ? await getReportByUrl(reportUrl) : await getBrandProfile(rawDomain);

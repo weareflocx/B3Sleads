@@ -180,6 +180,10 @@ export class B3SApiError extends Error {
   }
 }
 
+// Origen público de B3S. Sirve los informes ya generados en Markdown sin
+// credenciales; es el plan B mientras no haya token de la API v1.
+const PUBLIC_BASE = 'https://b3s.fly.dev';
+
 function apiBase(): string {
   const configured = process.env.B3S_SCANNER_API_URL?.trim();
   if (!configured) {
@@ -188,13 +192,25 @@ function apiBase(): string {
   return configured.replace(/\/+$/, '');
 }
 
-function apiToken(): string {
-  const token =
+function readApiToken(): string | null {
+  return (
     process.env.B3S_SCANNER_API_TOKEN?.trim() ||
     process.env.BRAND3_SCANNER_API_TOKEN?.trim() ||
-    process.env.BRAND3_TOKEN?.trim();
+    process.env.BRAND3_TOKEN?.trim() ||
+    null
+  );
+}
+
+function apiToken(): string {
+  const token = readApiToken();
   if (!token) throw new Error('B3S_SCANNER_API_TOKEN no configurado');
   return token;
+}
+
+// La API v1 sólo es utilizable con las dos variables puestas. Sin ellas hay
+// caminos que siguen funcionando (importar un informe público por su URL).
+export function apiConfigured(): boolean {
+  return Boolean(process.env.B3S_SCANNER_API_URL?.trim() && readApiToken());
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -330,7 +346,13 @@ function normalizeDomain(rawDomain: string): string {
 
 export function absoluteB3SUrl(path: string): string {
   if (/^https?:\/\//i.test(path)) return path;
-  const origin = new URL(apiBase()).origin;
+  // Sin API configurada seguimos sabiendo dónde vive el informe público.
+  let origin = PUBLIC_BASE;
+  try {
+    origin = new URL(apiBase()).origin;
+  } catch {
+    // se queda el origen público
+  }
   return new URL(path, origin).toString();
 }
 
@@ -386,14 +408,60 @@ export function reportScanIdFromUrl(url: string): string | null {
   }
 }
 
+// ---------- Plan B: informe público en Markdown ----------
+// Los informes de b3s.fly.dev/report/{id} siguen siendo legibles sin token.
+// No traen evidencia estructurada, pero sí score, nombre y el análisis por
+// dimensiones que parsea lib/scan-report.ts. Suficiente para el argumentario.
+export function brandNameFromMarkdown(md: string): string | null {
+  const m = md.match(/^#\s*Brand3 Scanner\s*[—–-]\s*(.+)$/m);
+  return m?.[1].trim() || null;
+}
+
+async function publicReportImport(scanId: string): Promise<ImportedScan> {
+  const response = await fetch(`${PUBLIC_BASE}/report/${encodeURIComponent(scanId)}.md`, {
+    cache: 'no-store',
+    headers: { Accept: 'text/markdown' },
+  });
+  if (!response.ok) return emptyImport();
+
+  const markdown = await response.text();
+  if (markdown.length < 200 || !/Brand3 Scanner/.test(markdown)) return emptyImport();
+
+  const scoreMatch = markdown.match(/Brand3 Score:\s*\*\*\s*(\d+(?:\.\d+)?)\s*\/\s*100/i);
+  const summaryMatch = markdown.split(/\n## /)[0].match(/^>\s*(.+)$/m);
+  const gaps = [...markdown.split(/\n## /).slice(1)]
+    .filter((block) => /_No detectado\._/.test(block))
+    .map((block) => block.split('\n')[0].replace(/[#*]/g, '').trim())
+    .filter(Boolean);
+
+  return {
+    found: true,
+    score: scoreMatch ? Math.round(parseFloat(scoreMatch[1])) : null,
+    quadrant: null,
+    brandName: brandNameFromMarkdown(markdown),
+    tldr: { summary: (summaryMatch?.[1] ?? '').trim().slice(0, 400), gaps },
+    evidence: {},
+    uiUrl: `${PUBLIC_BASE}/report/${scanId}`,
+    scanId,
+    raw: { markdown, source: 'public_report' },
+  };
+}
+
 export async function getReportByUrl(url: string): Promise<ImportedScan> {
   const scanId = reportScanIdFromUrl(url);
   if (!scanId) return emptyImport();
+  // Sin credenciales de la API v1, el informe público es la única vía.
+  if (!apiConfigured()) return publicReportImport(scanId);
   try {
     const [result, evidence] = await Promise.all([getResult(scanId), getEvidence(scanId)]);
     return importedScan(result, evidence);
   } catch (error) {
     if (error instanceof B3SApiError && error.status === 404) return emptyImport();
+    // Token caducado o sin permiso: antes de romper, probamos la vía pública.
+    if (error instanceof B3SApiError && (error.status === 401 || error.status === 403)) {
+      const fallback = await publicReportImport(scanId);
+      if (fallback.found) return fallback;
+    }
     throw error;
   }
 }

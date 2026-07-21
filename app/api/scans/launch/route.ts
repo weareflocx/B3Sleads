@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { absoluteB3SUrl, createScan, storedScanStatus } from '@/lib/brand3';
+import { absoluteB3SUrl, apiConfigured, createScan, storedScanStatus } from '@/lib/brand3';
 import { syncStoredScan } from '@/lib/b3s-scan-storage';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import type { Company, Scan } from '@/lib/types';
@@ -20,6 +20,18 @@ export async function POST(req: NextRequest) {
     if (isDemoMode()) {
       return NextResponse.json({ ok: true, demo: true });
     }
+
+    // Lanzar un scan nuevo consume cuota: no hay vía pública, hace falta token.
+    if (!apiConfigured()) {
+      return NextResponse.json(
+        {
+          error:
+            'Lanzar scans nuevos necesita el token de la API de B3S, que aún no está configurado. Mientras tanto puedes pegar abajo la URL de un informe ya generado en b3s.fly.dev e importarlo.',
+        },
+        { status: 503 },
+      );
+    }
+
     const db = getServiceSupabase()!;
 
     const { data: company, error: companyError } = await db

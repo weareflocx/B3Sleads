@@ -20,8 +20,14 @@ export function ScanButton({
   const router = useRouter();
   const [busy, setBusy] = useState<'launch' | 'url' | 'search' | null>(null);
   const [url, setUrl] = useState('');
-  const [msg, setMsg] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ text: string; tone: 'info' | 'error' } | null>(null);
   const idempotencyKey = useRef<string | null>(null);
+
+  // El mensaje del servidor ya viene redactado para humanos; interpolar el
+  // objeto Error añadía un "Error: Error:" delante.
+  function reason(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+  }
 
   useEffect(() => {
     if (!scan || !['queued', 'running'].includes(scan.status)) return;
@@ -40,7 +46,7 @@ export function ScanButton({
           return;
         }
       } catch (error) {
-        if (!cancelled) setMsg(`Error de sincronización: ${error}`);
+        if (!cancelled) setMsg({ text: `No pude sincronizar el scan: ${reason(error)}`, tone: 'error' });
       }
       if (!cancelled) timer = setTimeout(sync, 5_000);
     }
@@ -70,7 +76,7 @@ export function ScanButton({
       idempotencyKey.current = null;
       router.refresh();
     } catch (error) {
-      setMsg(`Error: ${error}`);
+      setMsg({ text: reason(error), tone: 'error' });
     } finally {
       setBusy(null);
     }
@@ -86,14 +92,14 @@ export function ScanButton({
         body: JSON.stringify({ leadId, ...body }),
       });
       const json = await res.json();
-      if (json.error) setMsg(`Error: ${json.error}`);
-      else if (json.found === false) setMsg(json.message);
+      if (json.error) setMsg({ text: json.error, tone: 'error' });
+      else if (json.found === false) setMsg({ text: json.message, tone: 'info' });
       else {
         setUrl('');
         router.refresh();
       }
     } catch (e) {
-      setMsg(`Error: ${e}`);
+      setMsg({ text: reason(e), tone: 'error' });
     } finally {
       setBusy(null);
     }
@@ -160,7 +166,13 @@ export function ScanButton({
         </a>
       </div>
 
-      {msg && <p className="text-xs text-[var(--muted)]">{msg}</p>}
+      {msg && (
+        <p
+          className={`text-xs ${msg.tone === 'error' ? 'text-[var(--danger)]' : 'text-[var(--muted)]'}`}
+        >
+          {msg.text}
+        </p>
+      )}
     </div>
   );
 }
