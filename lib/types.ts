@@ -106,6 +106,21 @@ export interface Contact {
   phone: string | null;
 }
 
+// El fondo (migración 007). Su cartera no se guarda: se deriva de las rondas.
+export interface Investor {
+  id: string;
+  slug: string;
+  name: string;
+  website: string | null;
+  linkedin_url: string | null;
+  hq: string | null;
+  kind: string;
+  thesis: string | null;
+  notes: string | null;
+  company_id: string | null;
+  created_at: string;
+}
+
 export interface Lead {
   id: string;
   company_id: string;

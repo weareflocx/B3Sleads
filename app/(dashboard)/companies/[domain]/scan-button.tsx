@@ -14,7 +14,8 @@ export function ScanButton({
 }: {
   companyId: string;
   domain: string;
-  leadId: string;
+  // Los fondos se escanean igual que las startups, pero no son un lead.
+  leadId?: string | null;
   scan: Scan | null;
 }) {
   const router = useRouter();

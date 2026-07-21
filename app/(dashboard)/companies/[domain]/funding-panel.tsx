@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { Signal } from '@/lib/types';
 import {
@@ -68,24 +69,22 @@ function AmountField({
   );
 }
 
-// Los inversores dejan de ser texto plano: cada uno es un chip que lleva a
-// buscar el fondo. Cuando exista la ficha del VC, el chip apuntará ahí.
+// Los inversores dejan de ser texto plano: cada chip lleva a la ficha del
+// fondo, donde está su cartera dentro del radar.
 function InvestorChips({ investors }: { investors: unknown }) {
   const refs = resolveInvestors(investors);
   if (!refs.length) return null;
   return (
     <div className="mt-2 flex flex-wrap gap-1.5">
       {refs.map((inv) => (
-        <a
+        <Link
           key={inv.slug}
           href={inv.href}
-          target="_blank"
-          rel="noreferrer"
-          title={`Buscar ${inv.name}`}
+          title={`Ficha de ${inv.name}`}
           className="rounded-full border border-[var(--border)] px-2 py-0.5 font-mono text-xs text-[var(--muted)] transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)]"
         >
           {inv.name}
-        </a>
+        </Link>
       ))}
     </div>
   );

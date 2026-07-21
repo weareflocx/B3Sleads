@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getBriefingLeads } from '@/lib/data';
+import { getInvestorStats, formatEur } from '@/lib/investors-data';
 import { usersRanking, foundersRanking, startupsRanking, userLabel } from '@/lib/leaderboard';
 import { stageLabel, companyLabel } from '@/lib/types';
 import { Heat } from '../heat';
@@ -46,6 +47,7 @@ export default async function LeaderboardPage() {
   const users = usersRanking(leads);
   const founders = foundersRanking(leads).slice(0, 15);
   const startups = startupsRanking(leads).slice(0, 15);
+  const investors = (await getInvestorStats()).slice(0, 15);
 
   const usersTab = (
     <div className="space-y-2">
@@ -152,6 +154,48 @@ export default async function LeaderboardPage() {
     </div>
   );
 
+  const investorsTab = (
+    <div className="space-y-2">
+      {investors.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-[var(--border)] p-8 text-center text-sm text-[var(--muted)]">
+          Sin fondos todavía. Aparecen solos al registrar los inversores de una ronda.
+        </p>
+      ) : (
+        investors.map((v, i) => (
+          <Row key={v.slug} first={i === 0}>
+            <RankBadge n={i + 1} />
+            <div className="min-w-0 flex-1">
+              <Link href={`/investors/${v.slug}`} className="text-sm font-medium hover:underline">
+                {v.name}
+              </Link>
+              <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
+                <span>
+                  {v.portfolio} {v.portfolio === 1 ? 'participada' : 'participadas'}
+                </span>
+                {v.deployedEur > 0 && <span>{formatEur(v.deployedEur)} en rondas</span>}
+                {v.scanned > 0 && (
+                  <span>
+                    {v.scanned} escaneada{v.scanned === 1 ? '' : 's'}
+                  </span>
+                )}
+              </div>
+            </div>
+            {v.avgScore != null ? (
+              <ScoreRing score={v.avgScore} size={40} />
+            ) : (
+              <span className="font-mono text-xs text-[var(--soft)]">sin scans</span>
+            )}
+          </Row>
+        ))
+      )}
+      <p className="pt-1 text-[11px] leading-relaxed text-[var(--soft)]">
+        Fondos ordenados por participadas en el radar. El anillo es la media de B3S Score de su
+        cartera escaneada: un fondo con media baja es una conversación con el fondo, no con una
+        startup suelta.
+      </p>
+    </div>
+  );
+
   return (
     <main>
       <div className="mb-6 flex flex-wrap items-baseline justify-between gap-2">
@@ -179,6 +223,12 @@ export default async function LeaderboardPage() {
             label: 'Startups',
             hint: 'Las mejores marcas del radar según B3S Scanner.',
             content: startupsTab,
+          },
+          {
+            key: 'fondos',
+            label: 'Fondos',
+            hint: 'Quién está detrás del radar: cuántas participadas tienes y cómo puntúa su cartera.',
+            content: investorsTab,
           },
         ]}
       />

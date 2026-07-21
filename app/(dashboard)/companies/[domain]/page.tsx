@@ -5,6 +5,7 @@ import { leadTemperature } from '@/lib/scoring';
 import { buildPitch } from '@/lib/pitch';
 import { buildCallBriefPrompt, buildLeadContext } from '@/lib/lead-prompts';
 import { stageLabel as stageLabelFor, displayName, companyLabel } from '@/lib/types';
+import { resolveInvestors } from '@/lib/investors';
 import { ScanButton } from './scan-button';
 import { ScoreHistory } from './score-history';
 import { FollowUp } from './follow-up';
@@ -74,10 +75,11 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
   // Ronda para la cabecera (lo más "vendible" arriba del todo).
   const fd = latestFunding?.detail;
   const fundingHeadline = latestFunding
-    ? [fd?.round, fd?.amount, (fd?.investors as string[] | undefined)?.join(', ')]
-        .filter(Boolean)
-        .join(' · ') || 'ronda registrada'
+    ? [fd?.round, fd?.amount].filter(Boolean).join(' · ') || 'ronda registrada'
     : company.funding_stage || null;
+  // Los inversores salen de la cadena y pasan a ser puertas: cada uno lleva
+  // a su ficha, con toda su cartera dentro del radar.
+  const headlineInvestors = resolveInvestors(fd?.investors);
 
   return (
     <main>
@@ -113,10 +115,27 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                 </a>
               )}
             </div>
-            {fundingHeadline && (
-              <div className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-[var(--cta)]/40 bg-[var(--cta)]/8 px-2.5 py-1 text-xs text-[var(--cta)]">
-                <span className="font-semibold uppercase tracking-wider">Ronda</span>
-                <span className="text-[var(--text)]">{fundingHeadline}</span>
+            {/* Ronda e inversores en la misma línea y a la misma altura: quién
+                entró es tan cabecera como cuánto levantaron, y cada fondo es
+                una puerta, así que se puede pulsar. */}
+            {(fundingHeadline || headlineInvestors.length > 0) && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {fundingHeadline && (
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--cta)]/40 bg-[var(--cta)]/8 px-2.5 py-1 text-xs text-[var(--cta)]">
+                    <span className="font-semibold uppercase tracking-wider">Ronda</span>
+                    <span className="text-[var(--text)]">{fundingHeadline}</span>
+                  </span>
+                )}
+                {headlineInvestors.map((inv) => (
+                  <Link
+                    key={inv.slug}
+                    href={inv.href}
+                    title={`Ficha de ${inv.name}`}
+                    className="inline-flex items-center rounded-md border border-[var(--border)] px-2.5 py-1 text-xs text-[var(--muted)] transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)]"
+                  >
+                    {inv.name}
+                  </Link>
+                ))}
               </div>
             )}
             <div className="mt-3 flex flex-wrap items-center gap-2">

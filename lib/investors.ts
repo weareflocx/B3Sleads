@@ -27,16 +27,19 @@ export function investorSlug(name: string): string {
     .replace(/^-|-$/g, '');
 }
 
-// Sin la web verificada del fondo, mandar a una búsqueda es más honesto que
-// adivinar un dominio: un enlace inventado lleva a la web de otro. DuckDuckGo
-// no perfila al usuario. Cuando exista la ficha del fondo, `href` apuntará
-// ahí y esto quedará como último recurso.
+// Buscar el fondo en internet queda como acción secundaria dentro de su
+// ficha. El chip lleva a la ficha interna, que es donde vive su cartera.
 export function investorSearchUrl(name: string): string {
   return `https://duckduckgo.com/?q=${encodeURIComponent(`${name} venture capital`)}`;
 }
 
+export function investorPath(slug: string): string {
+  return `/investors/${slug}`;
+}
+
 export function resolveInvestor(name: string): InvestorRef {
-  return { name: name.trim(), slug: investorSlug(name), href: investorSearchUrl(name) };
+  const slug = investorSlug(name);
+  return { name: name.trim(), slug, href: investorPath(slug) };
 }
 
 export function resolveInvestors(names: unknown): InvestorRef[] {
