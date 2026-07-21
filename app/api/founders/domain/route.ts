@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import { getBrandProfile } from '@/lib/brand3';
+import { persistImportedScan } from '@/lib/b3s-scan-storage';
 import { priorityScore } from '@/lib/scoring';
 import type { Company, Scan } from '@/lib/types';
 
 // Completar el dominio de un founder que se añadió solo con su LinkedIn.
-// Crea/encuentra la compañía, la vincula al lead y lanza el Brand3 Scanner.
+// Crea/encuentra la compañía, la vincula al lead e importa su último scan B3S.
 // POST { leadId, domain, companyName? }
 export async function POST(req: NextRequest) {
   try {
@@ -49,30 +50,13 @@ export async function POST(req: NextRequest) {
       await db.from('contacts').update({ company_id: company.id }).eq('id', lead.contact_id);
     }
 
-    // Lanzar el Scanner (si hay token). Sin token, se queda sin scan pero
-    // la ficha ya existe y el founder sigue en la cola.
-    // Importar el scan del Observatorio público si esa marca ya está en Brand3.
+    // Importar el último scan disponible mediante el API autenticado.
     let scanId: string | null = null;
     let scanRow: Scan | null = null;
     try {
       const profile = await getBrandProfile(domain);
-      if (profile.found) {
-        const { data } = await db
-          .from('scans')
-          .insert({
-            company_id: company.id,
-            scanner_job_id: profile.scanId ?? 0,
-            status: 'ready',
-            score: profile.score,
-            tldr: profile.tldr,
-            evidence: profile.evidence,
-            result_raw: profile.raw,
-            ui_url: profile.uiUrl,
-            completed_at: new Date().toISOString(),
-          })
-          .select()
-          .single();
-        scanRow = data as Scan | null;
+      if (profile.found && profile.scanId) {
+        scanRow = await persistImportedScan(db, company.id, profile);
         scanId = scanRow?.id ?? null;
       }
     } catch (err) {

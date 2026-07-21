@@ -7,7 +7,7 @@
 // este mismo material; esto es el suelo, no el techo.
 import offer from '@/config/floc-offer.json';
 import type { Company, Scan, Signal } from './types';
-import { parseScanReport, reportMarkdown, type ScanDimension, type ScanReport } from './scan-report';
+import { storedScanReport, type ScanDimension, type ScanReport } from './scan-report';
 
 export interface Pitch {
   lectura: string[]; // qué dice el scan de su marca (frases de la propia marca)
@@ -284,9 +284,8 @@ export function buildPitch(opts: {
   fundingSignal: Signal | null;
 }): Pitch {
   const { company, scan, fundingSignal } = opts;
-  const md = reportMarkdown(scan?.result_raw);
-  if (scan && md) {
-    const report = parseScanReport(md);
+  const report = storedScanReport(scan?.result_raw);
+  if (scan && report) {
     if (report.dimensions.length) return pitchFromReport(report, company, scan, fundingSignal);
   }
   return pitchFallback(company, scan, fundingSignal);

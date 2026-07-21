@@ -21,12 +21,12 @@ create table signals (
   detected_at timestamptz default now()
 );
 
--- Resultados del Brand3 Scanner
+-- Resultados de B3S Scanner
 create table scans (
   id uuid primary key default gen_random_uuid(),
   company_id uuid references companies(id) on delete cascade,
-  scanner_job_id integer not null,          -- id devuelto por la API
-  status text not null default 'queued',    -- queued | running | ready | failed
+  scanner_job_id text not null,             -- id opaco devuelto por B3S API v1
+  status text not null default 'running',   -- running | blocked | ready | failed | cancelled
   score numeric,                            -- score principal del result
   tldr jsonb,                               -- TLDR Brand3 completo
   evidence jsonb,                           -- hallazgos para personalizar mensaje

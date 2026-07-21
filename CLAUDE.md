@@ -1,7 +1,7 @@
 # B3S Leads
 
 App de lead-gen para FLOC*. Detecta startups con ronda reciente o
-lanzamiento, cualifica su marca con Brand3 Scanner, estructura la ficha
+lanzamiento, cualifica su marca con B3S Scanner, estructura la ficha
 de compañía y del founder, y genera borradores de mensaje.
 EL ENVÍO ES SIEMPRE HUMANO, POR LINKEDIN.
 
@@ -22,7 +22,7 @@ EL ENVÍO ES SIEMPRE HUMANO, POR LINKEDIN.
 ## Modelo mental
 - El canal es LinkedIn. `contacts.linkedin_url` es la unidad de trabajo.
 - La ficha de compañía (estilo Explee) es el contexto: qué venden,
-  determinants, competidores, keywords, señal y scan de Brand3.
+  determinants, competidores, keywords, señal y scan de B3S.
 - El Scanner es el diferencial: sus hallazgos son lo que hace que el
   mensaje sea irrepetible.
 
@@ -33,7 +33,7 @@ EL ENVÍO ES SIEMPRE HUMANO, POR LINKEDIN.
   redactor (no se pitchea).
 
 ## Stack
-Next.js 15 + Supabase + Brand3 Scanner API + Claude API.
+Next.js 15 + Supabase + B3S Scanner API v1 + Claude API.
 Pipeline nocturno en pipeline/nightly.ts + Claude Code para Lusha.
 
 ## Comandos

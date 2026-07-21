@@ -5,7 +5,7 @@ import { parseFounderLines, type ParsedEntry } from '@/lib/parse-founders';
 
 // Analiza (sin escribir en BD) un pegado en lote de founders y devuelve, por
 // línea, la info extra que se puede conseguir sin tocar LinkedIn (spec §9):
-//  - scan de Brand3 por dominio (score + cuadrante + resumen)
+//  - último scan de B3S por dominio (score + resumen)
 //  - aviso de duplicado (contacto por handle, marca por dominio) ANTES de añadir
 //
 // POST { text: string } → { rows: PreviewRow[] }
@@ -77,8 +77,7 @@ export async function POST(req: NextRequest) {
         if (!e.valid) return base;
 
         // Scan por dominio. Primero nuestra propia BD (scans ya importados),
-        // luego el Observatorio público de Brand3 (sin token) para marcas
-        // que aún no tenemos.
+        // luego B3S Scanner API v1 para marcas que aún no tenemos.
         if (e.domain) {
           const own = await lookupCompany(e.domain);
           base.dupCompany = own.exists;

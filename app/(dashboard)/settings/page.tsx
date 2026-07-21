@@ -25,18 +25,24 @@ export default async function SettingsPage() {
     { key: 'Presupuesto créditos Lusha/mes', value: process.env.CREDIT_BUDGET_MONTHLY || '100' },
     { key: 'Scans máx/noche', value: process.env.SCAN_MAX_PER_NIGHT || '10' },
     {
-      key: 'Umbral score Brand3 (≥ = marca resuelta)',
+      key: 'Umbral score B3S (≥ = marca resuelta)',
       value: process.env.SCANNER_SCORE_THRESHOLD || '60',
     },
     { key: 'Modelo de redacción', value: process.env.CLAUDE_MODEL || 'claude-sonnet-4-6' },
     { key: 'Idioma por defecto', value: 'en (es si la empresa es española)' },
     { key: 'Supabase', value: isDemoMode() ? 'no configurado (modo demo)' : 'conectado' },
     {
-      key: 'Brand3 token',
+      key: 'B3S Scanner API',
+      value: process.env.B3S_SCANNER_API_URL || 'falta URL',
+    },
+    {
+      key: 'B3S Scanner token',
       value:
-        process.env.BRAND3_SCANNER_API_TOKEN || process.env.BRAND3_TOKEN
+        process.env.B3S_SCANNER_API_TOKEN ||
+        process.env.BRAND3_SCANNER_API_TOKEN ||
+        process.env.BRAND3_TOKEN
           ? 'configurado'
-          : 'falta (solo necesario para lanzar scans nuevos)',
+          : 'falta',
     },
     { key: 'Anthropic API key', value: process.env.ANTHROPIC_API_KEY ? 'configurada' : 'falta' },
   ];

@@ -146,7 +146,7 @@ export default async function LeaderboardPage() {
         ))
       )}
       <p className="pt-1 text-[11px] leading-relaxed text-[var(--soft)]">
-        Brand3 Score del último scan (rojo ≤50 · azul 51-75 · verde 76-100). Una fila por
+        B3S Score del último scan (rojo ≤50 · azul 51-75 · verde 76-100). Una fila por
         startup; si hay varios scans, el mejor.
       </p>
     </div>
@@ -177,7 +177,7 @@ export default async function LeaderboardPage() {
           {
             key: 'startups',
             label: 'Startups',
-            hint: 'Las mejores marcas del radar según el Brand3 Scanner.',
+            hint: 'Las mejores marcas del radar según B3S Scanner.',
             content: startupsTab,
           },
         ]}

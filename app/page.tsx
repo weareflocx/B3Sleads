@@ -9,7 +9,7 @@ import { GeoField } from './geo-field';
 export const metadata = {
   title: 'B3S Leads — generación de leads de valor',
   description:
-    'Detecta startups con momentum, lee su marca con Brand3 Scanner y abre conversaciones que responden. El envío es siempre humano.',
+    'Detecta startups con momentum, lee su marca con B3S Scanner y abre conversaciones que responden. El envío es siempre humano.',
 };
 
 const ATTRIBUTES: { color: string; title: string; desc: string }[] = [

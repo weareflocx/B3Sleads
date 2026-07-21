@@ -10,7 +10,7 @@ import offer from '@/config/floc-offer.json';
 import type { BriefingLead } from './types';
 import { displayName } from './types';
 import { buildPitch } from './pitch';
-import { parseScanReport, reportMarkdown, reportDigest } from './scan-report';
+import { storedScanReport, reportDigest } from './scan-report';
 
 function fundingLine(bl: BriefingLead): string | null {
   const f = bl.signal?.type === 'funding_round' ? bl.signal : null;
@@ -55,12 +55,12 @@ export function buildLeadContext(bl: BriefingLead): string {
   }
 
   // Análisis de marca del Scanner (lo específico e irrepetible)
-  const md = reportMarkdown(bl.scan?.result_raw);
+  const report = storedScanReport(bl.scan?.result_raw);
   if (bl.scan?.score != null) {
     lines.push('');
-    lines.push('## Brand3 Scanner');
+    lines.push('## B3S Scanner');
     lines.push(`Score: ${Number(bl.scan.score)}/100`);
-    if (md) lines.push(reportDigest(parseScanReport(md)));
+    if (report) lines.push(reportDigest(report));
   }
 
   // Argumentario ya derivado (determinista)

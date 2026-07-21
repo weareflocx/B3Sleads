@@ -7,6 +7,12 @@ import { NextResponse, type NextRequest } from 'next/server';
 const PUBLIC_PATHS = ['/', '/login'];
 
 export async function middleware(request: NextRequest) {
+  // Acceso directo para desarrollo local. NODE_ENV impide que una variable
+  // olvidada pueda desactivar la autenticación en un build de producción.
+  const localAuthBypass =
+    process.env.NODE_ENV !== 'production' && process.env.LOCAL_AUTH_BYPASS === 'true';
+  if (localAuthBypass) return NextResponse.next();
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) return NextResponse.next();

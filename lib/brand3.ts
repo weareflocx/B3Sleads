@@ -1,150 +1,350 @@
-// Cliente del Brand3 Scanner API (spec §4)
-// Base: https://brand3.fly.dev/api/v1/scanner
-// Auth: Bearer <BRAND3_SCANNER_API_TOKEN>. Es un secreto compartido que vive
-// en la config del servidor Brand3 (Fly.io secrets); lo tiene Jesús (GsusFC).
-// No se emite desde ninguna web ni está en el repo. Mín. 24 caracteres.
+// Cliente server-only de B3S Scanner API v1.
+// El navegador siempre llama a Route Handlers de B3Sleads: el Bearer token
+// nunca se serializa ni se expone mediante variables NEXT_PUBLIC_*.
 
-const BASE = 'https://brand3.fly.dev/api/v1/scanner';
+const DEFAULT_POLL_INTERVAL_MS = 5_000;
+const DEFAULT_POLL_TIMEOUT_MS = 10 * 60 * 1_000;
 
-function headers(): Record<string, string> {
-  const token = process.env.BRAND3_SCANNER_API_TOKEN || process.env.BRAND3_TOKEN;
-  if (!token) throw new Error('BRAND3_SCANNER_API_TOKEN no configurado (pedir a Jesús)');
-  return {
-    Authorization: `Bearer ${token}`,
-    'Content-Type': 'application/json',
-  };
+export type B3SScanStatus = 'running' | 'blocked' | 'completed' | 'failed' | 'cancelled';
+
+export interface B3SScanLinks {
+  self: string;
+  result: string;
+  evidence: string;
+  continue_scan: string;
+  cancel: string;
+  report: string;
+  report_markdown: string;
+}
+
+export interface B3SScanFailure {
+  code: string;
+  message: string;
+  retryable: boolean;
 }
 
 export interface ScanJob {
-  id: number;
-  status: 'queued' | 'running' | 'ready' | 'failed';
-  phase?: string;
-  status_url?: string;
-  result_url?: string;
-  ui_url?: string;
-  error_message?: string;
-  [key: string]: unknown;
+  object: 'scan';
+  api_version: 'v1';
+  id: string;
+  status: B3SScanStatus;
+  phase: string;
+  progress: number;
+  brand_name: string;
+  url: string;
+  language: 'es';
+  started_at: string | null;
+  completed_at: string | null;
+  phases: Array<{ key: string; label: string; state: string }>;
+  acquisition: Array<Record<string, unknown>>;
+  acquisition_gate: Record<string, unknown>;
+  failure: B3SScanFailure | null;
+  result_available: boolean;
+  durable_status: boolean;
+  resumable_after_restart: boolean;
+  links: B3SScanLinks;
 }
 
-export async function createScan(url: string, lang = 'en'): Promise<ScanJob> {
-  const res = await fetch(BASE, {
-    method: 'POST',
-    headers: headers(),
-    body: JSON.stringify({ url, lang, mode: 'advanced', include_audit: true }),
-  });
-  if (!res.ok) throw new Error(`Scanner create failed: ${res.status} ${await res.text()}`);
-  return res.json();
+export interface B3SBrand {
+  name: string;
+  url: string;
+  domain: string;
 }
 
-export async function getScanStatus(id: number): Promise<ScanJob> {
-  const res = await fetch(`${BASE}/${id}`, { headers: headers() });
-  if (!res.ok) throw new Error(`Scanner status failed: ${res.status}`);
-  return res.json();
+export interface B3SEvidenceReference {
+  ref: string;
+  component: string;
+  url: string;
+  snippet: string;
 }
 
-export async function pollScan(id: number, timeoutMs = 10 * 60 * 1000): Promise<ScanJob> {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    const job = await getScanStatus(id);
-    if (job.status === 'ready') return job;
-    if (job.status === 'failed') throw new Error(job.error_message || 'Scan failed');
-    await new Promise((r) => setTimeout(r, 15_000));
+export interface B3SScanComponent {
+  key: string;
+  label: string;
+  status: string;
+  score: number | null;
+  max_score: number | null;
+  confidence: string;
+  summary: string;
+  verdict: string;
+  message: string;
+  detected_content: string;
+  coverage_status: string;
+  tile_summary: {
+    passed: number;
+    failed: number;
+    insufficient_evidence: number;
+    total: number;
+  };
+  tiles: Array<Record<string, unknown>>;
+  evidence_refs: B3SEvidenceReference[];
+}
+
+export interface B3SScanResult {
+  object: 'scan_result';
+  api_version: 'v1';
+  id: string;
+  status: 'completed';
+  brand: B3SBrand;
+  score: {
+    value: number | null;
+    scale: 100;
+    base_average: number | null;
+    reliability_status: string;
+  };
+  summary: string;
+  executive_reading: string;
+  components: B3SScanComponent[];
+  detected_count: number;
+  component_count: number;
+  not_detected: string[];
+  limitations: string[];
+  acquisition_summary: Record<string, unknown>;
+  acquisition_gate: Record<string, unknown>;
+  metadata: {
+    schema_version: 'b3s-scanner-result-v1';
+    pipeline_schema_version: string;
+    rubric_version: string;
+    prompt_version: string;
+    evaluator_model: string;
+    generated_at: string | null;
+  };
+  links: B3SScanLinks;
+}
+
+export interface B3SScanEvidence {
+  object: 'scan_evidence';
+  api_version: 'v1';
+  scan_id: string;
+  brand: B3SBrand;
+  acquisition_summary: Record<string, unknown>;
+  acquisition_gate: Record<string, unknown>;
+  references: B3SEvidenceReference[];
+  absences: Array<Record<string, unknown>>;
+  attempts: Array<Record<string, unknown>>;
+  totals: Record<string, number>;
+  links: B3SScanLinks;
+}
+
+interface BrandScanHistory {
+  object: 'scan_list';
+  api_version: 'v1';
+  domain: string;
+  items: Array<{
+    id: string;
+    status: 'completed';
+    brand_name: string;
+    url: string;
+    score: number | null;
+    created_at: string | null;
+    result_url: string;
+    report_url: string;
+  }>;
+  pagination: { limit: number; offset: number; count: number; has_more: boolean };
+}
+
+interface ApiErrorEnvelope {
+  error?: {
+    code?: string;
+    message?: string;
+    request_id?: string;
+    details?: Record<string, unknown> | null;
+  };
+}
+
+export class B3SApiError extends Error {
+  readonly status: number;
+  readonly code: string;
+  readonly requestId: string | null;
+  readonly details: Record<string, unknown> | null;
+
+  constructor({
+    status,
+    code,
+    message,
+    requestId = null,
+    details = null,
+  }: {
+    status: number;
+    code: string;
+    message: string;
+    requestId?: string | null;
+    details?: Record<string, unknown> | null;
+  }) {
+    super(message);
+    this.name = 'B3SApiError';
+    this.status = status;
+    this.code = code;
+    this.requestId = requestId;
+    this.details = details;
   }
-  throw new Error(`Scanner timeout (job ${id})`);
 }
 
-export async function getResult(id: number, lang = 'en'): Promise<Record<string, unknown>> {
-  const res = await fetch(`${BASE}/${id}/result?lang=${lang}`, { headers: headers() });
-  if (res.status === 409) throw new Error('Scan not ready');
-  if (!res.ok) throw new Error(`Scanner result failed: ${res.status}`);
-  return res.json();
+function apiBase(): string {
+  const configured = process.env.B3S_SCANNER_API_URL?.trim();
+  if (!configured) {
+    throw new Error('B3S_SCANNER_API_URL no configurada (ej. https://b3s.fly.dev/api/v1)');
+  }
+  return configured.replace(/\/+$/, '');
 }
 
-export async function getEvidence(id: number): Promise<Record<string, unknown>> {
-  const res = await fetch(`${BASE}/${id}/evidence`, { headers: headers() });
-  if (!res.ok) throw new Error(`Scanner evidence failed: ${res.status}`);
-  return res.json();
+function apiToken(): string {
+  const token =
+    process.env.B3S_SCANNER_API_TOKEN?.trim() ||
+    process.env.BRAND3_SCANNER_API_TOKEN?.trim() ||
+    process.env.BRAND3_TOKEN?.trim();
+  if (!token) throw new Error('B3S_SCANNER_API_TOKEN no configurado');
+  return token;
 }
 
-// ---------- Perfil público del Observatorio (SIN token) ----------
-// GET /api/brands/{domain}/profile es abierto: devuelve el análisis de una
-// marca YA escaneada en Brand3. Permite importar scans previos sin el token
-// del Scanner API. Los 170+ scans del Observatorio están disponibles así.
-const OBSERVATORY = 'https://brand3.fly.dev';
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const response = await fetch(`${apiBase()}${path}`, {
+    ...init,
+    cache: 'no-store',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${apiToken()}`,
+      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+      ...init.headers,
+    },
+  });
+
+  if (!response.ok) {
+    let envelope: ApiErrorEnvelope = {};
+    try {
+      envelope = (await response.json()) as ApiErrorEnvelope;
+    } catch {
+      // Nunca devolvemos el body en bruto: podría contener datos internos.
+    }
+    throw new B3SApiError({
+      status: response.status,
+      code: envelope.error?.code || `http_${response.status}`,
+      message: envelope.error?.message || `B3S Scanner API respondió ${response.status}`,
+      requestId: envelope.error?.request_id || null,
+      details: envelope.error?.details || null,
+    });
+  }
+
+  return (await response.json()) as T;
+}
+
+export interface CreateScanOptions {
+  brandName?: string;
+  allowDegradedFallback?: boolean;
+  idempotencyKey?: string;
+}
+
+export async function createScan(url: string, options: CreateScanOptions = {}): Promise<ScanJob> {
+  return request<ScanJob>('/scans', {
+    method: 'POST',
+    headers: options.idempotencyKey ? { 'Idempotency-Key': options.idempotencyKey } : undefined,
+    body: JSON.stringify({
+      url,
+      ...(options.brandName?.trim() ? { brand_name: options.brandName.trim() } : {}),
+      language: 'es',
+      allow_degraded_fallback: options.allowDegradedFallback ?? false,
+    }),
+  });
+}
+
+export async function getScanStatus(id: string): Promise<ScanJob> {
+  return request<ScanJob>(`/scans/${encodeURIComponent(id)}`);
+}
+
+export async function continueScan(id: string): Promise<ScanJob> {
+  return request<ScanJob>(`/scans/${encodeURIComponent(id)}/continue`, { method: 'POST' });
+}
+
+export async function cancelScan(id: string): Promise<ScanJob> {
+  return request<ScanJob>(`/scans/${encodeURIComponent(id)}/cancel`, { method: 'POST' });
+}
+
+export async function pollScan(
+  id: string,
+  options: { timeoutMs?: number; intervalMs?: number } = {},
+): Promise<ScanJob> {
+  const timeoutMs = options.timeoutMs ?? DEFAULT_POLL_TIMEOUT_MS;
+  const intervalMs = options.intervalMs ?? DEFAULT_POLL_INTERVAL_MS;
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const job = await getScanStatus(id);
+    if (job.status === 'completed') return job;
+    if (job.status === 'failed') {
+      throw new B3SApiError({
+        status: 409,
+        code: job.failure?.code || 'scan_execution_failed',
+        message: job.failure?.message || 'El scan ha fallado',
+        details: { retryable: job.failure?.retryable ?? false },
+      });
+    }
+    if (job.status === 'cancelled') {
+      throw new B3SApiError({ status: 409, code: 'scan_cancelled', message: 'El scan fue cancelado' });
+    }
+    if (job.status === 'blocked') {
+      throw new B3SApiError({
+        status: 409,
+        code: 'scan_blocked',
+        message: 'El scan necesita aprobación para continuar con evidencia degradada',
+        details: { continue_url: job.links.continue_scan },
+      });
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+
+  throw new B3SApiError({
+    status: 408,
+    code: 'scan_poll_timeout',
+    message: `El scan ${id} no terminó dentro del tiempo configurado`,
+  });
+}
+
+export async function getResult(id: string): Promise<B3SScanResult> {
+  return request<B3SScanResult>(`/scans/${encodeURIComponent(id)}/result`);
+}
+
+export async function getEvidence(id: string): Promise<B3SScanEvidence> {
+  return request<B3SScanEvidence>(`/scans/${encodeURIComponent(id)}/evidence`);
+}
 
 export interface ImportedScan {
   found: boolean;
-  score: number | null; // score magnetism (la óptica FLOC), o best_score
-  quadrant: string | null; // ej: "Marca sin escribir · target FLOC*"
-  brandName: string | null; // nombre comercial real ("B-Zero", no el dominio)
+  score: number | null;
+  quadrant: string | null;
+  brandName: string | null;
   tldr: { summary: string; gaps: string[] };
   evidence: Record<string, unknown>;
-  uiUrl: string | null; // link al informe en brand3.fly.dev
-  scanId: number | null;
+  uiUrl: string | null;
+  scanId: string | null;
   raw: Record<string, unknown>;
 }
 
-// El nombre comercial va en el H1 del informe: "# Brand3 Scanner — B-Zero".
-export function brandNameFromMarkdown(md: string): string | null {
-  const m =
-    md.match(/^#\s*Brand3 Scanner\s*[—–]\s*(.+?)\s*$/m) ||
-    md.match(/^#\s*Brand3 Scanner\s+-\s+(.+?)\s*$/m);
-  return m ? m[1].trim() : null;
+function normalizeDomain(rawDomain: string): string {
+  return rawDomain
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/^www\./, '')
+    .split('/')[0]
+    .trim();
 }
 
-interface ScanRef {
-  score?: number;
-  score_model?: string;
-  quadrant?: string;
-  href?: string;
-  magnetism_scan_id?: number | null;
-  sv9_scan_id?: number | null;
-  source_run_id?: number | null;
+export function absoluteB3SUrl(path: string): string {
+  if (/^https?:\/\//i.test(path)) return path;
+  const origin = new URL(apiBase()).origin;
+  return new URL(path, origin).toString();
 }
 
-export async function getBrandProfile(rawDomain: string): Promise<ImportedScan> {
-  const domain = rawDomain.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
-  const res = await fetch(`${OBSERVATORY}/api/brands/${encodeURIComponent(domain)}/profile`, {
-    headers: { Accept: 'application/json' },
-  });
-  if (res.status === 404) return emptyImport();
-  if (!res.ok) throw new Error(`Brand profile failed: ${res.status}`);
-  const data = (await res.json()) as Record<string, unknown>;
-
-  const profile = (data.profile ?? {}) as Record<string, unknown>;
-  const scans = (data.scans ?? []) as ScanRef[];
-  // El score de la óptica FLOC es el modelo 'magnetism' (marca definida o no).
-  const magnetism = scans.find((s) => s.score_model === 'magnetism');
-  const best = (data.best_score as number | undefined) ?? null;
-  const chosen = magnetism ?? scans[0];
-
-  const score = magnetism?.score ?? best ?? null;
-  const gaps = (profile.evidence_gaps as string[] | undefined) ?? [];
-  const summary = ((profile.summary as string) ?? (profile.audience as string) ?? '').slice(0, 400);
-  const href = chosen?.href ?? null;
-
-  const brandName =
-    ((profile.name as string) ||
-      (data.name as string) ||
-      (data.brand as string) ||
-      (profile.brand_name as string) ||
-      null) ??
-    null;
-
+function importedScan(result: B3SScanResult, evidence: B3SScanEvidence): ImportedScan {
   return {
     found: true,
-    score,
-    quadrant: magnetism?.quadrant ?? null,
-    brandName: brandName ? brandName.trim() : null,
-    tldr: { summary, gaps },
-    evidence: {
-      dimensions: (data.visual_signature_scan as Record<string, unknown> | undefined)?.dimensions ?? null,
-      proof_points: profile.proof_points ?? null,
-      offer: profile.offer ?? null,
-    },
-    uiUrl: href ? `${OBSERVATORY}${href}` : null,
-    scanId: magnetism?.magnetism_scan_id ?? chosen?.sv9_scan_id ?? chosen?.source_run_id ?? null,
-    raw: data,
+    score: result.score.value,
+    quadrant: null,
+    brandName: result.brand.name.trim() || null,
+    tldr: { summary: result.summary.slice(0, 400), gaps: result.not_detected },
+    evidence: evidence as unknown as Record<string, unknown>,
+    uiUrl: absoluteB3SUrl(result.links.report),
+    scanId: result.id,
+    raw: result as unknown as Record<string, unknown>,
   };
 }
 
@@ -162,64 +362,56 @@ function emptyImport(): ImportedScan {
   };
 }
 
-// ---------- Informe individual de B3S por URL (b3s.fly.dev/report/{hash}) ----------
-// Cada informe tiene una versión markdown (.md) limpia y parseable, pública.
-// Es la vía fiable para importar: pegas la URL del informe y se extraen score,
-// resumen y gaps (las secciones marcadas "_No detectado._").
-const B3S = 'https://b3s.fly.dev';
+export async function getBrandProfile(rawDomain: string): Promise<ImportedScan> {
+  const domain = normalizeDomain(rawDomain);
+  if (!domain) return emptyImport();
+  const history = await request<BrandScanHistory>(
+    `/brands/${encodeURIComponent(domain)}/scans?limit=1&offset=0`,
+  );
+  const latest = history.items[0];
+  if (!latest) return emptyImport();
+  const [result, evidence] = await Promise.all([getResult(latest.id), getEvidence(latest.id)]);
+  return importedScan(result, evidence);
+}
 
-export function reportHashFromUrl(url: string): string | null {
-  const m = url.match(/\/report\/([a-f0-9]{6,})/i);
-  return m ? m[1] : null;
+export function reportScanIdFromUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url.trim());
+    const match = parsed.pathname.match(
+      /(?:\/report\/|\/api\/v1\/scans\/)([a-z0-9_-]{4,})(?:\/result|\/evidence|\.md)?\/?$/i,
+    );
+    return match?.[1] ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export async function getReportByUrl(url: string): Promise<ImportedScan> {
-  const hash = reportHashFromUrl(url.trim());
-  if (!hash) return emptyImport();
-  const res = await fetch(`${B3S}/report/${hash}.md`, { headers: { Accept: 'text/markdown' } });
-  if (res.status === 404) return emptyImport();
-  if (!res.ok) throw new Error(`Report fetch failed: ${res.status}`);
-  const md = await res.text();
-
-  // Score: "Brand3 Score: **57/100**"
-  const scoreMatch = md.match(/Score:\s*\*\*(\d+(?:\.\d+)?)\s*\/\s*100\*\*/i);
-  const score = scoreMatch ? parseFloat(scoreMatch[1]) : null;
-
-  // Resumen: el primer blockquote (línea que empieza por "> ")
-  const summaryMatch = md.match(/^>\s*(.+)$/m);
-  const summary = (summaryMatch?.[1] ?? '').trim();
-
-  // Gaps: secciones "## X" cuyo cuerpo contiene "_No detectado._"
-  const gaps: string[] = [];
-  const sections = md.split(/\n## /).slice(1);
-  for (const s of sections) {
-    const title = s.split('\n')[0].trim();
-    if (/_No detectado\._/i.test(s)) gaps.push(`${title} no detectada en superficies públicas`);
+  const scanId = reportScanIdFromUrl(url);
+  if (!scanId) return emptyImport();
+  try {
+    const [result, evidence] = await Promise.all([getResult(scanId), getEvidence(scanId)]);
+    return importedScan(result, evidence);
+  } catch (error) {
+    if (error instanceof B3SApiError && error.status === 404) return emptyImport();
+    throw error;
   }
-
-  return {
-    found: true,
-    score,
-    quadrant: null,
-    brandName: brandNameFromMarkdown(md),
-    tldr: { summary: summary.slice(0, 400), gaps },
-    evidence: { model: md.match(/Modelo:\s*([^\n]+)/)?.[1]?.trim() ?? null },
-    uiUrl: `${B3S}/report/${hash}`,
-    scanId: parseInt(hash.slice(0, 8), 16) % 2147483647, // hash → int estable para scanner_job_id
-    raw: { source: 'b3s_report', hash, markdown: md.slice(0, 8000) },
-  };
 }
 
-// El schema OpenAPI de /result es abierto (additionalProperties: true).
-// Extrae el score principal probando las claves más plausibles.
-// TODO semana 1: mapear el payload real y eliminar esta heurística.
-export function extractScore(result: Record<string, unknown>): number | null {
-  for (const key of ['score', 'overall_score', 'total_score', 'brand_score', 'magnetism']) {
-    const v = result[key];
-    if (typeof v === 'number') return v;
-    if (typeof v === 'object' && v !== null && typeof (v as Record<string, unknown>).value === 'number') {
-      return (v as { value: number }).value;
-    }
-  }
-  return null;
+export function extractScore(result: B3SScanResult): number | null {
+  return result.score.value;
+}
+
+export function storedTldr(result: B3SScanResult): { summary: string; gaps: string[] } {
+  return { summary: result.summary, gaps: result.not_detected };
+}
+
+export function storedScanStatus(status: B3SScanStatus):
+  | 'running'
+  | 'blocked'
+  | 'ready'
+  | 'failed'
+  | 'cancelled' {
+  if (status === 'completed') return 'ready';
+  return status;
 }

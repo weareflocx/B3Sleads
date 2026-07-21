@@ -11,7 +11,8 @@ export type CompanySource =
   | 'linkedin';
 export type ContactSource = 'explee' | 'linkedin' | 'lusha' | 'engaged' | 'manual';
 export type SignalType = 'funding_round' | 'hiring' | 'launch' | 'rebrand' | 'engagement';
-export type ScanStatus = 'queued' | 'running' | 'ready' | 'failed';
+// La BD mantiene `ready` como nombre histórico de `completed` en B3S API.
+export type ScanStatus = 'queued' | 'running' | 'blocked' | 'ready' | 'failed' | 'cancelled';
 export type LeadStage =
   | 'detected'
   | 'briefed'
@@ -71,7 +72,7 @@ export interface Signal {
 export interface Scan {
   id: string;
   company_id: string;
-  scanner_job_id: number;
+  scanner_job_id: string;
   status: ScanStatus;
   score: number | null;
   tldr: Record<string, unknown> | null;

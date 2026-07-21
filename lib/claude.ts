@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { displayName } from './types';
 import type { BriefingLead } from './types';
-import { parseScanReport, reportMarkdown, reportDigest } from './scan-report';
+import { storedScanReport, reportDigest } from './scan-report';
 
 const MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-4-6';
 
@@ -87,9 +87,9 @@ export function draftInputFromLead(bl: BriefingLead): DraftInput {
   // Material del Scanner: si tenemos el informe completo, un digest por-marca
   // (fortalezas + huecos concretos con su plan) para que el mensaje sea único.
   // Si no, el resumen del tldr como respaldo.
-  const md = reportMarkdown(bl.scan?.result_raw);
-  const scannerFindings = md
-    ? reportDigest(parseScanReport(md))
+  const report = storedScanReport(bl.scan?.result_raw);
+  const scannerFindings = report
+    ? reportDigest(report)
     : typeof bl.scan?.tldr === 'string'
       ? bl.scan.tldr
       : JSON.stringify(bl.scan?.tldr ?? {});
@@ -120,7 +120,7 @@ export function buildDraftPrompt(bl: BriefingLead): string | null {
     `Empresa: ${input.companyName} (${input.domain})`,
     input.hqCountry ? `País: ${input.hqCountry}` : null,
     `Señal: ${input.signalSummary}`,
-    `Hallazgos del Brand3 Scanner sobre su marca:\n${input.scannerFindings}`,
+    `Hallazgos de B3S Scanner sobre su marca:\n${input.scannerFindings}`,
     input.personalAngle ? `Ángulo personal (del perfil): ${input.personalAngle}` : null,
     input.contactName ? `Destinatario: ${input.contactName}` : null,
     `Canal: LinkedIn (máx 500 caracteres)`,

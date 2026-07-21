@@ -1,8 +1,6 @@
-// Parser profundo del informe de B3S (el markdown público de b3s.fly.dev).
-// El scan guarda el markdown entero en result_raw.markdown; aquí lo abrimos
-// dimensión a dimensión para tener material CONCRETO y por-marca con el que
-// construir argumentarios distintos (no plantillas): veredicto, nota, análisis
-// y el plan de trabajo ("baldosas apagadas") de cada dimensión.
+// Adaptador del resultado estructurado de B3S Scanner API v1. Conserva soporte
+// para los informes Markdown históricos ya guardados en Supabase.
+import type { B3SScanResult } from './brand3';
 
 export interface ScanTodo {
   label: string; // "Propia", "Clara"…
@@ -25,6 +23,16 @@ export interface ScanReport {
   dimensions: ScanDimension[];
   strengths: ScanDimension[]; // lo que ya funciona (ratio alto)
   weaknesses: ScanDimension[]; // la oportunidad (bajo o no detectado)
+}
+
+function categorize(summary: string | null, dimensions: ScanDimension[]): ScanReport {
+  const strengths = dimensions
+    .filter((d) => !d.missing && (d.ratio ?? 0) >= 0.8)
+    .sort((a, b) => (b.ratio ?? 0) - (a.ratio ?? 0));
+  const weaknesses = dimensions
+    .filter((d) => d.missing || (d.ratio != null && d.ratio <= 0.6))
+    .sort((a, b) => (a.ratio ?? 0) - (b.ratio ?? 0));
+  return { summary, dimensions, strengths, weaknesses };
 }
 
 function firstSentence(text: string, max = 240): string {
@@ -74,20 +82,69 @@ export function parseScanReport(markdown: string): ScanReport {
     dimensions.push({ name, score, max, ratio, verdict, analysis, todos, missing });
   }
 
-  const strengths = dimensions
-    .filter((d) => !d.missing && (d.ratio ?? 0) >= 0.8)
-    .sort((a, b) => (b.ratio ?? 0) - (a.ratio ?? 0));
-  const weaknesses = dimensions
-    .filter((d) => d.missing || (d.ratio != null && d.ratio <= 0.6))
-    .sort((a, b) => (a.ratio ?? 0) - (b.ratio ?? 0));
-
-  return { summary, dimensions, strengths, weaknesses };
+  return categorize(summary, dimensions);
 }
 
 // Extrae el markdown del scan (si se importó por URL de informe).
 export function reportMarkdown(resultRaw: Record<string, unknown> | null | undefined): string | null {
   const md = (resultRaw as { markdown?: unknown } | null)?.markdown;
   return typeof md === 'string' && md.length > 100 ? md : null;
+}
+
+function tileText(tile: Record<string, unknown>, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = tile[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+function structuredScanReport(result: B3SScanResult): ScanReport {
+  const dimensions: ScanDimension[] = result.components.map((component) => {
+    const status = `${component.status} ${component.coverage_status}`.toLowerCase();
+    const missing = /not.?detected|absent|missing/.test(status);
+    const ratio =
+      component.score != null && component.max_score
+        ? component.score / component.max_score
+        : missing
+          ? 0
+          : null;
+    const todos: ScanTodo[] = component.tiles.flatMap((tile) => {
+      const state = tileText(tile, ['estado', 'state', 'status'])?.toLowerCase() ?? '';
+      if (!['no', 'off', 'failed', 'missing', 'absent'].includes(state)) return [];
+      const label = tileText(tile, ['label', 'name', 'nombre', 'key']) || 'Mejora';
+      const desc = tileText(tile, ['description', 'desc', 'message', 'reason', 'summary']);
+      return desc ? [{ label, desc }] : [];
+    });
+
+    return {
+      name: component.label || component.key,
+      score: component.score,
+      max: component.max_score,
+      ratio,
+      verdict: component.verdict || null,
+      analysis: component.summary || component.message || component.detected_content || null,
+      todos,
+      missing,
+    };
+  });
+  return categorize(result.summary || null, dimensions);
+}
+
+// Punto de entrada para consumidores actuales: primero usa el contrato v1 y
+// sólo cae al parser Markdown para filas históricas.
+export function storedScanReport(
+  resultRaw: Record<string, unknown> | null | undefined,
+): ScanReport | null {
+  if (
+    resultRaw?.object === 'scan_result' &&
+    resultRaw.metadata &&
+    Array.isArray(resultRaw.components)
+  ) {
+    return structuredScanReport(resultRaw as unknown as B3SScanResult);
+  }
+  const markdown = reportMarkdown(resultRaw);
+  return markdown ? parseScanReport(markdown) : null;
 }
 
 // Digest compacto para el redactor con IA: lo esencial y por-marca, sin los
