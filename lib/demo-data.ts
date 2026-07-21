@@ -60,7 +60,7 @@ export const DEMO_LEADS: BriefingLead[] = [
     scan: {
       id: 'demo-sc-1',
       company_id: 'demo-co-1',
-      scanner_job_id: 1001,
+      scanner_job_id: 'demo-1001',
       status: 'ready',
       score: 34,
       tldr: {
@@ -71,7 +71,7 @@ export const DEMO_LEADS: BriefingLead[] = [
         gaps: ['Web construida sobre template estándar', 'Sin sistema de voz definido'],
       },
       result_raw: null,
-      ui_url: 'https://brand3.fly.dev/scanner/1001',
+      ui_url: 'https://b3s.fly.dev/report/demo-1001',
       created_at: daysAgo(1),
       completed_at: daysAgo(1),
     },
@@ -159,7 +159,7 @@ export const DEMO_LEADS: BriefingLead[] = [
     scan: {
       id: 'demo-sc-2',
       company_id: 'demo-co-2',
-      scanner_job_id: 1002,
+      scanner_job_id: 'demo-1002',
       status: 'ready',
       score: 52,
       tldr: {
@@ -170,7 +170,7 @@ export const DEMO_LEADS: BriefingLead[] = [
         gaps: ['Identidad indistinguible del sector', 'Sin narrativa de confianza'],
       },
       result_raw: null,
-      ui_url: 'https://brand3.fly.dev/scanner/1002',
+      ui_url: 'https://b3s.fly.dev/report/demo-1002',
       created_at: daysAgo(1),
       completed_at: daysAgo(1),
     },
@@ -249,7 +249,7 @@ export const DEMO_LEADS: BriefingLead[] = [
     scan: {
       id: 'demo-sc-3',
       company_id: 'demo-co-3',
-      scanner_job_id: 1003,
+      scanner_job_id: 'demo-1003',
       status: 'running',
       score: null,
       tldr: null,

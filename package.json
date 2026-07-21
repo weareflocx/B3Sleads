@@ -4,9 +4,17 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:local": "next dev --port 3001",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "tsx --test tests/*.test.ts",
+    "supabase:start": "supabase start -x vector",
+    "supabase:stop": "supabase stop",
+    "supabase:status": "supabase status",
+    "supabase:reset": "supabase db reset",
+    "supabase:env": "node scripts/setup-local-supabase.mjs",
+    "supabase:types": "supabase gen types typescript --local > lib/database.types.ts",
     "pipeline:dry": "tsx pipeline/nightly.ts --dry-run",
     "pipeline:run": "tsx pipeline/nightly.ts",
     "import:explee": "tsx scripts/import-explee.ts",
@@ -30,6 +38,7 @@
     "dotenv": "^16.5.0",
     "tailwindcss": "^4.1.0",
     "tsx": "^4.19.0",
+    "supabase": "^2.109.1",
     "typescript": "^5.8.0"
   }
 }

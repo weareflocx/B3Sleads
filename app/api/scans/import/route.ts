@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import { getBrandProfile, getReportByUrl } from '@/lib/brand3';
+import { persistImportedScan } from '@/lib/b3s-scan-storage';
 import { priorityScore } from '@/lib/scoring';
 import type { Company, Scan } from '@/lib/types';
 
-// Importa un scan existente y lo añade a la ficha. Dos vías, sin token:
-//  - reportUrl: URL de un informe de b3s.fly.dev (la fiable, parsea el .md)
-//  - domain: busca en el Observatorio de brand3.fly.dev (perfil por dominio)
+// Importa un scan existente mediante B3S Scanner API v1. El token sólo se
+// usa en servidor; reportUrl y domain son dos formas de resolver el scan_id.
 // POST { reportUrl?, domain?, leadId?, companyId? }
 export async function POST(req: NextRequest) {
   try {
@@ -16,12 +16,12 @@ export async function POST(req: NextRequest) {
     }
 
     const profile = reportUrl ? await getReportByUrl(reportUrl) : await getBrandProfile(rawDomain);
-    if (!profile.found) {
+    if (!profile.found || !profile.scanId) {
       return NextResponse.json({
         found: false,
         message: reportUrl
           ? 'No pude leer ese informe. Revisa que la URL sea de b3s.fly.dev/report/…'
-          : 'Esa marca aún no está en Brand3. Escanéala y pega la URL del informe.',
+          : 'Esa marca aún no tiene scans en B3S.',
       });
     }
 
@@ -63,45 +63,7 @@ export async function POST(req: NextRequest) {
       company = { ...company, name: profile.brandName };
     }
 
-    // Dedupe por informe: si ese ui_url ya está importado para la compañía,
-    // se actualiza en vez de duplicar (mismo hash = mismo scan). Un scan
-    // nuevo en B3S tiene hash nuevo y sí crea un punto en el histórico.
-    let scanRow: Scan | null = null;
-    const { data: existingScan } = profile.uiUrl
-      ? await db
-          .from('scans')
-          .select('id')
-          .eq('company_id', coId)
-          .eq('ui_url', profile.uiUrl)
-          .maybeSingle()
-      : { data: null };
-
-    const scanData = {
-      company_id: coId,
-      scanner_job_id: profile.scanId ?? 0,
-      status: 'ready',
-      score: profile.score,
-      tldr: profile.tldr,
-      evidence: profile.evidence,
-      result_raw: profile.raw,
-      ui_url: profile.uiUrl,
-      completed_at: new Date().toISOString(),
-    };
-
-    if (existingScan) {
-      const { data, error } = await db
-        .from('scans')
-        .update(scanData)
-        .eq('id', existingScan.id)
-        .select()
-        .single();
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-      scanRow = data as Scan;
-    } else {
-      const { data, error } = await db.from('scans').insert(scanData).select().single();
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-      scanRow = data as Scan;
-    }
+    const scanRow = await persistImportedScan(db, coId, profile);
 
     // Vincular el scan al lead y recalcular prioridad con el gap de marca real
     if (leadId && company) {

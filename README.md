@@ -1,7 +1,7 @@
 # B3S Leads
 
 Sistema de generación de leads cualificados para FLOC*. Detecta startups con
-señal de momento (ronda reciente o lanzamiento), cualifica su marca con Brand3
+señal de momento (ronda reciente o lanzamiento), cualifica su marca con B3S
 Scanner, estructura la ficha de la compañía y del founder, y genera un borrador
 de mensaje. **El envío es siempre humano, por LinkedIn.**
 
@@ -16,13 +16,28 @@ npm run dev                  # http://localhost:3000
 Sin credenciales de Supabase la app arranca en **modo demo** con datos de
 ejemplo, útil para revisar la UI.
 
+### Supabase local
+
+La primera instalación en macOS usa Colima como runtime Docker. Con Docker
+activo, el flujo habitual es:
+
+```bash
+npm run supabase:start   # Postgres, Auth, API, Studio y migraciones
+npm run supabase:env     # genera .env.local (chmod 600) sin mostrar secretos
+npm run dev:local        # http://localhost:3001, sin login sólo en desarrollo
+```
+
+Supabase Studio queda en `http://localhost:54323` y Mailpit en
+`http://localhost:54324`. Para reconstruir la base desde las migraciones usa
+`npm run supabase:reset`; para detenerla, `npm run supabase:stop`.
+
 ## Pantallas
 
 | Ruta | Qué es |
 |---|---|
 | `/briefing` | El briefing de las 9:00: tarjetas del día por `priority_score`, con desglose de por qué está ahí cada lead. |
 | `/founders` | **El canal.** Cola de founders con LinkedIn, listos para escribir a mano. Import por pegado. |
-| `/companies/[domain]` | Ficha estilo Explee: descripción, determinants, competidores, keywords, fit de ICP, señal, Brand3 Scanner y founder. |
+| `/companies/[domain]` | Ficha estilo Explee: descripción, determinants, competidores, keywords, fit de ICP, señal, B3S Scanner y founder. |
 | `/pipeline` | Kanban de stages, drag & drop. |
 | `/settings` | ICP, oferta, presupuestos y feeds, en solo lectura. |
 
@@ -39,9 +54,10 @@ ejemplo, útil para revisar la UI.
 ## Setup de producción
 
 1. **Supabase**: crear proyecto, ejecutar en orden
-   `supabase/migrations/001_init.sql` y `002_company_fiche_linkedin.sql`,
+   `supabase/migrations/001_init.sql` a `005_b3s_scanner_api_v1.sql`,
    copiar URL + anon key + service role key a `.env.local`.
-2. **Brand3 Scanner**: pedir el Bearer token a Jesús → `BRAND3_TOKEN`.
+2. **B3S Scanner API**: configurar `B3S_SCANNER_API_URL` y el Bearer
+   server-only `B3S_SCANNER_API_TOKEN`. Nunca usar un prefijo `NEXT_PUBLIC_`.
 3. **Claude API**: key de console.anthropic.com → `ANTHROPIC_API_KEY`.
 4. **Lusha**: configurar el MCP de Lusha en Claude Code
    (`mcp.lusha.com/mcp/claude`). El pipeline lo usa vía

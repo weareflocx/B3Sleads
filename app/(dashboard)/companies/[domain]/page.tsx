@@ -142,7 +142,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
           {score != null && (
             <div
               className="flex flex-col items-center"
-              title={`Brand3 Score ${Math.round(Number(score))}/100`}
+              title={`B3S Score ${Math.round(Number(score))}/100`}
             >
               <ScoreRing score={Number(score)} size={56} />
               <div className="mt-1 text-[10px] uppercase tracking-wider text-[var(--muted)]">Score</div>
@@ -154,7 +154,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
       <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_320px]">
         {/* ── Columna principal: análisis y argumentario ── */}
         <div className="min-w-0 space-y-8">
-          <Section title="Brand3 Scanner">
+          <Section title="B3S Scanner">
             <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
               {scan?.status === 'ready' && scan.score != null ? (
                 <>
@@ -187,7 +187,12 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                 </p>
               )}
               <div className="mt-4 border-t border-[var(--border)] pt-3.5">
-                <ScanButton domain={company.domain} leadId={lead.id} scan={scan} />
+                <ScanButton
+                  companyId={company.id}
+                  domain={company.domain}
+                  leadId={lead.id}
+                  scan={scan}
+                />
               </div>
             </div>
           </Section>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import { getBrandProfile } from '@/lib/brand3';
+import { persistImportedScan } from '@/lib/b3s-scan-storage';
 import { currentUserEmail } from '@/lib/auth';
 import { priorityScore } from '@/lib/scoring';
 import { parseLinkedInHandle, linkedInUrlFromHandle, humanizeHandle } from '@/lib/types';
@@ -141,29 +142,13 @@ export async function POST(req: NextRequest) {
         contactId = contact.id;
       }
 
-      // Importar el scan del Observatorio público si esa marca ya está en
-      // Brand3 (sin token). Si no está, la ficha queda lista para importar
-      // manualmente cuando se escanee.
+      // Importar el último scan del dominio mediante B3S Scanner API v1.
       let scanId: string | null = null;
       if (domain && companyId) {
         try {
           const profile = await getBrandProfile(domain);
-          if (profile.found) {
-            const { data: scanRow } = await db
-              .from('scans')
-              .insert({
-                company_id: companyId,
-                scanner_job_id: profile.scanId ?? 0,
-                status: 'ready',
-                score: profile.score,
-                tldr: profile.tldr,
-                evidence: profile.evidence,
-                result_raw: profile.raw,
-                ui_url: profile.uiUrl,
-                completed_at: new Date().toISOString(),
-              })
-              .select()
-              .single();
+          if (profile.found && profile.scanId) {
+            const scanRow = await persistImportedScan(db, companyId, profile);
             scanId = scanRow?.id ?? null;
             // Nombre comercial real del Scanner si la ficha entró solo con dominio
             if (profile.brandName && (!e.company || companyRow?.name === domain)) {

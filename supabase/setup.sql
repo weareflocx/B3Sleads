@@ -24,12 +24,12 @@ create table signals (
   detected_at timestamptz default now()
 );
 
--- Resultados del Brand3 Scanner
+-- Resultados de B3S Scanner
 create table scans (
   id uuid primary key default gen_random_uuid(),
   company_id uuid references companies(id) on delete cascade,
-  scanner_job_id integer not null,          -- id devuelto por la API
-  status text not null default 'queued',    -- queued | running | ready | failed
+  scanner_job_id text not null,             -- id opaco devuelto por B3S API v1
+  status text not null default 'running',   -- running | blocked | ready | failed | cancelled
   score numeric,                            -- score principal del result
   tldr jsonb,                               -- TLDR Brand3 completo
   evidence jsonb,                           -- hallazgos para personalizar mensaje
@@ -106,6 +106,16 @@ create policy "authenticated read/write leads" on leads
   for all to authenticated using (true) with check (true);
 create policy "authenticated read/write messages" on messages
   for all to authenticated using (true) with check (true);
+
+-- Supabase no autoexpone tablas nuevas: las políticas RLS no bastan sin los
+-- privilegios SQL base para los roles de API.
+grant usage on schema public to authenticated, service_role;
+grant select, insert, update, delete on all tables in schema public to authenticated, service_role;
+grant usage, select on all sequences in schema public to authenticated, service_role;
+alter default privileges in schema public
+  grant select, insert, update, delete on tables to authenticated, service_role;
+alter default privileges in schema public
+  grant usage, select on sequences to authenticated, service_role;
 
 
 -- B3S Leads — migración 002

@@ -7,7 +7,8 @@
 //   npm run pipeline:run   → completo
 import 'dotenv/config';
 import { getServiceSupabase } from '../lib/supabase';
-import { createScan, pollScan, getResult, getEvidence, extractScore } from '../lib/brand3';
+import { createScan, pollScan, getResult, getEvidence, storedScanStatus } from '../lib/brand3';
+import { completedScanData } from '../lib/b3s-scan-storage';
 import { priorityScore } from '../lib/scoring';
 import { generateDraft, draftInputFromLead } from '../lib/claude';
 import { discoverFundingCandidates } from './extract-funding';
@@ -40,7 +41,7 @@ async function main() {
 
   // [4] Dedupe contra companies.domain + [5] insertar y lanzar scans
   let launched = 0;
-  const scansToPolll: { scanRowId: string; jobId: number; companyId: string }[] = [];
+  const scansToPolll: { scanRowId: string; jobId: string; companyId: string }[] = [];
 
   for (const c of candidates) {
     if (launched >= SCAN_MAX) break;
@@ -80,10 +81,18 @@ async function main() {
     });
 
     try {
-      const job = await createScan(`https://${domain}`);
+      const job = await createScan(`https://${domain}`, {
+        brandName: c.extraction.company_name ?? undefined,
+        allowDegradedFallback: true,
+        idempotencyKey: `nightly:${domain}:${startedAt.slice(0, 10)}`,
+      });
       const { data: scanRow } = await db
         .from('scans')
-        .insert({ company_id: company.id, scanner_job_id: job.id, status: job.status })
+        .insert({
+          company_id: company.id,
+          scanner_job_id: job.id,
+          status: storedScanStatus(job.status),
+        })
         .select()
         .single();
       if (scanRow) scansToPolll.push({ scanRowId: scanRow.id, jobId: job.id, companyId: company.id });
@@ -97,24 +106,16 @@ async function main() {
   // [6] Poll de scans (serializado para no saturar; TODO: paralelizar si la API aguanta)
   for (const s of scansToPolll) {
     try {
-      const job = await pollScan(s.jobId);
+      await pollScan(s.jobId);
       const result = await getResult(s.jobId);
-      const evidence = await getEvidence(s.jobId).catch(() => null);
-      const score = extractScore(result);
+      const evidence = await getEvidence(s.jobId);
+      const completed = completedScanData(result, evidence);
 
       await db
         .from('scans')
-        .update({
-          status: 'ready',
-          score,
-          tldr: (result.tldr as object) ?? result,
-          evidence,
-          result_raw: result,
-          ui_url: (job.ui_url as string) ?? null,
-          completed_at: new Date().toISOString(),
-        })
+        .update(completed)
         .eq('id', s.scanRowId);
-      console.log(`[scanner] job ${s.jobId} ready, score=${score}`);
+      console.log(`[scanner] job ${s.jobId} ready, score=${result.score.value}`);
     } catch (e) {
       await db.from('scans').update({ status: 'failed' }).eq('id', s.scanRowId);
       console.error(`[scanner] job ${s.jobId} falló: ${e}`);

@@ -1,0 +1,2 @@
+-- Seed local intencionalmente vacío.
+-- Los datos de prueba se crean desde la app o Supabase Studio cuando hagan falta.
