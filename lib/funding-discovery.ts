@@ -462,10 +462,12 @@ async function fromWeb(name: string, domain: string, hints: string[]): Promise<R
     `${name} ronda de financiación millones inversores`,
     `${base} funding round raised investors`,
   ];
-  const rounds = await Promise.all(queries.map((q) => search(q)));
+  // En serie, no en paralelo: el plan gratuito de Brave admite 1 consulta
+  // por segundo y dos a la vez harían rebotar la segunda con un 429.
   const out: RoundProposal[] = [];
-  for (const hits of rounds) {
-    for (const hit of hits) {
+  for (const [i, q] of queries.entries()) {
+    if (i > 0) await new Promise((r) => setTimeout(r, 1_100));
+    for (const hit of await search(q)) {
       if (!hit.snippet) continue;
       out.push(...extractFromText(ensureStop(hit.snippet), hit.url, hit.host, null, hints));
     }
