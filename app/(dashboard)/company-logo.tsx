@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 // Logo de la empresa: el monograma (iniciales, sin datos externos) SIEMPRE va
 // debajo como base fiable. Encima se intenta el logo público de Clearbit por
@@ -28,9 +28,19 @@ export function CompanyLogo({
   // Fuente efectiva: lo pegado a mano manda; si no, Clearbit por dominio.
   const source = src?.trim() || (domain ? `https://logo.clearbit.com/${domain}` : '');
   const [loaded, setLoaded] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
   // Al cambiar de fuente se vuelve a ocultar hasta que la nueva cargue, para
   // no enseñar un hueco roto si la URL nueva no vale.
-  useEffect(() => setLoaded(false), [source]);
+  //
+  // El `complete` no es un adorno: con SSR el navegador empieza a descargar
+  // la imagen al parsear el HTML, y si termina antes de que React hidrate,
+  // el onLoad ya ha pasado y no vuelve a dispararse. Sin esta comprobación
+  // la imagen se quedaba invisible para siempre.
+  useEffect(() => {
+    setLoaded(false);
+    const el = imgRef.current;
+    if (el?.complete && el.naturalWidth > 1) setLoaded(true);
+  }, [source]);
   const initials =
     name
       .split(/\s+/)
@@ -58,6 +68,7 @@ export function CompanyLogo({
       {source ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
+          ref={imgRef}
           src={source}
           referrerPolicy="no-referrer"
           alt={`Logo de ${name}`}

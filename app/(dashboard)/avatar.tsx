@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 // Avatar del founder. El monograma (iniciales sobre un tinte determinista
 // del nombre) es SIEMPRE la base: no depende de nada externo. Encima, si
@@ -25,7 +25,14 @@ export function Avatar({
   src?: string | null;
 }) {
   const [loaded, setLoaded] = useState(false);
-  useEffect(() => setLoaded(false), [src]);
+  const imgRef = useRef<HTMLImageElement>(null);
+  // Ver company-logo.tsx: si la imagen termina de cargar antes de que React
+  // hidrate, el onLoad ya no llega y hay que preguntar por `complete`.
+  useEffect(() => {
+    setLoaded(false);
+    const el = imgRef.current;
+    if (el?.complete && el.naturalWidth > 1) setLoaded(true);
+  }, [src]);
   const initials =
     name
       .split(/\s+/)
@@ -54,6 +61,7 @@ export function Avatar({
       {src ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
+          ref={imgRef}
           src={src}
           alt={`Foto de ${name}`}
           referrerPolicy="no-referrer"

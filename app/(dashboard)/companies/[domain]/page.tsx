@@ -6,10 +6,13 @@ import { buildPitch } from '@/lib/pitch';
 import { buildCallBriefPrompt, buildLeadContext } from '@/lib/lead-prompts';
 import { stageLabel as stageLabelFor, displayName, companyLabel } from '@/lib/types';
 import { resolveInvestors } from '@/lib/investors';
+import { getTeamMembers, leadOwner } from '@/lib/team';
+import { userLabel } from '@/lib/leaderboard';
 import { ScanButton } from './scan-button';
 import { ScoreHistory } from './score-history';
 import { FollowUp } from './follow-up';
 import { NotesLog } from './notes-log';
+import { LeadOwner } from './lead-owner';
 import { FundingPanel } from './funding-panel';
 import { LeadTools } from './lead-tools';
 import { CompanyLogo } from '../../company-logo';
@@ -56,11 +59,17 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
   if (!bl || !bl.company) notFound();
 
   const { company, contact, scan, lead, message } = bl;
-  const [scanHistory, signals, notes] = await Promise.all([
+  const [scanHistory, signals, notes, team] = await Promise.all([
     getCompanyScans(company.id),
     getCompanySignals(company.id),
     getLeadNotes(lead.id),
+    getTeamMembers(),
   ]);
+  const ownerEmail = leadOwner(lead);
+  const owner = { email: ownerEmail, label: userLabel(ownerEmail) };
+  const detectedBy = lead.created_by_email
+    ? { email: lead.created_by_email, label: userLabel(lead.created_by_email) }
+    : null;
   const fundingSignals = signals.filter((s) => s.type === 'funding_round');
   const latestFunding = fundingSignals[0] ?? null;
   const pitch = buildPitch({ company, scan, fundingSignal: latestFunding });
@@ -430,6 +439,10 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                 </p>
               )}
             </div>
+          </Section>
+
+          <Section title="Responsable">
+            <LeadOwner leadId={lead.id} owner={owner} detectedBy={detectedBy} team={team} />
           </Section>
 
           <Section title="Seguimiento">

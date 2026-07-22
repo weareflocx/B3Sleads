@@ -138,6 +138,8 @@ export interface Lead {
   // Migración 004 (leaderboard): quién añadió el lead. undefined/null hasta
   // aplicar la migración o en leads del pipeline → cuentan como equipo.
   created_by_email?: string | null;
+  // Migración 009: quién lo trabaja ahora. Nulo = quien lo detectó.
+  owner_email?: string | null;
 }
 
 // Una entrada de la bitácora del lead (migración 003).

@@ -47,7 +47,11 @@ export interface UserRow {
 export function usersRanking(leads: BriefingLead[]): UserRow[] {
   const byUser = new Map<string, UserRow>();
   for (const bl of leads) {
-    const key = bl.lead.created_by_email?.trim() || OWNER_EMAIL;
+    // Puntúa quien lo trabaja hoy, no quien lo trajo: si un lead se delega,
+    // los puntos se van con él. (No se usa leadOwner() para no crear un
+    // import circular con lib/team.)
+    const key =
+      bl.lead.owner_email?.trim() || bl.lead.created_by_email?.trim() || OWNER_EMAIL;
     const row = byUser.get(key) ?? { user: key, leads: 0, conversations: 0, won: 0, points: 0 };
     row.leads += 1;
     row.points += STAGE_POINTS[bl.lead.stage] ?? 0;
