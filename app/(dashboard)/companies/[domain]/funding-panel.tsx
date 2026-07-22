@@ -12,6 +12,7 @@ import {
   type AmountUnit,
 } from '@/lib/funding';
 import { resolveInvestors } from '@/lib/investors';
+import type { RoundProposal } from '@/lib/funding-discovery';
 
 // Financiación del lead: rondas registradas, corregibles, y alta manual. La
 // ronda es la señal de momento (40% de la prioridad): tocarla reordena el
@@ -236,6 +237,74 @@ function RoundRow({
   );
 }
 
+// Una ronda propuesta por el buscador. Se enseña con su frase textual y su
+// enlace: la decisión sigue siendo humana, esto solo ahorra la búsqueda.
+function ProposalCard({
+  proposal,
+  onUse,
+}: {
+  proposal: RoundProposal;
+  onUse: (p: RoundProposal) => void;
+}) {
+  const tone =
+    proposal.confidence === 'alta'
+      ? 'border-[var(--cta)]/50 text-[var(--cta)]'
+      : proposal.confidence === 'media'
+        ? 'border-[var(--border)] text-[var(--muted)]'
+        : 'border-dashed border-[var(--border)] text-[var(--soft)]';
+  const simbolo = proposal.currency === 'USD' ? '$' : proposal.currency === 'EUR' ? '€' : '';
+  const titulo = [
+    proposal.round,
+    proposal.amountValue ? `${proposal.amountValue}${proposal.amountUnit}${simbolo}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  return (
+    <li className="rounded-md border border-[var(--border)] p-2.5">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-sm font-medium capitalize">{titulo || 'mención de financiación'}</span>
+        <span className={`shrink-0 rounded border px-1.5 py-0.5 font-mono text-[10px] uppercase ${tone}`}>
+          {proposal.confidence}
+        </span>
+      </div>
+      {proposal.investors.length > 0 && (
+        <p className="mt-1 font-mono text-xs text-[var(--muted)]">
+          {proposal.investors.join(' · ')}
+        </p>
+      )}
+      {proposal.currency === 'USD' && (
+        <p className="mt-1 font-mono text-[11px] text-[var(--warning)]">
+          Importe en dólares: no se precarga, la ficha guarda euros.
+        </p>
+      )}
+      <p className="mt-1.5 border-l-2 border-[var(--border)] pl-2 text-xs leading-relaxed text-[var(--muted)]">
+        {proposal.quote}
+      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-3">
+        <button
+          onClick={() => onUse(proposal)}
+          className="rounded-md border border-[var(--cta)] px-2.5 py-1 text-xs font-medium text-[var(--cta)] transition-colors hover:bg-[var(--cta)] hover:text-[var(--cta-text)]"
+        >
+          Revisar y aprobar
+        </button>
+        {proposal.sourceUrl ? (
+          <a
+            href={proposal.sourceUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="font-mono text-[11px] text-[var(--muted)] hover:text-[var(--cta)]"
+          >
+            {proposal.sourceLabel} ↗
+          </a>
+        ) : (
+          <span className="font-mono text-[11px] text-[var(--soft)]">{proposal.sourceLabel}</span>
+        )}
+      </div>
+    </li>
+  );
+}
+
 export function FundingPanel({
   companyId,
   leadId,
@@ -253,6 +322,55 @@ export function FundingPanel({
   const [investors, setInvestors] = useState('');
   const [date, setDate] = useState('');
   const [busy, setBusy] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [proposals, setProposals] = useState<RoundProposal[] | null>(null);
+  const [searchMsg, setSearchMsg] = useState<string | null>(null);
+  const [pasted, setPasted] = useState('');
+  const [showPaste, setShowPaste] = useState(false);
+
+  async function discover(pastedText?: string) {
+    setSearching(true);
+    setSearchMsg(null);
+    setProposals(null);
+    try {
+      const res = await fetch('/api/signals/discover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId, pastedText }),
+      });
+      const json = await res.json();
+      if (json.error) setSearchMsg(json.error);
+      else {
+        setProposals(json.proposals ?? []);
+        if (json.message) setSearchMsg(json.message);
+        // Sin resultados, lo útil es ofrecer el camino que sí funciona.
+        if (!(json.proposals ?? []).length && !pastedText) setShowPaste(true);
+      }
+    } catch {
+      setSearchMsg('No pude completar la búsqueda');
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  // Aprobar una propuesta no la guarda: precarga el formulario para que se
+  // revise. El último paso siempre es humano.
+  function useProposal(p: RoundProposal) {
+    if (p.round) setRound(p.round);
+    // Un importe en dólares no se precarga: guardarlo en el campo de euros
+    // sería convertir un dato correcto en uno falso sin que nadie lo note.
+    if (p.amountValue && p.currency !== 'USD') {
+      setValue(p.amountValue);
+      setUnit(p.amountUnit);
+    }
+    if (p.investors.length) setInvestors(p.investors.join(', '));
+    if (p.date) setDate(p.date.slice(0, 10));
+    setProposals(null);
+    setSearchMsg(null);
+    setShowPaste(false);
+    setPasted('');
+    setOpen(true);
+  }
 
   async function save() {
     setBusy(true);
@@ -337,13 +455,81 @@ export function FundingPanel({
           </div>
         </div>
       ) : (
-        <button
-          onClick={() => setOpen(true)}
-          className="mt-3 rounded-md border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--muted)] transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)]"
-        >
-          {fundingSignals.length ? 'Registrar otra ronda' : 'Registrar ronda'}
-        </button>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => discover()}
+            disabled={searching}
+            className="rounded-md border border-[var(--cta)] px-3 py-1.5 text-xs font-medium text-[var(--cta)] transition-colors hover:bg-[var(--cta)] hover:text-[var(--cta-text)] disabled:opacity-40"
+          >
+            {searching ? 'Buscando…' : 'Buscar rondas'}
+          </button>
+          <button
+            onClick={() => setShowPaste((v) => !v)}
+            className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--muted)] transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)]"
+          >
+            Pegar noticia
+          </button>
+          <button
+            onClick={() => setOpen(true)}
+            className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--muted)] transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)]"
+          >
+            {fundingSignals.length ? 'Registrar otra ronda' : 'Registrar a mano'}
+          </button>
+        </div>
       )}
+
+      {searching && (
+        <p className="mt-2 text-xs text-[var(--muted)]">Leyendo fuentes…</p>
+      )}
+
+      {showPaste && (
+        <div className="mt-3 space-y-2 border-t border-[var(--border)] pt-3">
+          <label htmlFor="pegar-ronda" className="text-xs text-[var(--muted)]">
+            Pega la noticia o el resultado de tu búsqueda y saco los campos
+          </label>
+          <textarea
+            id="pegar-ronda"
+            value={pasted}
+            onChange={(e) => setPasted(e.target.value)}
+            rows={3}
+            placeholder="ej: Beel levanta una ronda seed de 2,4 millones liderada por Kfund"
+            className={`${FIELD} w-full`}
+          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => discover(pasted)}
+              disabled={searching || pasted.trim().length < 20}
+              className="rounded-md bg-[var(--cta)] px-3 py-1.5 text-xs font-medium text-[var(--cta-text)] disabled:opacity-40"
+            >
+              Extraer datos
+            </button>
+            <button
+              onClick={() => {
+                setShowPaste(false);
+                setPasted('');
+              }}
+              className="text-xs text-[var(--muted)] hover:text-[var(--text)]"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {proposals && proposals.length > 0 && (
+        <div className="mt-3 border-t border-[var(--border)] pt-3">
+          <p className="mb-2 font-mono text-[11px] uppercase tracking-wide text-[var(--muted)]">
+            {proposals.length} {proposals.length === 1 ? 'candidata' : 'candidatas'} · verifica antes de aprobar
+          </p>
+          <ul className="space-y-2">
+            {proposals.map((p, i) => (
+              <ProposalCard key={`${p.sourceUrl}-${i}`} proposal={p} onUse={useProposal} />
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {searchMsg && <p className="mt-2 text-xs text-[var(--muted)]">{searchMsg}</p>}
     </div>
   );
 }
