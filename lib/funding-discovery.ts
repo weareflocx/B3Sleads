@@ -2,20 +2,24 @@
 // nocturno: aquel descubre empresas desde noticias, este parte de una empresa
 // que Sergio ya tiene en el radar y busca su financiación.
 //
-// Tres fuentes, todas sin coste:
-//  1. Búsqueda web (DuckDuckGo). Es la que da cobertura real: la prensa
-//     económica y los agregadores tienen los datos de ronda.
-//  2. Los feeds de venture que ya usa el pipeline, para lo más reciente.
-//  3. El informe del B3S Scanner, que ya está en la BD y a veces la menciona.
+// Fuentes, por orden de utilidad real:
+//  1. Un enlace o texto pegado por Sergio (extractFromInput). Si es un
+//     enlace, se descarga el artículo y se lee su contenido; el enlace en sí
+//     NUNCA se parsea como texto: un slug tipo "ronda-de-e28m" daría 28M
+//     donde el artículo dice 2,8M.
+//  2. Búsqueda web con clave (Brave, opcional vía SEARCH_API_KEY).
+//  3. Los feeds de venture que ya usa el pipeline, para lo más reciente.
+//  4. El informe del B3S Scanner, que ya está en la BD.
 //
-// Probé también la web de la propia marca y la descarté: hoy casi todas son
-// SPAs cuyo HTML inicial es el menú de navegación, y devuelven 200 con la
-// home para /prensa, /news y cualquier ruta inventada. Ocho peticiones para
-// extraer texto de menú.
+// Descartado con datos, no por intuición:
+//  - La web de la propia marca: SPAs que devuelven la home con HTTP 200 para
+//    /prensa y cualquier ruta; el texto extraíble es el menú.
+//  - Raspar DuckDuckGo sin clave: a las pocas consultas responde 202 con
+//    marca "anomaly". Desde la IP compartida de Netlify sería bloqueo fijo.
 //
 // La extracción es determinista (regex). No inventa: cada propuesta viene con
-// la frase textual de la que sale y su enlace, para que se pueda verificar de
-// un vistazo antes de aprobarla. Nada se guarda solo.
+// la frase textual de la que sale y su enlace, para verificarla de un vistazo
+// antes de aprobar. Nada se guarda solo.
 import { fetchFundingItems, looksLikeFunding } from './rss';
 import type { AmountUnit } from './funding';
 
@@ -39,17 +43,17 @@ const ROUND_PATTERNS: [RegExp, string][] = [
   [/\bseries?\s*[bcd]\b|\bserie\s*[bcd]\b/i, 'series-b+'],
 ];
 
-// Importe: acepta "€2.4M", "2,4 millones", "$3 million", "750K".
+// Importe: "€2,8M", "2.4M", "6 millones de euros", "$3 million", "750K".
 const AMOUNT_RE =
   /(?:([€$])\s*)?(\d{1,4}(?:[.,]\d{1,2})?)\s*(millones?|million|mill\.|m\b|k\b|mil\b)\s*(?:de\s*)?(euros?|€|dollars?|\$|usd)?/i;
 
 const SIGNAL_RE =
-  /(ronda|levant[óoa]|capta|financiaci[óo]n|inversi[óo]n|funding|raise[sd]?|secured|closes?|closed|investment round|led by|liderada|participaci[óo]n de|investors?\s+includ|inversores?\s+(?:incluyen|son))/i;
+  /(ronda|levant[óoa]|capta|cierra|financiaci[óo]n|inversi[óo]n|funding|raise[sd]?|secured|closes?|closed|investment round|led by|liderada|particip(?:aci[óo]n de|an)|entran|investors?\s+includ|inversores?\s+(?:incluyen|son))/i;
 
 const LEAD_RE =
   /(?:liderad[ao]\s+por|led\s+by|lidera\s+la\s+ronda)\s+([A-ZÁÉÍÓÚÑ][^.;()]{2,80})/;
 const PARTICIPANTS_RE =
-  /(?:con\s+la\s+participaci[óo]n\s+de|participaci[óo]n\s+de|junto\s+a|with\s+participation\s+from|joined\s+by|backed\s+by|investors?\s+include[sd]?|inversores?\s+(?:incluyen|son)|inversores?\s*:|investors?\s*:|de\s+la\s+mano\s+de)\s+([A-ZÁÉÍÓÚÑ][^.;()]{2,120})/i;
+  /(?:con\s+la\s+participaci[óo]n\s+de|participaci[óo]n\s+de|participan|entran|junto\s+a|with\s+participation\s+from|joined\s+by|backed\s+by|investors?\s+include[sd]?|inversores?\s+(?:incluyen|son)|inversores?\s*:|investors?\s*:|de\s+la\s+mano\s+de)\s+([A-ZÁÉÍÓÚÑ][^.;()]{2,120})/i;
 
 // Palabras que delatan que lo capturado no es un fondo sino prosa.
 const NOT_AN_INVESTOR =
@@ -68,7 +72,27 @@ function splitInvestors(raw: string): string[] {
     .filter((s) => s.length >= 2 && s.length <= 60 && !NOT_AN_INVESTOR.test(s))
     // Un fondo empieza por mayúscula. Evita arrastrar el resto de la frase.
     .filter((s) => /^[A-ZÁÉÍÓÚÑ0-9]/.test(s))
+    // "business angels como Pedro Duque" es una descripción, no un fondo; y
+    // ningún fondo se llama con más de cuatro palabras: si hay más, es que
+    // la captura arrastró prosa (típico en titulares EN MAYÚSCULAS sin punto).
+    .filter((s) => !/\bbusiness\s+angels?\b|\bcomo\b|\bsuch\s+as\b/i.test(s))
+    .filter((s) => s.split(/\s+/).length <= 4)
     .slice(0, 6);
+}
+
+
+// "Expansion Ventures" y "EXPANSION VENTURES" son el mismo fondo. Se queda
+// la grafía de título, no la del titular a gritos.
+function uniqueInvestors(list: string[]): string[] {
+  const byKey = new Map<string, string>();
+  for (const name of list) {
+    const key = name.toLowerCase();
+    const prev = byKey.get(key);
+    if (!prev || (prev === prev.toUpperCase() && name !== name.toUpperCase())) {
+      byKey.set(key, name);
+    }
+  }
+  return [...byKey.values()];
 }
 
 function normalizeAmount(
@@ -99,6 +123,11 @@ function sentences(text: string): string[] {
     .filter((s) => s.length > 30 && s.length < 600);
 }
 
+function ensureStop(text: string): string {
+  const t = text.trim();
+  return /[.!?]$/.test(t) ? t : `${t}.`;
+}
+
 // Extrae propuestas de un texto plano. Una por frase que huela a ronda.
 function extractFromText(
   text: string,
@@ -119,7 +148,7 @@ function extractFromText(
 
     const lead = s.match(LEAD_RE)?.[1] ?? '';
     const others = s.match(PARTICIPANTS_RE)?.[1] ?? '';
-    const investors = [...new Set([...splitInvestors(lead), ...splitInvestors(others)])];
+    const investors = uniqueInvestors([...splitInvestors(lead), ...splitInvestors(others)]);
 
     if (!round && !amount && !investors.length) continue;
 
@@ -140,18 +169,66 @@ function extractFromText(
   return out;
 }
 
-// Búsqueda web mediante un proveedor con clave (Brave Search: 2.000
-// consultas/mes gratis). Es opcional: sin SEARCH_API_KEY simplemente no se
-// usa esta fuente y las demás siguen funcionando.
-//
-// Probé antes a raspar el HTML de DuckDuckGo sin clave y lo descarté: tras
-// unas pocas consultas devuelve 202 con marca de "anomaly". Desde una IP
-// compartida como la de Netlify el bloqueo sería inmediato y permanente, así
-// que sería una función que hoy funciona y mañana no.
-interface SearchHit {
-  snippet: string;
-  url: string;
-  host: string;
+// Dedup: la misma ronda contada por dos fuentes es una sola propuesta. Gana
+// la de mayor confianza y se conserva el mejor dato de cada campo.
+const RANK = { alta: 3, media: 2, baja: 1 } as const;
+
+function dedupe(list: RoundProposal[]): RoundProposal[] {
+  const byKey = new Map<string, RoundProposal>();
+  for (const p of list) {
+    const key = `${p.round ?? '?'}|${p.amountValue ?? '?'}${p.amountUnit}`;
+    const prev = byKey.get(key);
+    if (!prev) {
+      byKey.set(key, p);
+      continue;
+    }
+    byKey.set(key, {
+      ...(RANK[p.confidence] > RANK[prev.confidence] ? p : prev),
+      investors: uniqueInvestors([...prev.investors, ...p.investors]),
+      date: prev.date ?? p.date,
+    });
+  }
+  // Una propuesta que solo repite parte de otra (mismo importe sin ronda,
+  // misma ronda sin importe) no aporta: se queda la más completa. Dos rondas
+  // con importes distintos sí conviven: son rondas diferentes.
+  const items = [...byKey.values()];
+  const completas = items.filter(
+    (p) =>
+      !items.some(
+        (q) =>
+          q !== p &&
+          RANK[q.confidence] >= RANK[p.confidence] &&
+          (p.amountValue == null || q.amountValue === p.amountValue) &&
+          (p.round == null || q.round === p.round),
+      ),
+  );
+  return completas.sort((a, b) => RANK[b.confidence] - RANK[a.confidence]).slice(0, 6);
+}
+
+// Cuando todas las frases hablan de la MISMA noticia, los inversores citados
+// en una valen para la ronda citada en otra: es lo normal en una nota de
+// prensa ("levantó 6M". "Investors include X, Y"). Solo para texto de un
+// único artículo; entre fuentes distintas sería mezclar rondas ajenas.
+function consolidate(found: RoundProposal[]): RoundProposal[] {
+  if (!found.length) return [];
+  const todos = uniqueInvestors(found.flatMap((p) => p.investors));
+  const conDato = found.filter((p) => p.round || p.amountValue);
+  const base = conDato.length ? conDato : found;
+  return dedupe(
+    base.map((p) => {
+      const investors = uniqueInvestors([...p.investors, ...todos]);
+      const score = (p.round ? 1 : 0) + (p.amountValue ? 1 : 0) + (investors.length ? 1 : 0);
+      return {
+        ...p,
+        investors,
+        confidence: (score >= 3
+          ? 'alta'
+          : score === 2
+            ? 'media'
+            : 'baja') as RoundProposal['confidence'],
+      };
+    }),
+  );
 }
 
 function hostOf(url: string, fallback: string): string {
@@ -160,6 +237,190 @@ function hostOf(url: string, fallback: string): string {
   } catch {
     return fallback;
   }
+}
+
+// ---------- Leer un artículo por su URL ----------
+
+const BROWSER_UA =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36';
+
+function decodeEntities(t: string): string {
+  return t
+    .replace(/&#(\d+);/g, (_, n) => {
+      try {
+        return String.fromCodePoint(Number(n));
+      } catch {
+        return ' ';
+      }
+    })
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => {
+      try {
+        return String.fromCodePoint(parseInt(n, 16));
+      } catch {
+        return ' ';
+      }
+    })
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
+function htmlToText(html: string): string {
+  return decodeEntities(
+    html
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<!--[\s\S]*?-->/g, ' ')
+      // Cierres de bloque → punto: un <h1> no acaba en punto y sin esto el
+      // titular se pegaría a la frase siguiente.
+      .replace(/<\/(?:p|div|h\d|li|td|figcaption)>|<br\s*\/?>/gi, '. ')
+      .replace(/<[^>]+>/g, ' '),
+  ).replace(/\s+/g, ' ');
+}
+
+async function fetchArticle(url: string, timeoutMs = 8000): Promise<string | null> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      signal: ctrl.signal,
+      redirect: 'follow',
+      headers: { 'User-Agent': BROWSER_UA, 'Accept-Language': 'es,en;q=0.8' },
+    });
+    if (!res.ok) return null;
+    const type = res.headers.get('content-type') ?? '';
+    if (!/html|xml|text/.test(type)) return null;
+    return await res.text();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// Cuando el medio bloquea la descarga directa (WAF que responde 403 a todo
+// lo que no sea un navegador real: webcapitalriesgo, eu-startups…), se pasa
+// por r.jina.ai, un lector público que devuelve el artículo como texto
+// plano. Sin clave. Si algún día también falla, el mensaje de error ya
+// ofrece la salida: pegar el texto de la noticia.
+async function fetchViaReader(
+  url: string,
+  timeoutMs = 15_000,
+): Promise<{ title: string; text: string; date: string | null } | null> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    // Ojo: el lector rechaza el UA de navegador (403); un navegador real no
+    // tiene por qué llamarle. Identidad honesta y en paz.
+    const res = await fetch(`https://r.jina.ai/${url}`, {
+      signal: ctrl.signal,
+      headers: { 'User-Agent': 'B3SLeads/1.0', Accept: 'text/plain' },
+    });
+    if (!res.ok) return null;
+    const raw = await res.text();
+    if (raw.length < 120) return null;
+
+    const title = raw.match(/^Title:\s*(.+)$/m)?.[1]?.trim() ?? '';
+    const date = raw.match(/^Published Time:\s*(\d{4}-\d{2}-\d{2})/m)?.[1] ?? null;
+    const content = raw.split(/^Markdown Content:\s*$/m)[1] ?? raw;
+    // Markdown → texto: [Arkadia Space](https://…) queda como "Arkadia Space".
+    const text = content
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/[*_#`>|]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return { title, text, date };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// Descarga el artículo y lee su contenido. El titular y las metas suelen
+// traer la ronda completa; el cuerpo solo se usa de respaldo y acotado, para
+// no arrastrar el bloque de "noticias relacionadas" (rondas de OTRAS marcas).
+export async function extractFromUrl(url: string): Promise<RoundProposal[]> {
+  const host = hostOf(url, 'artículo');
+
+  const html = await fetchArticle(url);
+  if (html) {
+    const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? '';
+    const h1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)?.[1] ?? '';
+    const pubDate =
+      html.match(/article:published_time["'][^>]*content=["'](\d{4}-\d{2}-\d{2})/i)?.[1] ?? null;
+    const metas = [...html.matchAll(/<meta\s[^>]*>/gi)]
+      .map((m) => m[0])
+      .filter((tag) =>
+        /(?:name|property)=["'](?:description|og:description|og:title|twitter:description)["']/i.test(
+          tag,
+        ),
+      )
+      .map((tag) => tag.match(/content=["']([^"']*)["']/i)?.[1] ?? '')
+      .filter(Boolean);
+
+    const headText = htmlToText([title, h1, ...metas].filter(Boolean).join('. '));
+    const head = consolidate(extractFromText(ensureStop(headText), url, host, pubDate, []));
+    if (head.length) return head;
+
+    const articleStart = html.search(/<(article|main)\b/i);
+    const body = htmlToText(html.slice(articleStart >= 0 ? articleStart : 0)).slice(0, 9000);
+    const fromBody = consolidate(extractFromText(ensureStop(body), url, host, pubDate, []));
+    if (fromBody.length) return fromBody;
+  }
+
+  // Descarga directa bloqueada (o sin datos legibles): lector de respaldo.
+  const reader = await fetchViaReader(url);
+  if (!reader) return [];
+  const combined = `${reader.title}. ${reader.text}`.slice(0, 12_000);
+  return consolidate(extractFromText(ensureStop(combined), url, host, reader.date, []));
+}
+
+// ---------- Texto pegado ----------
+
+export function extractFromPasted(text: string, brand?: string): RoundProposal[] {
+  const clean = text.replace(/\s+/g, ' ').trim();
+  if (clean.length < 20) return [];
+  let found = extractFromText(ensureStop(clean), '', 'texto pegado', null, []);
+  if (!found.length) {
+    // Un titular suelto puede no partirse en frases; se reintenta con sujeto.
+    found = extractFromText(`${brand ?? 'La empresa'} ${ensureStop(clean)}`, '', 'texto pegado', null, []);
+  }
+  return consolidate(found);
+}
+
+// Punto de entrada del campo de pegar: acepta un enlace, un texto, o ambos
+// (titular + enlace). El enlace se descarga; jamás se parsea como texto.
+export async function extractFromInput(
+  raw: string,
+): Promise<{ proposals: RoundProposal[]; note: string | null }> {
+  const trimmed = raw.trim();
+  const url = trimmed.match(/https?:\/\/[^\s"'<>]+/)?.[0] ?? null;
+  const rest = (url ? trimmed.replace(url, ' ') : trimmed).replace(/\s+/g, ' ').trim();
+
+  const fromText = rest.length >= 20 ? extractFromPasted(rest) : [];
+  if (!url) return { proposals: fromText, note: null };
+
+  const fromArticle = await extractFromUrl(url);
+  if (!fromArticle.length && !fromText.length) {
+    return {
+      proposals: [],
+      note: 'No pude leer ese artículo (la web no responde o bloquea robots). Pega el titular o el párrafo de la noticia y lo extraigo igual.',
+    };
+  }
+  return { proposals: dedupe([...fromArticle, ...fromText]), note: null };
+}
+
+// ---------- Búsqueda web (opcional, con clave) ----------
+
+interface SearchHit {
+  snippet: string;
+  url: string;
+  host: string;
 }
 
 // Brave Search API. Clave opcional en SEARCH_API_KEY; su plan gratuito cubre
@@ -206,47 +467,13 @@ async function fromWeb(name: string, domain: string, hints: string[]): Promise<R
   for (const hits of rounds) {
     for (const hit of hits) {
       if (!hit.snippet) continue;
-      const text = /[.!?]$/.test(hit.snippet) ? hit.snippet : `${hit.snippet}.`;
-      out.push(...extractFromText(text, hit.url, hit.host, null, hints));
+      out.push(...extractFromText(ensureStop(hit.snippet), hit.url, hit.host, null, hints));
     }
   }
   return out;
 }
 
-// La vía que funciona hoy sin ninguna clave: Sergio busca donde quiera
-// (Google, su Claude, una nota de prensa) y pega el texto. La app hace lo
-// tedioso: leerlo y sacar ronda, importe e inversores en campos.
-export function extractFromPasted(text: string, brand?: string): RoundProposal[] {
-  const clean = text.replace(/\s+/g, ' ').trim();
-  if (clean.length < 20) return [];
-  const withStop = /[.!?]$/.test(clean) ? clean : `${clean}.`;
-  let found = extractFromText(withStop, '', 'texto pegado', null, []);
-  if (!found.length) {
-    // Un titular suelto puede no partirse en frases; se reintenta con sujeto.
-    found = extractFromText(`${brand ?? 'La empresa'} ${withStop}`, '', 'texto pegado', null, []);
-  }
-  if (!found.length) return [];
-
-  // Todo el texto habla de la misma noticia, así que los inversores citados
-  // en una frase valen para la ronda citada en otra: es lo normal en una nota
-  // de prensa ("levantó 6M". "Investors include X, Y").
-  const todos = [...new Set(found.flatMap((p) => p.investors))];
-  const conDato = found.filter((p) => p.round || p.amountValue);
-  const base = conDato.length ? conDato : found;
-
-  const rank = { alta: 3, media: 2, baja: 1 } as const;
-  return dedupe(
-    base.map((p) => {
-      const investors = [...new Set([...p.investors, ...todos])];
-      const score = (p.round ? 1 : 0) + (p.amountValue ? 1 : 0) + (investors.length ? 1 : 0);
-      return {
-        ...p,
-        investors,
-        confidence: (score >= 3 ? 'alta' : score === 2 ? 'media' : 'baja') as RoundProposal['confidence'],
-      };
-    }),
-  ).sort((a, b) => rank[b.confidence] - rank[a.confidence]);
-}
+// ---------- Fuentes propias ----------
 
 async function fromFeeds(brandHints: string[]): Promise<RoundProposal[]> {
   const items = await fetchFundingItems().catch(() => []);
@@ -255,15 +482,14 @@ async function fromFeeds(brandHints: string[]): Promise<RoundProposal[]> {
     if (!looksLikeFunding(item)) continue;
     const hay = `${item.title} ${item.content}`.toLowerCase();
     if (!brandHints.some((h) => hay.includes(h))) continue;
-    const host = (() => {
-      try {
-        return new URL(item.link).hostname.replace(/^www\./, '');
-      } catch {
-        return 'prensa';
-      }
-    })();
     out.push(
-      ...extractFromText(`${item.title}. ${item.content}`, item.link, host, item.pubDate, brandHints),
+      ...extractFromText(
+        `${item.title}. ${item.content}`,
+        item.link,
+        hostOf(item.link, 'prensa'),
+        item.pubDate,
+        brandHints,
+      ),
     );
   }
   return out;
@@ -272,27 +498,6 @@ async function fromFeeds(brandHints: string[]): Promise<RoundProposal[]> {
 function fromScan(markdown: string | null, brandHints: string[]): RoundProposal[] {
   if (!markdown) return [];
   return extractFromText(markdown, '', 'informe B3S', null, brandHints);
-}
-
-// Dedup: la misma ronda contada por dos fuentes es una sola propuesta. Gana
-// la de mayor confianza y se conserva el mejor dato de cada campo.
-function dedupe(list: RoundProposal[]): RoundProposal[] {
-  const rank = { alta: 3, media: 2, baja: 1 } as const;
-  const byKey = new Map<string, RoundProposal>();
-  for (const p of list) {
-    const key = `${p.round ?? '?'}|${p.amountValue ?? '?'}${p.amountUnit}`;
-    const prev = byKey.get(key);
-    if (!prev) {
-      byKey.set(key, p);
-      continue;
-    }
-    byKey.set(key, {
-      ...(rank[p.confidence] > rank[prev.confidence] ? p : prev),
-      investors: [...new Set([...prev.investors, ...p.investors])],
-      date: prev.date ?? p.date,
-    });
-  }
-  return [...byKey.values()].sort((a, b) => rank[b.confidence] - rank[a.confidence]).slice(0, 6);
 }
 
 export async function discoverRounds(input: {

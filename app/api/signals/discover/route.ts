@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
-import { discoverRounds, extractFromPasted, searchConfigured } from '@/lib/funding-discovery';
+import { discoverRounds, extractFromInput, searchConfigured } from '@/lib/funding-discovery';
 import { reportMarkdown } from '@/lib/scan-report';
 import type { Company, Scan } from '@/lib/types';
 
 // Propone rondas para una empresa. NO escribe nada: devuelve candidatos con
 // su frase y su fuente para que Sergio verifique y apruebe desde la ficha.
 // POST { companyId, pastedText? }
-//   - con pastedText: extrae de un texto que Sergio ha pegado (una nota de
-//     prensa, un resultado de búsqueda). Es la vía que funciona sin claves.
+//   - con pastedText: acepta un enlace, un texto o ambos. Si es un enlace se
+//     descarga el artículo y se lee su contenido. Sin claves de nada.
 //   - sin él: rastrea las fuentes propias (prensa que seguimos, informe B3S)
 //     y, si hay SEARCH_API_KEY, también búsqueda web.
 export async function POST(req: NextRequest) {
@@ -17,14 +17,16 @@ export async function POST(req: NextRequest) {
     if (!companyId) return NextResponse.json({ error: 'companyId requerido' }, { status: 400 });
     if (isDemoMode()) return NextResponse.json({ proposals: [], demo: true });
 
-    // Pegar texto no necesita ni empresa resuelta ni salir a la red.
+    // Pegar enlace o texto no necesita empresa resuelta.
     if (typeof pastedText === 'string' && pastedText.trim()) {
-      const proposals = extractFromPasted(pastedText);
+      const { proposals, note } = await extractFromInput(pastedText);
       return NextResponse.json({
         proposals,
-        message: proposals.length
-          ? null
-          : 'No he sabido leer una ronda en ese texto. Pega el párrafo que menciona el importe o los inversores.',
+        message:
+          note ??
+          (proposals.length
+            ? null
+            : 'No he sabido leer una ronda ahí. Pega el párrafo con el importe o los inversores, o el enlace de la noticia.'),
       });
     }
 

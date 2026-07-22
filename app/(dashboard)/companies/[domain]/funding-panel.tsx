@@ -467,7 +467,7 @@ export function FundingPanel({
             onClick={() => setShowPaste((v) => !v)}
             className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--muted)] transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)]"
           >
-            Pegar noticia
+            Pegar noticia o enlace
           </button>
           <button
             onClick={() => setOpen(true)}
@@ -485,14 +485,14 @@ export function FundingPanel({
       {showPaste && (
         <div className="mt-3 space-y-2 border-t border-[var(--border)] pt-3">
           <label htmlFor="pegar-ronda" className="text-xs text-[var(--muted)]">
-            Pega la noticia o el resultado de tu búsqueda y saco los campos
+            Pega la noticia o su enlace y saco los campos
           </label>
           <textarea
             id="pegar-ronda"
             value={pasted}
             onChange={(e) => setPasted(e.target.value)}
             rows={3}
-            placeholder="ej: Beel levanta una ronda seed de 2,4 millones liderada por Kfund"
+            placeholder="un enlace (webcapitalriesgo, prensa…) o el texto de la noticia"
             className={`${FIELD} w-full`}
           />
           <div className="flex items-center gap-2">
