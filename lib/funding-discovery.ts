@@ -423,27 +423,55 @@ interface SearchHit {
   host: string;
 }
 
-// Brave Search API. Clave opcional en SEARCH_API_KEY; su plan gratuito cubre
-// de sobra el uso a mano (2.000 consultas/mes).
-async function search(query: string, timeoutMs = 6000): Promise<SearchHit[]> {
+// Búsqueda web con clave opcional en SEARCH_API_KEY. El proveedor se
+// deduce de la propia clave, así que cambiar de uno a otro es solo cambiar
+// la variable:
+//  - "tvly-…" → Tavily (1.000 consultas/mes gratis, SIN tarjeta)
+//  - cualquier otra → Brave Search (5$ de crédito/mes = 1.000 consultas,
+//    pide tarjeta y cobra si se supera)
+async function braveSearch(query: string, key: string, signal: AbortSignal): Promise<SearchHit[]> {
+  const res = await fetch(
+    `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=8`,
+    { signal, headers: { Accept: 'application/json', 'X-Subscription-Token': key } },
+  );
+  if (!res.ok) return [];
+  const json = (await res.json()) as {
+    web?: { results?: { title?: string; description?: string; url?: string }[] };
+  };
+  return (json.web?.results ?? []).map((r) => ({
+    snippet: `${r.title ?? ''}. ${(r.description ?? '').replace(/<[^>]+>/g, '')}`.trim(),
+    url: r.url ?? '',
+    host: hostOf(r.url ?? '', 'búsqueda web'),
+  }));
+}
+
+async function tavilySearch(query: string, key: string, signal: AbortSignal): Promise<SearchHit[]> {
+  const res = await fetch('https://api.tavily.com/search', {
+    method: 'POST',
+    signal,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+    body: JSON.stringify({ query, max_results: 8 }),
+  });
+  if (!res.ok) return [];
+  const json = (await res.json()) as {
+    results?: { title?: string; content?: string; url?: string }[];
+  };
+  return (json.results ?? []).map((r) => ({
+    snippet: `${r.title ?? ''}. ${r.content ?? ''}`.trim(),
+    url: r.url ?? '',
+    host: hostOf(r.url ?? '', 'búsqueda web'),
+  }));
+}
+
+async function search(query: string, timeoutMs = 8000): Promise<SearchHit[]> {
   const key = process.env.SEARCH_API_KEY?.trim();
   if (!key) return [];
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await fetch(
-      `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=8`,
-      { signal: ctrl.signal, headers: { Accept: 'application/json', 'X-Subscription-Token': key } },
-    );
-    if (!res.ok) return [];
-    const json = (await res.json()) as {
-      web?: { results?: { title?: string; description?: string; url?: string }[] };
-    };
-    return (json.web?.results ?? []).map((r) => ({
-      snippet: `${r.title ?? ''}. ${(r.description ?? '').replace(/<[^>]+>/g, '')}`.trim(),
-      url: r.url ?? '',
-      host: hostOf(r.url ?? '', 'búsqueda web'),
-    }));
+    return key.startsWith('tvly-')
+      ? await tavilySearch(query, key, ctrl.signal)
+      : await braveSearch(query, key, ctrl.signal);
   } catch {
     return [];
   } finally {
