@@ -12,8 +12,9 @@ const NAV = [
   { href: '/leaderboard', label: 'leaderboard' },
 ];
 
-// La sección activa se marca con el rojo de identidad (mismo patrón que la
-// nav de Brand3). Las fichas de compañía cuelgan de briefing a efectos de nav.
+// La sección activa se marca en neutro: misma caja, pero en tonos de negro
+// (o su inverso en tema oscuro). Las fichas de compañía cuelgan de briefing
+// a efectos de nav.
 export function Nav() {
   const pathname = usePathname();
   return (
@@ -29,7 +30,7 @@ export function Nav() {
             aria-current={active ? 'page' : undefined}
             className={`rounded-md border px-2.5 py-1 transition-colors ${
               active
-                ? 'border-[var(--nav-active-border)] bg-[var(--nav-active-bg)] text-[var(--accent)]'
+                ? 'border-[var(--nav-active-border)] bg-[var(--nav-active-bg)] font-medium text-[var(--text)]'
                 : 'border-transparent text-[var(--muted)] hover:text-[var(--text)]'
             }`}
           >

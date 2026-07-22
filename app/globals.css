@@ -38,8 +38,10 @@
   --linkedin-text: #ffffff;
   --linkedin-soft: #0000ff;
 
-  --nav-active-bg: rgba(255, 0, 0, 0.1);
-  --nav-active-border: rgba(255, 0, 0, 0.42);
+  /* Sección activa en neutro: el rojo es la identidad y compite con las
+     acciones destructivas. La navegación no necesita gritar. */
+  --nav-active-bg: rgba(22, 22, 22, 0.06);
+  --nav-active-border: rgba(22, 22, 22, 0.26);
   --page-bg: rgba(245, 245, 245, 0.94);
   --page-shadow: 0 10px 32px rgba(22, 22, 22, 0.05);
   --body-bg: repeating-linear-gradient(135deg, rgba(22, 22, 22, 0.018) 0 1px, transparent 1px 7px), var(--bg);
@@ -70,8 +72,9 @@
   --linkedin-text: #ffffff;
   --linkedin-soft: #0000ff;
 
-  --nav-active-bg: rgba(255, 0, 0, 0.14);
-  --nav-active-border: rgba(255, 0, 0, 0.46);
+  /* En oscuro el neutro se invierte: un tinte claro sobre el fondo. */
+  --nav-active-bg: rgba(222, 219, 210, 0.09);
+  --nav-active-border: rgba(222, 219, 210, 0.24);
   --page-bg: rgba(18, 22, 21, 0.94);
   --page-shadow: none;
   --body-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 280px),
