@@ -30,6 +30,19 @@ export function ScanButton({
     return error instanceof Error ? error.message : String(error);
   }
 
+  // Si la función tarda más de lo que aguanta el hosting (Netlify corta a los
+  // ~10s), la respuesta no es JSON sino su página de error en HTML. Leerla con
+  // .json() soltaba un "Unexpected token '<'" que no dice nada. Se detecta y
+  // se trata aparte: el trabajo suele haberse creado igual en el servidor.
+  async function readJson(res: Response): Promise<Record<string, unknown> | null> {
+    const text = await res.text();
+    try {
+      return JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  }
+
   useEffect(() => {
     if (!scan || !['queued', 'running'].includes(scan.status)) return;
     const localScanId = scan.id;
@@ -39,10 +52,16 @@ export function ScanButton({
     async function sync() {
       try {
         const response = await fetch(`/api/scans/${localScanId}/sync`, { method: 'POST' });
-        const body = await response.json();
-        if (!response.ok) throw new Error(body.error || 'No se pudo sincronizar el scan');
+        const body = await readJson(response);
         if (cancelled) return;
-        if (['ready', 'failed', 'cancelled', 'blocked'].includes(body.scan?.status)) {
+        // Un timeout suelto durante el sondeo no merece alarma: se reintenta.
+        if (body === null) {
+          if (!cancelled) timer = setTimeout(sync, 5_000);
+          return;
+        }
+        if (!response.ok) throw new Error((body.error as string) || 'No se pudo sincronizar el scan');
+        const status = (body.scan as { status?: string } | undefined)?.status;
+        if (status && ['ready', 'failed', 'cancelled', 'blocked'].includes(status)) {
           router.refresh();
           return;
         }
@@ -72,8 +91,18 @@ export function ScanButton({
         },
         body: JSON.stringify({ companyId, leadId }),
       });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || 'No se pudo lanzar el scan');
+      const body = await readJson(response);
+      if (body === null) {
+        // El hosting cortó la respuesta, pero el scan ya se habrá creado.
+        // No se afirma que haya ido bien: se refresca y que hable el estado.
+        setMsg({
+          text: 'La respuesta ha tardado más de la cuenta. Compruebo si el scan ha arrancado…',
+          tone: 'info',
+        });
+        router.refresh();
+        return;
+      }
+      if (!response.ok) throw new Error((body.error as string) || 'No se pudo lanzar el scan');
       idempotencyKey.current = null;
       router.refresh();
     } catch (error) {
@@ -92,9 +121,16 @@ export function ScanButton({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ leadId, ...body }),
       });
-      const json = await res.json();
-      if (json.error) setMsg({ text: json.error, tone: 'error' });
-      else if (json.found === false) setMsg({ text: json.message, tone: 'info' });
+      const json = await readJson(res);
+      if (json === null) {
+        setMsg({
+          text: 'La respuesta ha tardado más de la cuenta. Recarga la ficha para ver si el informe ha entrado.',
+          tone: 'info',
+        });
+        return;
+      }
+      if (json.error) setMsg({ text: String(json.error), tone: 'error' });
+      else if (json.found === false) setMsg({ text: String(json.message), tone: 'info' });
       else {
         setUrl('');
         router.refresh();
