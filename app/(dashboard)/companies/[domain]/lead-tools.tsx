@@ -29,9 +29,8 @@ export function LeadTools({
       <div className="flex flex-col rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
         <h3 className="text-sm font-semibold">Brief de llamada</h3>
         <p className="mt-1 flex-1 text-xs leading-relaxed text-[var(--muted)]">
-          El dossier completo del lead con instrucciones para generar el brief pre-call:
-          inteligencia, gancho, 5 porqués, descubrimiento, cierre y objeciones.
-        </p>
+          El dossier del lead con el prompt maestro del brief pre-call: verificación contra la web
+          viva, inteligencia, gancho, guion con preguntas literales, cierre y chuleta.</p>
         <button
           onClick={() => copy(callBriefPrompt, 'brief')}
           className="mt-3 w-full rounded-md bg-[var(--cta)] px-3.5 py-2 text-sm font-medium text-[var(--cta-text)] transition-opacity hover:opacity-90"
