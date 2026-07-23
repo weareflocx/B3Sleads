@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     // El informe del Scanner ya está en casa: se aprovecha antes de salir fuera.
     const { data: scan } = await db
       .from('scans')
-      .select('result_raw')
+      .select('result_raw,evidence')
       .eq('company_id', companyId)
       .eq('status', 'ready')
       .order('created_at', { ascending: false })
@@ -60,6 +60,7 @@ export async function POST(req: NextRequest) {
       domain: co.domain,
       name: co.name || co.domain,
       scanMarkdown: reportMarkdown((scan as Pick<Scan, 'result_raw'> | null)?.result_raw),
+      scanEvidence: (scan as Pick<Scan, 'evidence'> | null)?.evidence ?? null,
     });
 
     return NextResponse.json({

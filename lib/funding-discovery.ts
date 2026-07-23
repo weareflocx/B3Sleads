@@ -48,7 +48,7 @@ const AMOUNT_RE =
   /(?:([€$])\s*)?(\d{1,4}(?:[.,]\d{1,2})?)\s*(millones?|million|mill\.|m\b|k\b|mil\b)\s*(?:de\s*)?(euros?|€|dollars?|\$|usd)?/i;
 
 const SIGNAL_RE =
-  /(ronda|levant[óoa]|capta|cierra|financiaci[óo]n|inversi[óo]n|funding|raise[sd]?|secured|closes?|closed|investment round|led by|liderada|particip(?:aci[óo]n de|an)|entran|investors?\s+includ|inversores?\s+(?:incluyen|son))/i;
+  /(ronda|levant[óoa]|capta|cierra|financiaci[óo]n|inversi[óo]n|funding|raise[sd]?|secure[sd]?\b|closes?|closed|investment round|led by|liderada|particip(?:aci[óo]n de|an)|entran|investors?\s+includ|inversores?\s+(?:incluyen|son))/i;
 
 const LEAD_RE =
   /(?:liderad[ao]\s+por|led\s+by|lidera\s+la\s+ronda)\s+([A-ZÁÉÍÓÚÑ][^.;()]{2,80})/;
@@ -497,10 +497,73 @@ async function fromWeb(name: string, domain: string, hints: string[]): Promise<R
     if (i > 0) await new Promise((r) => setTimeout(r, 1_100));
     for (const hit of await search(q)) {
       if (!hit.snippet) continue;
-      out.push(...extractFromText(ensureStop(hit.snippet), hit.url, hit.host, null, hints));
+      // Las cabeceras markdown de los snippets ("### Related news") pasan a
+      // fin de frase: así las noticias relacionadas no heredan la mención a
+      // la marca y no cuelan rondas de otras empresas.
+      const clean = hit.snippet.replace(/#+|\[\.\.\.\]|\.{3}|…/g, '. ');
+      out.push(...extractFromText(ensureStop(clean), hit.url, hit.host, null, hints));
     }
   }
   return out;
+}
+
+// ---------- Evidencia del B3S Scanner ----------
+// El crawler de B3S ya visitó las superficies de la marca con un navegador
+// real: renderiza las SPAs y esquiva los 403 que bloquean nuestro fetch.
+// Esa captura vive en scans.evidence (referencias con URL y snippet) y es
+// infraestructura de Jesús que reutilizamos tal cual, sin llamadas nuevas.
+// Dos usos: extraer rondas del texto capturado, y detectar la página del
+// anuncio (slug tipo "secures-e14m") para leerla entera.
+
+interface EvidenceLike {
+  references?: { url?: string; snippet?: string }[];
+}
+
+const FUNDING_URL_RE =
+  /(secures?|raises?|raised|funding|financiaci|ronda|levanta|inversi[oó]n|seed|series-[abc])/i;
+
+// Los snippets vienen en markdown y con URLs dentro. Las URLs se quitan
+// ANTES de extraer: un slug tipo "secures-e14m" parsearía 14M de donde no
+// toca (la misma trampa que ya nos costó un 28M fantasma).
+function snippetToPlain(md: string): string {
+  return md
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/https?:\/\/\S+/g, ' ')
+    .replace(/[#*_`>|]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function evidenceRefs(evidence: unknown): { url: string; snippet: string }[] {
+  const refs = (evidence as EvidenceLike | null)?.references ?? [];
+  if (!Array.isArray(refs)) return [];
+  return refs
+    .map((r) => ({ url: String(r?.url ?? ''), snippet: String(r?.snippet ?? '') }))
+    .filter((r) => r.snippet.length >= 40);
+}
+
+export function evidenceSnippetProposals(evidence: unknown): RoundProposal[] {
+  const out: RoundProposal[] = [];
+  for (const r of evidenceRefs(evidence)) {
+    const plain = snippetToPlain(r.snippet);
+    if (plain.length < 40) continue;
+    out.push(...extractFromText(ensureStop(plain), r.url, 'evidencia B3S', null, []));
+  }
+  return consolidate(out);
+}
+
+export function fundingUrlsFromEvidence(evidence: unknown, max = 2): string[] {
+  const urls = new Set<string>();
+  for (const r of evidenceRefs(evidence)) {
+    if (!r.url) continue;
+    try {
+      if (FUNDING_URL_RE.test(new URL(r.url).pathname)) urls.add(r.url);
+    } catch {
+      /* no era una URL */
+    }
+  }
+  return [...urls].slice(0, max);
 }
 
 // ---------- Fuentes propias ----------
@@ -534,6 +597,7 @@ export async function discoverRounds(input: {
   domain: string;
   name: string;
   scanMarkdown?: string | null;
+  scanEvidence?: unknown;
 }): Promise<RoundProposal[]> {
   const base = input.domain.split('.')[0].toLowerCase();
   const hints = [...new Set([input.domain.toLowerCase(), base, input.name.toLowerCase()])].filter(
@@ -547,9 +611,32 @@ export async function discoverRounds(input: {
     fromFeeds(hints),
     new Promise<RoundProposal[]>((r) => setTimeout(() => r([]), 5_000)),
   ]);
-  const [web, feeds] = await Promise.all([
+
+  // Si el crawler de B3S capturó la página del propio anuncio de ronda,
+  // se lee entera: es la fuente más fiable que existe (la marca contándolo).
+  const announcementUrls = fundingUrlsFromEvidence(input.scanEvidence);
+  const announcements = Promise.all(
+    announcementUrls.map((u) => extractFromUrl(u).catch(() => [] as RoundProposal[])),
+  ).then((r) => r.flat());
+
+  const [web, feeds, fromAnnouncements] = await Promise.all([
     fromWeb(input.name, input.domain, hints).catch(() => []),
     feedsConTope.catch(() => []),
+    announcements.catch(() => []),
   ]);
-  return dedupe([...web, ...feeds, ...fromScan(input.scanMarkdown ?? null, hints)]);
+
+  // La marca contándolo en su propia web vale más que cualquier agregador:
+  // sube un nivel de confianza y queda arriba del listado.
+  const anuncios = fromAnnouncements.map((p) => ({
+    ...p,
+    confidence: (p.confidence === 'baja' ? 'media' : 'alta') as RoundProposal['confidence'],
+  }));
+
+  return dedupe([
+    ...anuncios,
+    ...evidenceSnippetProposals(input.scanEvidence),
+    ...web,
+    ...feeds,
+    ...fromScan(input.scanMarkdown ?? null, hints),
+  ]);
 }
