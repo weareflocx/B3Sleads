@@ -8,6 +8,7 @@ import {
   storedTldr,
   type B3SScanEvidence,
   type B3SScanResult,
+  type ScanJob,
   type ImportedScan,
 } from './brand3';
 import type { Scan } from './types';
@@ -26,7 +27,13 @@ export function completedScanData(result: B3SScanResult, evidence: B3SScanEviden
 
 // Actualiza una fila local desde el estado autoritativo del API. Se usa tanto
 // desde el polling del navegador como desde procesos server-side.
-export async function syncStoredScan(db: SupabaseClient, scan: Scan): Promise<Scan> {
+//
+// Devuelve también el job remoto: trae `progress` y `phase`, y así la barra de
+// progreso del navegador no necesita una llamada extra a la API.
+export async function syncStoredScan(
+  db: SupabaseClient,
+  scan: Scan,
+): Promise<{ scan: Scan; job: ScanJob }> {
   const job = await getScanStatus(scan.scanner_job_id);
   let update: Record<string, unknown>;
 
@@ -51,7 +58,7 @@ export async function syncStoredScan(db: SupabaseClient, scan: Scan): Promise<Sc
 
   const { data, error } = await db.from('scans').update(update).eq('id', scan.id).select().single();
   if (error) throw error;
-  return data as Scan;
+  return { scan: data as Scan, job };
 }
 
 // Materializa un resultado histórico sin duplicarlo si varias entradas del

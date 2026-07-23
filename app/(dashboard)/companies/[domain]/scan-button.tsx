@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Scan } from '@/lib/types';
+import { ScanProgress } from '../../scan-progress';
 
 // Conecta la ficha con B3S Scanner API. El navegador sólo usa endpoints
 // internos de B3Sleads; las credenciales permanecen en el servidor.
@@ -23,6 +24,8 @@ export function ScanButton({
   const [url, setUrl] = useState('');
   const [msg, setMsg] = useState<{ text: string; tone: 'info' | 'error' } | null>(null);
   const idempotencyKey = useRef<string | null>(null);
+  // Progreso del job remoto, tal cual lo reporta la API en cada sondeo.
+  const [progress, setProgress] = useState<{ value: number; phase: string | null } | null>(null);
 
   // El mensaje del servidor ya viene redactado para humanos; interpolar el
   // objeto Error añadía un "Error: Error:" delante.
@@ -60,8 +63,12 @@ export function ScanButton({
           return;
         }
         if (!response.ok) throw new Error((body.error as string) || 'No se pudo sincronizar el scan');
+        if (typeof body.progress === 'number') {
+          setProgress({ value: body.progress, phase: (body.phase as string | null) ?? null });
+        }
         const status = (body.scan as { status?: string } | undefined)?.status;
         if (status && ['ready', 'failed', 'cancelled', 'blocked'].includes(status)) {
+          setProgress(null);
           router.refresh();
           return;
         }
@@ -142,6 +149,8 @@ export function ScanButton({
     }
   }
 
+  const running = scan?.status === 'running' || scan?.status === 'queued';
+
   return (
     <div className="flex flex-col gap-2">
       {/* Una sola fila: pegar un informe existente y lanzar uno nuevo son la
@@ -182,6 +191,14 @@ export function ScanButton({
           <span className="text-xs text-[var(--danger)]">El último scan falló; puedes reintentarlo.</span>
         )}
       </div>
+
+      {/* Mientras el scan corre, solo las barras: el color (rojo → azul →
+          verde) ya cuenta cuánto queda, sin números que distraigan. */}
+      {running && progress && (
+        <div className="py-1 text-[var(--text)]">
+          <ScanProgress value={progress.value} label={progress.phase} />
+        </div>
+      )}
 
       {/* Búsqueda del último resultado por dominio en B3S API. */}
       <div className="flex items-center gap-3 text-xs">

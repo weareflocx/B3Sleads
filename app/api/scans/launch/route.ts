@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
     if (scanError) throw scanError;
 
     const storedScan =
-      job.status === 'completed' ? await syncStoredScan(db, scan as Scan) : (scan as Scan);
+      job.status === 'completed' ? (await syncStoredScan(db, scan as Scan)).scan : (scan as Scan);
 
     if (leadId) {
       await db

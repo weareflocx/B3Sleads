@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
       .single();
     if (sErr) throw sErr;
     const storedScan =
-      job.status === 'completed' ? await syncStoredScan(db, scan as Scan) : scan;
+      job.status === 'completed' ? (await syncStoredScan(db, scan as Scan)).scan : scan;
 
     const score = priorityScore({ company: company as Company, signal: null, scan: null });
     const { error: lErr } = await db.from('leads').insert({

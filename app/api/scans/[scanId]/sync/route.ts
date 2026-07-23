@@ -24,8 +24,13 @@ export async function POST(
     }
 
     try {
-      const updated = await syncStoredScan(db, scan);
-      return NextResponse.json({ ok: true, scan: updated });
+      const { scan: updated, job } = await syncStoredScan(db, scan);
+      return NextResponse.json({
+        ok: true,
+        scan: updated,
+        progress: typeof job.progress === 'number' ? job.progress : null,
+        phase: job.phase ?? null,
+      });
     } catch (apiError) {
       // La API v1 encadena tres llamadas (estado + resultado + evidencia) y a
       // veces no cabe en el tiempo que da el hosting. Si el informe público ya
