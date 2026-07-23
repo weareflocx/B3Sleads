@@ -3,6 +3,23 @@ import { syncStoredScan } from '@/lib/b3s-scan-storage';
 import { getReportByUrl } from '@/lib/brand3';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import type { Scan } from '@/lib/types';
+import type { ScanJob } from '@/lib/brand3';
+
+// La API reporta el progreso como fracción 0..1 (así lo fija su OpenAPI).
+// Aquí se pasa a 0..100 y se acota a 95 mientras corre: una barra llena con
+// el scan aún en marcha miente. Si no hay número, se estima por fases.
+function pctFromJob(job: ScanJob): number | null {
+  if (typeof job.progress === 'number' && job.progress > 0) {
+    return Math.min(95, Math.max(2, Math.round(job.progress * 100)));
+  }
+  const phases = job.phases ?? [];
+  if (phases.length) {
+    const done = phases.filter((f) => /complete|done|finish|ok/i.test(f.state ?? '')).length;
+    const active = phases.some((f) => /running|progress|active|curso/i.test(f.state ?? '')) ? 0.5 : 0;
+    return Math.min(95, Math.round(((done + active) / phases.length) * 100));
+  }
+  return null;
+}
 
 // Consulta el job remoto y materializa resultado + evidencia cuando termina.
 export async function POST(
@@ -28,7 +45,7 @@ export async function POST(
       return NextResponse.json({
         ok: true,
         scan: updated,
-        progress: typeof job.progress === 'number' ? job.progress : null,
+        progress: pctFromJob(job),
         phase: job.phase ?? null,
       });
     } catch (apiError) {

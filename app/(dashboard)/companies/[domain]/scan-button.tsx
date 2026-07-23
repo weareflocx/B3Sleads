@@ -24,8 +24,11 @@ export function ScanButton({
   const [url, setUrl] = useState('');
   const [msg, setMsg] = useState<{ text: string; tone: 'info' | 'error' } | null>(null);
   const idempotencyKey = useRef<string | null>(null);
-  // Progreso del job remoto, tal cual lo reporta la API en cada sondeo.
+  // Progreso del job remoto (0..100, ya normalizado por el servidor).
   const [progress, setProgress] = useState<{ value: number; phase: string | null } | null>(null);
+  // Último valor confirmado por el servidor: el goteo visual nunca lo
+  // adelanta en más de unos puntos, para no mentir.
+  const serverPct = useRef(0);
 
   // El mensaje del servidor ya viene redactado para humanos; interpolar el
   // objeto Error añadía un "Error: Error:" delante.
@@ -52,6 +55,19 @@ export function ScanButton({
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
+    // La barra aparece al momento, sin esperar al primer sondeo, y entre
+    // sondeos avanza con un goteo suave acotado a +6 sobre lo confirmado:
+    // se ve viva sin inventarse el progreso.
+    serverPct.current = 3;
+    setProgress((p) => p ?? { value: 3, phase: null });
+    const trickle = setInterval(() => {
+      setProgress((p) => {
+        if (!p) return p;
+        const ceiling = Math.min(serverPct.current + 6, 95);
+        return p.value >= ceiling ? p : { ...p, value: Math.min(p.value + 0.7, ceiling) };
+      });
+    }, 1_000);
+
     async function sync() {
       try {
         const response = await fetch(`/api/scans/${localScanId}/sync`, { method: 'POST' });
@@ -59,12 +75,18 @@ export function ScanButton({
         if (cancelled) return;
         // Un timeout suelto durante el sondeo no merece alarma: se reintenta.
         if (body === null) {
-          if (!cancelled) timer = setTimeout(sync, 5_000);
+          if (!cancelled) timer = setTimeout(sync, 3_000);
           return;
         }
         if (!response.ok) throw new Error((body.error as string) || 'No se pudo sincronizar el scan');
         if (typeof body.progress === 'number') {
-          setProgress({ value: body.progress, phase: (body.phase as string | null) ?? null });
+          const confirmed = body.progress as number;
+          serverPct.current = confirmed;
+          // Nunca hacia atrás: si el goteo iba por delante, se queda donde está.
+          setProgress((p) => ({
+            value: Math.max(p?.value ?? 0, confirmed),
+            phase: (body.phase as string | null) ?? null,
+          }));
         }
         const status = (body.scan as { status?: string } | undefined)?.status;
         if (status && ['ready', 'failed', 'cancelled', 'blocked'].includes(status)) {
@@ -75,12 +97,13 @@ export function ScanButton({
       } catch (error) {
         if (!cancelled) setMsg({ text: `No pude sincronizar el scan: ${reason(error)}`, tone: 'error' });
       }
-      if (!cancelled) timer = setTimeout(sync, 5_000);
+      if (!cancelled) timer = setTimeout(sync, 3_000);
     }
 
-    timer = setTimeout(sync, 1_000);
+    timer = setTimeout(sync, 600);
     return () => {
       cancelled = true;
+      clearInterval(trickle);
       if (timer) clearTimeout(timer);
     };
   }, [router, scan]);
