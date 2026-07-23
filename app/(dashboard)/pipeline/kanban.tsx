@@ -35,8 +35,11 @@ export function Kanban({ initial }: { initial: BriefingLead[] }) {
     if (!res.ok) setLeads(prev); // revertir si falla
   }
 
+  // Tablero: scroll horizontal con anclaje. En móvil cada columna ocupa
+  // casi toda la pantalla y se desliza de una en una; desde sm crecen para
+  // repartirse el ancho, sin bajar de 264px para que la tarjeta se lea.
   return (
-    <div className="flex gap-3 overflow-x-auto pb-4">
+    <div className="flex snap-x snap-proximity gap-3 overflow-x-auto pb-4">
       {COLUMNS.map((col) => {
         const items = leads.filter((l) => col.includes.includes(l.lead.stage));
         return (
@@ -47,7 +50,7 @@ export function Kanban({ initial }: { initial: BriefingLead[] }) {
               if (dragId) moveTo(dragId, col.key);
               setDragId(null);
             }}
-            className="flex min-w-[256px] flex-1 flex-col rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3.5"
+            className="flex w-[82vw] max-w-[340px] shrink-0 snap-start flex-col rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3.5 sm:w-auto sm:min-w-[264px] sm:flex-1 sm:shrink"
           >
             <h3 className="mb-3.5 flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
               {col.label}

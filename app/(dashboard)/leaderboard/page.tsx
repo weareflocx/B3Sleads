@@ -1,3 +1,4 @@
+import { PAGE } from '@/app/(dashboard)/page-width';
 import Link from 'next/link';
 import { getBriefingLeads } from '@/lib/data';
 import { getInvestorStats, formatEur } from '@/lib/investors-data';
@@ -197,7 +198,7 @@ export default async function LeaderboardPage() {
   );
 
   return (
-    <main>
+    <main className={PAGE}>
       <div className="mb-6 flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-2xl font-bold tracking-tight">Leaderboard</h1>
         <span className="text-sm text-[var(--muted)]">

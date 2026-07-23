@@ -1,3 +1,4 @@
+import { PAGE } from '@/app/(dashboard)/page-width';
 import Link from 'next/link';
 import { getBriefingLeads } from '@/lib/data';
 import { leadTemperature } from '@/lib/scoring';
@@ -63,7 +64,7 @@ export default async function HomePage() {
   ];
 
   return (
-    <main className="space-y-8">
+    <main className={`${PAGE} space-y-8`}>
       {/* Banner */}
       <section className="relative overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)] px-6 py-8">
         <div

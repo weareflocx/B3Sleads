@@ -1,3 +1,4 @@
+import { PAGE } from '@/app/(dashboard)/page-width';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
@@ -51,7 +52,7 @@ export default async function InvestorPage({ params }: { params: Promise<{ slug:
   );
 
   return (
-    <main>
+    <main className={PAGE}>
       <Link href="/leaderboard" className="text-sm text-[var(--muted)] hover:text-[var(--text)]">
         ← Leaderboard
       </Link>

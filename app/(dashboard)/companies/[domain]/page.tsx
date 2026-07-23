@@ -1,3 +1,4 @@
+import { PAGE } from '@/app/(dashboard)/page-width';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getCompanyFiche, getCompanyScans, getCompanySignals, getLeadNotes } from '@/lib/data';
@@ -94,7 +95,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
   const headlineInvestors = resolveInvestors(fd?.investors);
 
   return (
-    <main>
+    <main className={PAGE}>
       <Link href="/briefing" className="text-sm text-[var(--muted)] hover:text-[var(--text)]">
         ← Briefing
       </Link>

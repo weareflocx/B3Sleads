@@ -1,3 +1,4 @@
+import { PAGE } from '@/app/(dashboard)/page-width';
 import { getFounderQueue, getConversations, getBriefingLeads } from '@/lib/data';
 import { displayName, companyLabel } from '@/lib/types';
 import { buildPitch } from '@/lib/pitch';
@@ -31,7 +32,7 @@ export default async function FoundersPage() {
   );
 
   return (
-    <main className="space-y-6">
+    <main className={`${PAGE} space-y-6`}>
       <h1 className="text-2xl font-bold tracking-tight">Founders</h1>
 
       <ImportBox />

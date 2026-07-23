@@ -1,3 +1,4 @@
+import { PAGE } from '@/app/(dashboard)/page-width';
 import { getBriefingLeads } from '@/lib/data';
 import { LeadCard } from './lead-card';
 
@@ -12,7 +13,7 @@ export default async function BriefingPage() {
   );
 
   return (
-    <main>
+    <main className={PAGE}>
       <div className="mb-6 flex items-baseline justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Briefing de las 9:00</h1>
         <span className="text-sm text-[var(--muted)]">

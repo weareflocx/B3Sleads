@@ -48,7 +48,7 @@ export default async function SettingsPage() {
   ];
 
   return (
-    <main className="max-w-2xl">
+    <main className="mx-auto w-full max-w-2xl">
       <h1 className="mb-6 text-2xl font-bold tracking-tight">Tu cuenta</h1>
 
       <div className="grid gap-4 sm:grid-cols-2">
