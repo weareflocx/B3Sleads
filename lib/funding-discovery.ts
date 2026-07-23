@@ -540,9 +540,16 @@ export async function discoverRounds(input: {
     (h) => h.length >= 3,
   );
 
+  // Los feeds llevan tope propio: su parser da 20s por feed y la función
+  // serverless corta antes. Si la prensa va lenta, se pierde esa fuente,
+  // no la respuesta entera.
+  const feedsConTope = Promise.race([
+    fromFeeds(hints),
+    new Promise<RoundProposal[]>((r) => setTimeout(() => r([]), 5_000)),
+  ]);
   const [web, feeds] = await Promise.all([
     fromWeb(input.name, input.domain, hints).catch(() => []),
-    fromFeeds(hints).catch(() => []),
+    feedsConTope.catch(() => []),
   ]);
   return dedupe([...web, ...feeds, ...fromScan(input.scanMarkdown ?? null, hints)]);
 }

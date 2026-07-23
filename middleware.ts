@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 // Protege el dashboard: sin sesión → /login. Público: la landing (/), el
 // login y el callback de auth. Si Supabase no está configurado (modo demo),
 // no hay auth que aplicar y se deja pasar todo.
-const PUBLIC_PATHS = ['/', '/login'];
+const PUBLIC_PATHS = ['/', '/login', '/api/health'];
 
 export async function middleware(request: NextRequest) {
   // Acceso directo para desarrollo local. NODE_ENV impide que una variable
