@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import { getBrandProfile } from '@/lib/brand3';
 import { persistImportedScan } from '@/lib/b3s-scan-storage';
+import { fetchSiteDescription } from '@/lib/site-meta';
 import { currentUserEmail } from '@/lib/auth';
 import { priorityScore } from '@/lib/scoring';
 import { parseLinkedInHandle, linkedInUrlFromHandle, humanizeHandle } from '@/lib/types';
@@ -39,6 +40,11 @@ export async function POST(req: NextRequest) {
     const db = isDemoMode() ? null : getServiceSupabase();
     // Atribución para el leaderboard: quién añade este lead
     const addedBy = await currentUserEmail();
+
+    // Marcas nuevas de esta tanda: al final se les intenta rellenar la bio
+    // con la meta descripción de su web (suele ser la misma frase que ponen
+    // en LinkedIn). Ver lib/site-meta.ts.
+    const newCompanies: { id: string; domain: string }[] = [];
 
     for (const e of entries) {
       const handle = parseLinkedInHandle(e.linkedin ?? '');
@@ -108,6 +114,7 @@ export async function POST(req: NextRequest) {
           companyId = newCo.id;
           companyRow = newCo as Company;
           companyWasNew = true;
+          if (domain.includes('.')) newCompanies.push({ id: newCo.id, domain });
         }
       }
 
@@ -206,6 +213,22 @@ export async function POST(req: NextRequest) {
             ? `en la cola · ${scanNote}`
             : `marca en el radar · ${scanNote} · busca a su founder en LinkedIn`,
       });
+    }
+
+    if (newCompanies.length && db) {
+      // En paralelo y con tope global de 3.5s: si una web no responde, la bio
+      // queda vacía y se rellena a mano. El alta nunca espera de más.
+      await Promise.race([
+        Promise.all(
+          newCompanies.map(async (c) => {
+            const description = await fetchSiteDescription(c.domain);
+            if (description) {
+              await db.from('companies').update({ description }).eq('id', c.id).is('description', null);
+            }
+          }),
+        ),
+        new Promise((r) => setTimeout(r, 3_500)),
+      ]);
     }
 
     return NextResponse.json({ results });

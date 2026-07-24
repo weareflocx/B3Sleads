@@ -417,7 +417,7 @@ export async function extractFromInput(
 
 // ---------- Búsqueda web (opcional, con clave) ----------
 
-interface SearchHit {
+export interface SearchHit {
   snippet: string;
   url: string;
   host: string;
@@ -463,7 +463,7 @@ async function tavilySearch(query: string, key: string, signal: AbortSignal): Pr
   }));
 }
 
-async function search(query: string, timeoutMs = 8000): Promise<SearchHit[]> {
+export async function searchWeb(query: string, timeoutMs = 8000): Promise<SearchHit[]> {
   const key = process.env.SEARCH_API_KEY?.trim();
   if (!key) return [];
   const ctrl = new AbortController();
@@ -495,7 +495,7 @@ async function fromWeb(name: string, domain: string, hints: string[]): Promise<R
   const out: RoundProposal[] = [];
   for (const [i, q] of queries.entries()) {
     if (i > 0) await new Promise((r) => setTimeout(r, 1_100));
-    for (const hit of await search(q)) {
+    for (const hit of await searchWeb(q)) {
       if (!hit.snippet) continue;
       // Las cabeceras markdown de los snippets ("### Related news") pasan a
       // fin de frase: así las noticias relacionadas no heredan la mención a
