@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Scan } from '@/lib/types';
 import { ScanProgress } from '../../scan-progress';
+import { BTN_CTA, BTN_OUTLINE } from '../../buttons';
 
 // Conecta la ficha con B3S Scanner API. El navegador sólo usa endpoints
 // internos de B3Sleads; las credenciales permanecen en el servidor.
@@ -226,7 +227,7 @@ export function ScanButton({
       <button
         onClick={launchScan}
         disabled={busy !== null || running}
-        className="mt-3 w-full rounded-md bg-[var(--cta)] px-4 py-2 text-sm font-medium text-[var(--cta-text)] disabled:opacity-50"
+        className={`${BTN_CTA} mt-3 w-full`}
       >
         {busy === 'launch' ? 'Lanzando…' : running ? 'Scan en curso…' : 'Lanzar scan'}
       </button>
@@ -253,7 +254,7 @@ export function ScanButton({
         <button
           onClick={() => importScan({ reportUrl: url }, 'url')}
           disabled={busy !== null || !url.trim()}
-          className="mt-2 w-full rounded-md border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--muted)] transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)] disabled:opacity-40"
+className={`${BTN_OUTLINE} mt-2 w-full`}
         >
           {busy === 'url' ? 'Importando…' : 'Importar'}
         </button>

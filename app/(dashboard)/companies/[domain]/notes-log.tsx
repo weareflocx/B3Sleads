@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { BTN_OUTLINE } from '../../buttons';
 import { useRouter } from 'next/navigation';
 import type { Note } from '@/lib/types';
 
@@ -100,20 +101,18 @@ export function NotesLog({
         placeholder="ej: respondió interesado, le mando el informe el lunes"
         className="mt-1.5 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] p-2.5 text-sm leading-relaxed outline-none focus:border-[var(--cta)]"
       />
-      <div className="mt-1.5 flex items-center gap-3">
-        <button
-          onClick={add}
-          disabled={busy || !draft.trim()}
-          className="rounded-md bg-[var(--cta)] px-3 py-1.5 text-xs font-medium text-[var(--cta-text)] disabled:opacity-40"
-        >
-          {busy ? 'Guardando…' : 'Añadir nota'}
-        </button>
-        {error ? (
-          <span className="text-xs text-[var(--danger)]">{error}</span>
-        ) : (
-          <span className="text-[10px] text-[var(--soft)]">⌘ + Enter</span>
-        )}
-      </div>
+      <button
+        onClick={add}
+        disabled={busy || !draft.trim()}
+        className={`${BTN_OUTLINE} mt-2 w-full`}
+      >
+        {busy ? 'Guardando…' : 'Añadir nota'}
+      </button>
+      {error ? (
+        <p className="mt-1.5 text-xs text-[var(--danger)]">{error}</p>
+      ) : (
+        <p className="mt-1.5 text-center text-[10px] text-[var(--soft)]">⌘ + Enter</p>
+      )}
 
       {notes.length > 0 && (
         <ol className="mt-4 space-y-3 border-t border-[var(--border)] pt-3">

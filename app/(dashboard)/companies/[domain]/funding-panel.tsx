@@ -12,6 +12,7 @@ import {
   type AmountUnit,
 } from '@/lib/funding';
 import { resolveInvestors } from '@/lib/investors';
+import { BTN_CTA, BTN_OUTLINE } from '../../buttons';
 import type { RoundProposal } from '@/lib/funding-discovery';
 
 // Financiación del lead: rondas registradas, corregibles, y alta manual. La
@@ -439,40 +440,23 @@ export function FundingPanel({
             className={`${FIELD} w-full`}
           />
           <div className="flex gap-2">
-            <button
-              onClick={save}
-              disabled={busy}
-              className="rounded-md bg-[var(--cta)] px-3 py-1.5 text-sm font-medium text-[var(--cta-text)] disabled:opacity-50"
-            >
+            <button onClick={save} disabled={busy} className={`${BTN_CTA} flex-1`}>
               {busy ? 'Guardando…' : 'Guardar ronda'}
             </button>
-            <button
-              onClick={() => setOpen(false)}
-              className="rounded-md border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--muted)]"
-            >
+            <button onClick={() => setOpen(false)} className={BTN_OUTLINE}>
               Cancelar
             </button>
           </div>
         </div>
       ) : (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => discover()}
-            disabled={searching}
-            className="rounded-md border border-[var(--cta)] px-3 py-1.5 text-xs font-medium text-[var(--cta)] transition-colors hover:bg-[var(--cta)] hover:text-[var(--cta-text)] disabled:opacity-40"
-          >
+        <div className="mt-3 space-y-2">
+          <button onClick={() => discover()} disabled={searching} className={`${BTN_OUTLINE} w-full`}>
             {searching ? 'Buscando…' : 'Buscar rondas'}
           </button>
-          <button
-            onClick={() => setShowPaste((v) => !v)}
-            className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--muted)] transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)]"
-          >
+          <button onClick={() => setShowPaste((v) => !v)} className={`${BTN_OUTLINE} w-full`}>
             Pegar noticia o enlace
           </button>
-          <button
-            onClick={() => setOpen(true)}
-            className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--muted)] transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)]"
-          >
+          <button onClick={() => setOpen(true)} className={`${BTN_OUTLINE} w-full`}>
             {fundingSignals.length ? 'Registrar otra ronda' : 'Registrar a mano'}
           </button>
         </div>
@@ -499,7 +483,7 @@ export function FundingPanel({
             <button
               onClick={() => discover(pasted)}
               disabled={searching || pasted.trim().length < 20}
-              className="rounded-md bg-[var(--cta)] px-3 py-1.5 text-xs font-medium text-[var(--cta-text)] disabled:opacity-40"
+              className={`${BTN_CTA} flex-1`}
             >
               Extraer datos
             </button>

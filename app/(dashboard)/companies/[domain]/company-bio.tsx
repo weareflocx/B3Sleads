@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { BioProposal } from '@/lib/bio-discovery';
+import { BTN_OUTLINE } from '../../buttons';
 
 // La bio de la startup: qué es, en una o dos frases. Se rellena a mano (de
 // su LinkedIn, por ejemplo) y más adelante podrá precargarse del scan. El
@@ -112,15 +113,11 @@ export function CompanyBio({
   );
 
   const acciones = (
-    <div className="mt-2 flex flex-wrap items-center gap-3">
-      <button
-        onClick={discover}
-        disabled={searching}
-        className="font-mono text-[11px] text-[var(--muted)] transition-colors hover:text-[var(--cta)] disabled:opacity-50"
-      >
-        {searching ? 'buscando bio…' : 'buscar bio'}
+    <div className="mt-2.5">
+      <button onClick={discover} disabled={searching} className={`${BTN_OUTLINE} text-xs`}>
+        {searching ? 'Buscando bio…' : 'Buscar bio'}
       </button>
-      {note && <span className="text-[11px] text-[var(--soft)]">{note}</span>}
+      {note && <p className="mt-1.5 text-[11px] text-[var(--soft)]">{note}</p>}
     </div>
   );
 
