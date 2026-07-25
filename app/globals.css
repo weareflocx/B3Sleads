@@ -32,6 +32,11 @@
   --cta: #1a7f37;
   --cta-text: #ffffff;
 
+  /* Botón sólido de máximo contraste (Lanzar scan): negro sobre el tema
+     claro, blanco sobre el oscuro. Se invierte con el fondo. */
+  --btn-solid-bg: #0b0d0e;
+  --btn-solid-text: #ffffff;
+
   /* Acciones que abren LinkedIn: azul (el canal azul del logo B3S).
      --linkedin para fondos de botón, --linkedin-soft para enlaces de texto. */
   --linkedin: #0000ff;
@@ -67,6 +72,10 @@
 
   --cta: #00d554;
   --cta-text: #0b0d0e;
+
+  /* En oscuro el botón sólido se vuelve blanco con tinta oscura. */
+  --btn-solid-bg: #ffffff;
+  --btn-solid-text: #0b0d0e;
 
   --linkedin: #0000ff;
   --linkedin-text: #ffffff;

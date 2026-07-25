@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import { getBrandProfile } from '@/lib/brand3';
 import { persistImportedScan } from '@/lib/b3s-scan-storage';
+import { fetchSiteDescription } from '@/lib/site-meta';
 import { priorityScore } from '@/lib/scoring';
 import type { Company, Scan } from '@/lib/types';
 
@@ -40,6 +41,17 @@ export async function POST(req: NextRequest) {
         .insert({ name: companyName || domain, domain, source: 'linkedin' })
         .select()
         .single();
+      // Bio automática: la meta descripción de su web (mejor esfuerzo).
+      if (created) {
+        const description = await Promise.race([
+          fetchSiteDescription(domain),
+          new Promise<null>((r) => setTimeout(() => r(null), 3_000)),
+        ]);
+        if (description) {
+          await db.from('companies').update({ description }).eq('id', created.id);
+          (created as Company).description = description;
+        }
+      }
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       company = created as Company;
     }

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Scan } from '@/lib/types';
 import { ScanProgress } from '../../scan-progress';
+import { BTN_OUTLINE, BTN_WHITE } from '../../buttons';
 
 // Conecta la ficha con B3S Scanner API. El navegador sólo usa endpoints
 // internos de B3Sleads; las credenciales permanecen en el servidor.
@@ -55,16 +56,24 @@ export function ScanButton({
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
-    // La barra aparece al momento, sin esperar al primer sondeo, y entre
-    // sondeos avanza con un goteo suave acotado a +6 sobre lo confirmado:
-    // se ve viva sin inventarse el progreso.
-    serverPct.current = 3;
-    setProgress((p) => p ?? { value: 3, phase: null });
+    // La barra combina dos fuentes: el progreso real del servidor (suelo) y
+    // una curva temporal calibrada con las duraciones reales de los scans
+    // (mediana 89s, p75 99s): pct = 95·(1 − e^(−t/40)). Así en un scan
+    // típico se cruza el rojo en ~30s, el azul hacia el minuto y se llega
+    // al verde antes del final; el 95% es techo hasta que el servidor
+    // confirma. Se ancla a created_at, así que sobrevive a recargas.
+    const t0 = new Date(scan.created_at).getTime();
+    const displayPct = () => {
+      const elapsed = Math.max(0, (Date.now() - t0) / 1000);
+      const curve = 95 * (1 - Math.exp(-elapsed / 40));
+      return Math.min(95, Math.max(serverPct.current, curve, 2));
+    };
+    setProgress((p) => ({ value: Math.max(p?.value ?? 0, displayPct()), phase: p?.phase ?? null }));
     const trickle = setInterval(() => {
       setProgress((p) => {
-        if (!p) return p;
-        const ceiling = Math.min(serverPct.current + 6, 95);
-        return p.value >= ceiling ? p : { ...p, value: Math.min(p.value + 0.7, ceiling) };
+        const next = displayPct();
+        if (!p) return { value: next, phase: null };
+        return p.value >= next ? p : { ...p, value: next };
       });
     }, 1_000);
 
@@ -90,8 +99,15 @@ export function ScanButton({
         }
         const status = (body.scan as { status?: string } | undefined)?.status;
         if (status && ['ready', 'failed', 'cancelled', 'blocked'].includes(status)) {
-          setProgress(null);
-          router.refresh();
+          if (status === 'ready') {
+            // El remate: la barra se llena hasta el verde final antes de que
+            // el refresco la sustituya por el resultado.
+            setProgress((p) => ({ value: 100, phase: p?.phase ?? null }));
+            setTimeout(() => router.refresh(), 800);
+          } else {
+            setProgress(null);
+            router.refresh();
+          }
           return;
         }
       } catch (error) {
@@ -174,69 +190,90 @@ export function ScanButton({
 
   const running = scan?.status === 'running' || scan?.status === 'queued';
 
+  // Cabecera de estado sobre el botón: espeja la fila de avatar de la ficha
+  // del founder, así "Lanzar scan" queda a la altura de "Abrir LinkedIn".
+  function relTime(iso: string): string {
+    const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+    if (days < 1) return 'hoy';
+    if (days < 30) return `hace ${days} día${days === 1 ? '' : 's'}`;
+    const months = Math.round(days / 30);
+    return `hace ${months} mes${months === 1 ? '' : 'es'}`;
+  }
+  const estado: { text: string; tone: 'muted' | 'danger' | 'warning' } = running
+    ? { text: 'Scan en curso…', tone: 'muted' }
+    : scan?.status === 'failed'
+      ? { text: 'El último scan falló. Puedes reintentarlo.', tone: 'danger' }
+      : scan?.status === 'blocked'
+        ? { text: 'Bloqueado por evidencia insuficiente.', tone: 'warning' }
+        : scan?.status === 'ready'
+          ? { text: `Último scan ${relTime(scan.completed_at ?? scan.created_at)}`, tone: 'muted' }
+          : { text: 'Sin scan todavía', tone: 'muted' };
+
   return (
-    <div className="flex flex-col gap-2">
-      {/* Una sola fila: pegar un informe existente y lanzar uno nuevo son la
-          misma decisión, así que las acciones van juntas. El input se queda
-          en lo que mide una URL de informe, no ocupa todo el ancho. */}
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && url.trim() && importScan({ reportUrl: url }, 'url')}
-          placeholder="pega un informe: b3s.fly.dev/report/…"
-          className="min-w-0 max-w-xs flex-1 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-sm outline-none focus:border-[var(--cta)]"
-        />
-        <button
-          onClick={() => importScan({ reportUrl: url }, 'url')}
-          disabled={busy !== null || !url.trim()}
-          className="rounded-md border border-[var(--cta)] px-3 py-1.5 text-sm font-medium text-[var(--cta)] transition-colors hover:bg-[var(--cta)] hover:text-[var(--cta-text)] disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--cta)]"
-        >
-          {busy === 'url' ? 'Importando…' : 'Importar'}
-        </button>
-        <button
-          onClick={launchScan}
-          disabled={busy !== null || scan?.status === 'running' || scan?.status === 'queued'}
-          className="rounded-md bg-[var(--cta)] px-3 py-1.5 text-sm font-medium text-[var(--cta-text)] disabled:opacity-50"
-        >
-          {busy === 'launch'
-            ? 'Lanzando…'
-            : scan?.status === 'running' || scan?.status === 'queued'
-              ? 'Scan en curso…'
-              : scan?.status === 'ready'
-                ? 'Lanzar nuevo scan'
-                : 'Escanear con B3S'}
-        </button>
-        {scan?.status === 'blocked' && (
-          <span className="text-xs text-[var(--muted)]">Scan bloqueado por evidencia insuficiente.</span>
-        )}
-        {scan?.status === 'failed' && (
-          <span className="text-xs text-[var(--danger)]">El último scan falló; puedes reintentarlo.</span>
-        )}
-      </div>
+    <div className="flex h-full flex-col">
+      <p className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">Estado</p>
+      <p
+        className={`mt-1 text-sm ${
+          estado.tone === 'danger'
+            ? 'text-[var(--danger)]'
+            : estado.tone === 'warning'
+              ? 'text-[var(--warning)]'
+              : 'text-[var(--muted)]'
+        }`}
+      >
+        {estado.text}
+      </p>
+
+      <button
+        onClick={launchScan}
+        disabled={busy !== null || running}
+        className={`${BTN_WHITE} mt-3 w-full`}
+      >
+        {busy === 'launch' ? 'Lanzando…' : running ? 'Scan en curso…' : 'Lanzar scan'}
+      </button>
 
       {/* Mientras el scan corre, solo las barras: el color (rojo → azul →
           verde) ya cuenta cuánto queda, sin números que distraigan. */}
       {running && progress && (
-        <div className="py-1 text-[var(--text)]">
+        <div className="py-2 text-[var(--text)]">
           <ScanProgress value={progress.value} label={progress.phase} />
         </div>
       )}
 
-      {/* Búsqueda del último resultado por dominio en B3S API. */}
-      <div className="flex items-center gap-3 text-xs">
+      <div className="mt-4 border-t border-[var(--border)] pt-3">
+        <p className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">
+          O importa un informe
+        </p>
+        <input
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && url.trim() && importScan({ reportUrl: url }, 'url')}
+          placeholder="b3s.fly.dev/report/…"
+          className="mt-2 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm outline-none focus:border-[var(--cta)]"
+        />
+        <button
+          onClick={() => importScan({ reportUrl: url }, 'url')}
+          disabled={busy !== null || !url.trim()}
+className={`${BTN_OUTLINE} mt-2 w-full`}
+        >
+          {busy === 'url' ? 'Importando…' : 'Importar'}
+        </button>
+      </div>
+
+      {/* Cada acción secundaria en su propia línea: nada de saltos raros. */}
+      <div className="mt-auto flex flex-col items-start gap-1 pt-3 font-mono text-[11px]">
         <button
           onClick={() => importScan({ domain }, 'search')}
           disabled={busy !== null}
-          className="text-[var(--muted)] hover:text-[var(--cta)] disabled:opacity-50"
+          className="text-[var(--muted)] transition-colors hover:text-[var(--cta)] disabled:opacity-50"
         >
-          {busy === 'search' ? 'Buscando…' : 'o buscar por dominio en el histórico'}
+          {busy === 'search' ? 'buscando…' : 'buscar por dominio en el histórico'}
         </button>
         <a
-          href={`https://b3s.fly.dev/`}
+          href="https://b3s.fly.dev/"
           target="_blank"
           rel="noreferrer"
-          className="text-[var(--muted)] hover:text-[var(--cta)]"
+          className="text-[var(--muted)] transition-colors hover:text-[var(--cta)]"
         >
           escanear en b3s.fly.dev ↗
         </a>
@@ -244,7 +281,7 @@ export function ScanButton({
 
       {msg && (
         <p
-          className={`text-xs ${msg.tone === 'error' ? 'text-[var(--danger)]' : 'text-[var(--muted)]'}`}
+          className={`mt-2 text-xs ${msg.tone === 'error' ? 'text-[var(--danger)]' : 'text-[var(--muted)]'}`}
         >
           {msg.text}
         </p>

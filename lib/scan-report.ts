@@ -7,6 +7,14 @@ export interface ScanTodo {
   desc: string; // "La frase no vale para su competencia."
 }
 
+// Una baldosa del componente con su estado medido:
+//  on = encendida · off = no detectada · blind = no se pudo medir.
+export interface ScanTile {
+  label: string;
+  state: 'on' | 'off' | 'blind';
+  reason: string | null;
+}
+
 export interface ScanDimension {
   name: string; // "Propuesta de valor"
   score: number | null;
@@ -16,6 +24,15 @@ export interface ScanDimension {
   analysis: string | null; // primera frase de análisis en prosa
   todos: ScanTodo[]; // baldosas apagadas (acciones concretas)
   missing: boolean; // "_No detectado._"
+  // Solo en scans v1: la evidencia literal capturada (puede venir en el
+  // idioma de la web) y su URL de origen.
+  quote?: string | null;
+  quoteUrl?: string | null;
+  // Términos cortos extraídos por el escáner (Atributos/Valores): p. ej.
+  // "Segura · Técnica · Exclusiva". Si vienen, se muestran en vez de la cita.
+  terms?: string[] | null;
+  // Solo en scans v1: todas las baldosas con su estado.
+  tilesDetail?: ScanTile[];
 }
 
 export interface ScanReport {
@@ -54,7 +71,12 @@ export function parseScanReport(markdown: string): ScanReport {
     if (!name) continue;
 
     const missing = /_No detectado\._/.test(block);
-    const sc = block.match(/Nota:\s*\*\*\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+)/);
+    // La nota que cuenta es la ponderada "(N/M pts)": Magnetismo y Coherencia
+    // pesan ×2 y valen 20 (así el total cuadra a /100). El "**X/Y**" en
+    // negrita es la nota sin ponderar (8/10), que engañaba a la parrilla.
+    const ptsM = block.match(/\(\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+)\s*pts\)/);
+    const boldM = block.match(/Nota:\s*\*\*\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+)/);
+    const sc = ptsM ?? boldM;
     const score = sc ? parseFloat(sc[1]) : null;
     const max = sc ? parseFloat(sc[2]) : null;
     const ratio = score != null && max ? score / max : missing ? 0 : null;
@@ -63,11 +85,19 @@ export function parseScanReport(markdown: string): ScanReport {
     const verdict = verdictM ? verdictM[1].trim() : null;
 
     let analysis: string | null = null;
+    // Línea de términos cortos si el informe la trae ("Segura · Técnica · …").
+    let terms: string[] | null = null;
     for (const line of block.split('\n').slice(1)) {
       const l = line.trim();
-      if (!l || /^[>\-#_]/.test(l)) continue;
-      analysis = l;
-      break;
+      if (!l || /^[>\-#_]/.test(l) || /Nota:/.test(l)) continue;
+      if (!terms && l.includes('·') && l.length <= 90 && !/[.!?]/.test(l.replace(/\.\s*$/, ''))) {
+        const parts = l.split(/\s*·\s*/).map((s) => s.trim()).filter(Boolean);
+        if (parts.length >= 2 && parts.every((p) => p.split(/\s+/).length <= 4)) {
+          terms = parts.slice(0, 6);
+          continue;
+        }
+      }
+      if (!analysis) analysis = l;
     }
 
     const todos: ScanTodo[] = [];
@@ -79,7 +109,7 @@ export function parseScanReport(markdown: string): ScanReport {
       }
     }
 
-    dimensions.push({ name, score, max, ratio, verdict, analysis, todos, missing });
+    dimensions.push({ name, score, max, ratio, verdict, analysis, todos, missing, terms });
   }
 
   return categorize(summary, dimensions);
@@ -91,6 +121,49 @@ export function reportMarkdown(resultRaw: Record<string, unknown> | null | undef
   return typeof md === 'string' && md.length > 100 ? md : null;
 }
 
+// Las capturas vienen en markdown: imágenes fuera, enlaces reducidos a su
+// texto, y sin URLs sueltas. Sin esto las citas arrastraban cosas como
+// "![](https://…/badge objetivo 03 eng.png)".
+function cleanQuote(md: string): string {
+  return md
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/https?:\/\/\S+/g, ' ')
+    .replace(/[#*_`>|]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Términos cortos que el escáner extrae para Atributos y Valores
+// ("Segura · Técnica · Exclusiva · Eficiente"). No viajan en todas las
+// versiones del contrato: se buscan bajo los nombres de campo habituales y,
+// en su defecto, en un detected_content que ya venga en formato lista corta.
+// Devuelve null salvo que haya al menos dos términos de pocas palabras.
+function shortTerms(component: Record<string, unknown>): string[] | null {
+  const clean = (list: unknown[]): string[] =>
+    list
+      .filter((x): x is string => typeof x === 'string')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0 && s.length <= 32 && !/[.!?]$/.test(s) && s.split(/\s+/).length <= 4);
+
+  for (const key of ['attributes', 'values', 'descriptors', 'traits', 'terms', 'tags', 'keywords']) {
+    const value = component[key];
+    if (Array.isArray(value)) {
+      const terms = clean(value);
+      if (terms.length >= 2) return terms.slice(0, 6);
+    }
+  }
+
+  // detected_content ya en lista: "Segura · Técnica · Exclusiva" o con comas,
+  // corto y sin puntuación de frase.
+  const dc = typeof component.detected_content === 'string' ? component.detected_content.trim() : '';
+  if (dc && dc.length <= 90 && /·|,/.test(dc) && !/[.!?]/.test(dc.replace(/\.\s*$/, ''))) {
+    const parts = clean(dc.split(/\s*·\s*|\s*,\s*/));
+    if (parts.length >= 2) return parts.slice(0, 6);
+  }
+  return null;
+}
+
 function tileText(tile: Record<string, unknown>, keys: string[]): string | null {
   for (const key of keys) {
     const value = tile[key];
@@ -100,7 +173,12 @@ function tileText(tile: Record<string, unknown>, keys: string[]): string | null 
 }
 
 function structuredScanReport(result: B3SScanResult): ScanReport {
-  const dimensions: ScanDimension[] = result.components.map((component) => {
+  // El primer evidence_ref suele ser el mismo para casi todos los componentes
+  // (el H1 de la home), así que asignarlo a ciegas repetía la misma frase en
+  // media parrilla. Se recogen candidatos por componente y se reparten sin
+  // repetir; si a uno no le queda ninguno propio, habla su detected_content,
+  // que el Scanner sí escribe específico para él.
+  const raw = result.components.map((component) => {
     const status = `${component.status} ${component.coverage_status}`.toLowerCase();
     const missing = /not.?detected|absent|missing/.test(status);
     const ratio =
@@ -109,25 +187,82 @@ function structuredScanReport(result: B3SScanResult): ScanReport {
         : missing
           ? 0
           : null;
+
     const todos: ScanTodo[] = component.tiles.flatMap((tile) => {
       const state = tileText(tile, ['estado', 'state', 'status'])?.toLowerCase() ?? '';
       if (!['no', 'off', 'failed', 'missing', 'absent'].includes(state)) return [];
-      const label = tileText(tile, ['label', 'name', 'nombre', 'key']) || 'Mejora';
-      const desc = tileText(tile, ['description', 'desc', 'message', 'reason', 'summary']);
+      const label = tileText(tile, ['id', 'label', 'name', 'nombre', 'key']) || 'Mejora';
+      const desc = tileText(tile, ['motivo', 'description', 'desc', 'message', 'reason', 'summary']);
       return desc ? [{ label, desc }] : [];
     });
 
+    const tilesDetail: ScanTile[] = component.tiles.map((tile) => {
+      const label = tileText(tile, ['id', 'label', 'name', 'nombre', 'key']) || '·';
+      const rawState = (tileText(tile, ['estado', 'state', 'status']) ?? '').toLowerCase();
+      const state: ScanTile['state'] = /^(ok|s[ií]|yes|pass(ed)?|on)$/.test(rawState)
+        ? 'on'
+        : ['no', 'off', 'failed', 'missing', 'absent'].includes(rawState)
+          ? 'off'
+          : 'blind';
+      const reason =
+        tileText(tile, ['motivo', 'description', 'desc', 'message', 'reason']) ||
+        tileText(tile, ['evidencia', 'evidence']);
+      return { label, state, reason: reason ?? null };
+    });
+
+    // Candidatos de cita, de más específico a más genérico: primero lo que
+    // capturó cada baldosa, luego las referencias del componente.
+    const candidates: { text: string; url: string | null }[] = [];
+    for (const tile of component.tiles) {
+      const ev = tileText(tile, ['evidencia', 'evidence']);
+      const clean = ev ? cleanQuote(ev) : '';
+      if (clean.length >= 25) candidates.push({ text: clean, url: null });
+    }
+    for (const ref of component.evidence_refs ?? []) {
+      const clean = cleanQuote(ref.snippet ?? '');
+      if (clean.length >= 25) candidates.push({ text: clean, url: ref.url || null });
+    }
+
     return {
-      name: component.label || component.key,
-      score: component.score,
-      max: component.max_score,
-      ratio,
-      verdict: component.verdict || null,
-      analysis: component.summary || component.message || component.detected_content || null,
-      todos,
-      missing,
+      dimension: {
+        name: component.label || component.key,
+        score: component.score,
+        max: component.max_score,
+        ratio,
+        verdict: component.verdict || null,
+        analysis: component.summary || component.message || null,
+        todos,
+        missing,
+        quote: null as string | null,
+        quoteUrl: null as string | null,
+        terms: shortTerms(component as unknown as Record<string, unknown>),
+        tilesDetail,
+      } satisfies ScanDimension,
+      candidates,
+      detected: component.detected_content?.trim() || null,
+      fallbackUrl: component.evidence_refs?.[0]?.url || null,
     };
   });
+
+  // Reparto: cada componente se queda con la primera cita que nadie haya
+  // usado. Los que tienen menos candidatos eligen antes, para que no se
+  // queden sin nada por culpa de los que tienen de sobra.
+  const used = new Set<string>();
+  const order = [...raw].sort((a, b) => a.candidates.length - b.candidates.length);
+  for (const item of order) {
+    const pick = item.candidates.find((c) => !used.has(c.text));
+    if (pick) {
+      used.add(pick.text);
+      item.dimension.quote = pick.text;
+      item.dimension.quoteUrl = pick.url;
+    } else if (item.detected) {
+      // Sin cita propia: lo que el Scanner detectó para ESTE componente.
+      item.dimension.quote = item.detected;
+      item.dimension.quoteUrl = item.fallbackUrl;
+    }
+  }
+
+  const dimensions = raw.map((r) => r.dimension);
   return categorize(result.summary || null, dimensions);
 }
 

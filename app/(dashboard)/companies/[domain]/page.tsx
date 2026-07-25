@@ -1,9 +1,10 @@
-import { PAGE } from '@/app/(dashboard)/page-width';
+import { PAGE_XL } from '@/app/(dashboard)/page-width';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getCompanyFiche, getCompanyScans, getCompanySignals, getLeadNotes } from '@/lib/data';
 import { leadTemperature } from '@/lib/scoring';
 import { buildPitch } from '@/lib/pitch';
+import { storedScanReport } from '@/lib/scan-report';
 import { buildCallBriefPrompt, buildLeadContext } from '@/lib/lead-prompts';
 import { stageLabel as stageLabelFor, displayName, companyLabel } from '@/lib/types';
 import { resolveInvestors } from '@/lib/investors';
@@ -16,7 +17,10 @@ import { NotesLog } from './notes-log';
 import { LeadOwner } from './lead-owner';
 import { FundingPanel } from './funding-panel';
 import { LeadTools } from './lead-tools';
+import { AnalysisTabs, ScanComponents } from './analysis-tabs';
+import { BTN_LINKEDIN_OUTLINE } from '../../buttons';
 import { CompanyLogo } from '../../company-logo';
+import { CompanyBio } from './company-bio';
 import { EditableImage } from '../../editable-image';
 import { ScoreRing } from '../../score-ring';
 import { Heat } from '../../heat';
@@ -75,6 +79,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
   const latestFunding = fundingSignals[0] ?? null;
   const pitch = buildPitch({ company, scan, fundingSignal: latestFunding });
   const callBriefPrompt = buildCallBriefPrompt(bl);
+  const report = storedScanReport(scan?.result_raw ?? null);
   const leadContext = buildLeadContext(bl);
 
   const tldr =
@@ -95,7 +100,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
   const headlineInvestors = resolveInvestors(fd?.investors);
 
   return (
-    <main className={PAGE}>
+    <main className={PAGE_XL}>
       <Link href="/briefing" className="text-sm text-[var(--muted)] hover:text-[var(--text)]">
         ← Briefing
       </Link>
@@ -129,9 +134,22 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
               label="Editar nombre de la marca"
             />
             <div className="flex flex-wrap items-center gap-3 font-mono text-sm text-[var(--muted)]">
-              <a href={`https://${company.domain}`} target="_blank" rel="noreferrer" className="hover:underline">
-                {company.domain} ↗
-              </a>
+              {company.domain?.includes('.') ? (
+                <a
+                  href={`https://${company.domain}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="hover:underline"
+                >
+                  {company.domain} ↗
+                </a>
+              ) : (
+                // Sin TLD no es un dominio navegable: se muestra plano en vez
+                // de un enlace a https://loquesea que no lleva a ninguna parte.
+                <span title="Dominio incompleto: falta el .com/.ai/… Edítalo para tener enlace.">
+                  {company.domain || 'sin dominio'}
+                </span>
+              )}
               {company.linkedin_url && (
                 <a
                   href={company.linkedin_url}
@@ -167,7 +185,10 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                   {inv.name}
                 </Link>
               ))}
-              {company.sector && <Chip>{company.sector}</Chip>}
+              {company.sector
+                ?.split(/\s*·\s*|\s*,\s*/)
+                .filter(Boolean)
+                .map((s) => <Chip key={s}>{s}</Chip>)}
               {company.size && <Chip>{company.size} personas</Chip>}
               {company.city && <Chip>{company.city}</Chip>}
               {company.hq_country && <Chip>{company.hq_country}</Chip>}
@@ -194,54 +215,94 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
         </div>
       </header>
 
-      <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_320px]">
+      {/* El ancho total se reparte en 4 cuartos armónicos: la columna
+          principal ocupa 3 (Bio 2 + Estado 1) y la lateral 1. Así "Estado"
+          y la columna del founder tienen el mismo ancho. */}
+      <div className="mt-8 grid gap-10 lg:grid-cols-[3fr_1fr]">
         {/* ── Columna principal: análisis y argumentario ── */}
         <div className="min-w-0 space-y-8">
-          <Section title="B3S Scanner">
-            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
-              {scan?.status === 'ready' && scan.score != null ? (
-                <>
-                  <div className="flex items-baseline gap-3">
-                    <span className="font-mono text-2xl">{Number(scan.score)}</span>
-                    <span className="font-mono text-sm text-[var(--muted)]">/100</span>
-                    <span className="text-xs text-[var(--muted)]">
-                      {scoreBandLabel(Number(scan.score))}
-                    </span>
-                  </div>
-                  {tldr && (
-                    <p className="mt-3 border-l-2 border-[var(--border)] pl-3 text-sm leading-relaxed text-[var(--muted)]">
-                      {tldr}
+          {/* Resumen: a la izquierda lo que sabemos (score, lectura, bio);
+              a la derecha, en su propia columna, las acciones del scan. */}
+          <Section title="Resumen">
+            {/* El corte a dos columnas depende del ancho REAL de la tarjeta
+                (container query), no de la ventana: en pantallas anchas el
+                scan vive a la derecha; si la tarjeta encoge, se apila. */}
+            <div className="@container rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+              <div className="grid gap-6 @2xl:grid-cols-[2fr_1fr]">
+                <div className="min-w-0">
+                  {/* Bio arriba del todo: qué hace la startup, en su voz. */}
+                  <div>
+                    <p className="mb-1.5 font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">
+                      Bio
                     </p>
-                  )}
-                  {gaps.length > 0 && (
-                    <ul className="mt-3 space-y-1 text-sm">
-                      {gaps.map((g) => (
-                        <li key={g} className="flex gap-2">
-                          <span className="text-[var(--accent)]">·</span>
-                          <span className="text-[var(--muted)]">{g}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </>
-              ) : (
-                <p className="text-sm text-[var(--muted)]">
-                  Sin escanear. El scan es lo que hace irrepetible el mensaje.
-                </p>
-              )}
-              <div className="mt-4 border-t border-[var(--border)] pt-3.5">
-                <ScanButton
-                  companyId={company.id}
-                  domain={company.domain}
-                  leadId={lead.id}
-                  scan={scan}
-                />
+                    <CompanyBio
+                      companyId={company.id}
+                      initial={company.description}
+                      initialSector={company.sector}
+                    />
+                  </div>
+
+                  {/* Debajo: la puntuación y el extracto del scan de B3S. */}
+                  <div className="mt-4 border-t border-[var(--border)] pt-3">
+                    {scan?.status === 'ready' && scan.score != null ? (
+                      <>
+                        <div className="flex items-baseline gap-3">
+                          <span className="font-mono text-2xl">{Number(scan.score)}</span>
+                          <span className="font-mono text-sm text-[var(--muted)]">/100</span>
+                          <span className="text-xs text-[var(--muted)]">
+                            {scoreBandLabel(Number(scan.score))}
+                          </span>
+                        </div>
+                        {tldr && (
+                          <p className="mt-3 border-l-2 border-[var(--border)] pl-3 text-sm leading-relaxed text-[var(--muted)]">
+                            {tldr}
+                          </p>
+                        )}
+                        {gaps.length > 0 && (
+                          <ul className="mt-3 space-y-1 text-sm">
+                            {gaps.map((g) => (
+                              <li key={g} className="flex gap-2">
+                                <span className="text-[var(--accent)]">·</span>
+                                <span className="text-[var(--muted)]">{g}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </>
+                    ) : (
+                      <p className="text-sm text-[var(--muted)]">
+                        Sin escanear. El scan es lo que hace irrepetible el mensaje.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="@2xl:border-l @2xl:border-[var(--border)] @2xl:pl-6">
+                  <ScanButton
+                    companyId={company.id}
+                    domain={company.domain}
+                    leadId={lead.id}
+                    scan={scan}
+                  />
+                </div>
               </div>
             </div>
           </Section>
 
-          {(pitch.lectura.length > 0 || pitch.programa) && (
-            <Section title={firstName ? `Argumentario · cómo abordar a ${firstName}` : 'Argumentario'}>
+          {(report || pitch.lectura.length > 0 || pitch.programa) && (
+            <Section title="Brand3 Scanner">
+              <AnalysisTabs
+                tabs={[
+                  {
+                    key: 'scanner',
+                    label: 'B3S Seed',
+                    content: <ScanComponents dimensions={report?.dimensions ?? []} />,
+                  },
+                  {
+                    key: 'argumentario',
+                    label: 'Argumentario',
+                    content: (
+                      <>
               <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
                 {pitch.lectura.length > 0 && (
                   <div>
@@ -295,12 +356,22 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                   Generado del scan y la señal. El primer mensaje nunca pitchea: abre conversación.
                 </p>
               </div>
+            
+                      </>
+                    ),
+                  },
+                ]}
+              />
             </Section>
           )}
 
-          <Section title="Trabajar el lead">
-            <LeadTools callBriefPrompt={callBriefPrompt} leadContext={leadContext} />
-          </Section>
+          {/* Con el lead recién arrancado (sin scan) esta zona sobra:
+              primero el scan, luego trabajarlo. */}
+          {scan?.status === 'ready' && (
+            <Section title="Trabajar el lead">
+              <LeadTools callBriefPrompt={callBriefPrompt} leadContext={leadContext} />
+            </Section>
+          )}
 
           {message && (
             <Section title="Borrador">
@@ -419,7 +490,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                         href={contact.linkedin_url}
                         target="_blank"
                         rel="noreferrer"
-                        className="block rounded-md bg-[var(--linkedin)] px-3 py-2 text-center text-sm font-medium text-[var(--linkedin-text)] transition-opacity hover:opacity-90"
+                        className={`${BTN_LINKEDIN_OUTLINE} block w-full`}
                       >
                         Abrir LinkedIn ↗
                       </a>

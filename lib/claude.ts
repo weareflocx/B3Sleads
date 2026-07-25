@@ -183,6 +183,47 @@ export interface FundingExtraction {
   investors: string[];
 }
 
+// Propone tags de sector para poder filtrar marcas. Español, Title Case,
+// cortas y REUTILIZABLES entre empresas (no una etiqueta única por marca):
+// así "Ciberseguridad" agrupa a todas las de su sector. Sin clave, [].
+export async function extractSectors(input: {
+  name: string;
+  bio: string;
+  scan: string;
+}): Promise<string[]> {
+  if (!process.env.ANTHROPIC_API_KEY) return [];
+  const res = await client().messages.create({
+    model: MODEL,
+    max_tokens: 200,
+    system:
+      'Clasificas startups por sector para un CRM. Devuelves SOLO un array ' +
+      'JSON de 2 a 4 etiquetas de sector en español, en Title Case, cortas y ' +
+      'REUTILIZABLES entre empresas (p. ej. "Ciberseguridad", "SaaS B2B", ' +
+      '"Fintech", "Cleantech", "Salud Digital", "IA"). Nada de eslóganes ni ' +
+      'etiquetas únicas de una sola marca. Solo el array JSON.',
+    messages: [
+      {
+        role: 'user',
+        content: `Empresa: ${input.name}\nBio: ${input.bio}\nHallazgos del scan: ${input.scan}\n\nEtiquetas de sector (array JSON):`,
+      },
+    ],
+  });
+  const block = res.content.find((b) => b.type === 'text');
+  if (!block || block.type !== 'text') return [];
+  try {
+    const arr = block.text.match(/\[[\s\S]*\]/)?.[0];
+    const parsed = arr ? (JSON.parse(arr) as unknown[]) : [];
+    return Array.isArray(parsed)
+      ? parsed
+          .filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+          .map((s) => s.trim())
+          .slice(0, 4)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function extractFunding(title: string, content: string, sourceUrl: string): Promise<FundingExtraction | null> {
   const system = buildExtractPrompt();
   const res = await client().messages.create({
