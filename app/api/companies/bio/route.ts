@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import { discoverBio } from '@/lib/bio-discovery';
+import { extractSectors } from '@/lib/claude';
+import { storedScanReport, reportDigest } from '@/lib/scan-report';
 import type { Company, Scan } from '@/lib/types';
 
 // Propone bios para una marca. NO escribe nada: devuelve candidatas con su
@@ -37,14 +39,31 @@ export async function POST(req: NextRequest) {
       .limit(1)
       .maybeSingle();
 
+    const scanRaw = ((scan as Pick<Scan, 'result_raw'> | null)?.result_raw ?? null) as
+      | Record<string, unknown>
+      | null;
+
     const proposals = await discoverBio({
       domain: co.domain,
       name: co.name || co.domain,
-      scanResultRaw: ((scan as Pick<Scan, 'result_raw'> | null)?.result_raw ?? null) as Record<string, unknown> | null,
+      scanResultRaw: scanRaw,
     });
+
+    // Tags de sector para filtrar marcas: se infieren de la bio y del scan.
+    // No se guardan solas; se proponen y la persona elige (como la bio).
+    const report = storedScanReport(scanRaw);
+    const sectors = await extractSectors({
+      name: co.name || co.domain,
+      bio: [co.description, ...proposals.slice(0, 2).map((p) => p.text)]
+        .filter(Boolean)
+        .join(' · ')
+        .slice(0, 800),
+      scan: report ? reportDigest(report).slice(0, 800) : '',
+    }).catch(() => []);
 
     return NextResponse.json({
       proposals,
+      sectors,
       message: proposals.length
         ? null
         : 'No he encontrado una descripción util. Escanea la marca o escríbela a mano.',

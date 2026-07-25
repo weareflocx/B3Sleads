@@ -9,12 +9,22 @@ import { BTN_OUTLINE } from '../../buttons';
 // su LinkedIn, por ejemplo) y más adelante podrá precargarse del scan. El
 // gesto es el de siempre: en reposo solo texto; lápiz al pasar el ratón;
 // vacía, una invitación punteada.
+// Las tags de sector llegan unidas por " · " (o comas de datos antiguos).
+function splitSectors(raw: string | null | undefined): string[] {
+  return (raw ?? '')
+    .split(/\s*·\s*|\s*,\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 export function CompanyBio({
   companyId,
   initial,
+  initialSector,
 }: {
   companyId: string;
   initial: string | null;
+  initialSector: string | null;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -23,9 +33,14 @@ export function CompanyBio({
   const [searching, setSearching] = useState(false);
   const [proposals, setProposals] = useState<BioProposal[] | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  // Sectores ya guardados (chips activas) y los propuestos por el buscador
+  // (chips para añadir). Se guardan al tocar; nada se guarda solo.
+  const [sectors, setSectors] = useState<string[]>(splitSectors(initialSector));
+  const [suggested, setSuggested] = useState<string[]>([]);
   const ref = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => setValue(initial ?? ''), [initial]);
+  useEffect(() => setSectors(splitSectors(initialSector)), [initialSector]);
   useEffect(() => {
     if (editing) ref.current?.focus();
   }, [editing]);
@@ -68,6 +83,9 @@ export function CompanyBio({
       if (json.error) setNote(String(json.error));
       else {
         setProposals(json.proposals ?? []);
+        // Solo se sugieren los que no estén ya puestos.
+        const fresh = (json.sectors ?? []).filter((s: string) => !sectors.includes(s));
+        setSuggested(fresh);
         if (json.message) setNote(String(json.message));
       }
     } catch {
@@ -76,6 +94,26 @@ export function CompanyBio({
       setSearching(false);
     }
   }
+
+  // Guarda la lista completa de sectores (columna `sector`, unida por " · ").
+  async function saveSectors(next: string[]) {
+    setSectors(next);
+    try {
+      await fetch('/api/companies', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId, sectors: next }),
+      });
+      router.refresh();
+    } catch {
+      /* si falla, el estado local ya refleja la intención; se reintenta al recargar */
+    }
+  }
+  const addSector = (s: string) => {
+    setSuggested((prev) => prev.filter((x) => x !== s));
+    if (!sectors.includes(s)) saveSectors([...sectors, s]);
+  };
+  const removeSector = (s: string) => saveSectors(sectors.filter((x) => x !== s));
 
   // Las candidatas se enseñan con su fuente; aprobar una la guarda.
   const candidatas = proposals && proposals.length > 0 && (
@@ -112,12 +150,49 @@ export function CompanyBio({
     </ul>
   );
 
+  const sectorRow = (sectors.length > 0 || suggested.length > 0) && (
+    <div className="mt-2.5">
+      <p className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">Sector</p>
+      <div className="mt-1.5 flex flex-wrap gap-1.5">
+        {sectors.map((s) => (
+          <button
+            key={s}
+            onClick={() => removeSector(s)}
+            title="Quitar sector"
+            className="group inline-flex items-center gap-1 rounded-md border border-[var(--cta)]/50 px-2 py-0.5 text-xs text-[var(--cta)] transition-colors hover:border-[var(--danger)] hover:text-[var(--danger)]"
+          >
+            {s}
+            <span className="text-[var(--cta)]/60 group-hover:text-[var(--danger)]">×</span>
+          </button>
+        ))}
+        {suggested.map((s) => (
+          <button
+            key={s}
+            onClick={() => addSector(s)}
+            title="Añadir sector"
+            className="inline-flex items-center gap-1 rounded-md border border-dashed border-[var(--border)] px-2 py-0.5 text-xs text-[var(--muted)] transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)]"
+          >
+            <span className="text-[var(--soft)]">+</span>
+            {s}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
   const acciones = (
     <div className="mt-2.5">
-      <button onClick={discover} disabled={searching} className={`${BTN_OUTLINE} text-xs`}>
-        {searching ? 'Buscando bio…' : 'Buscar bio'}
+      {/* Un cuarto de ancho (como Lanzar scan / Abrir LinkedIn), no todo el
+          ancho de la columna Bio: menos protagonismo, fila homogénea. */}
+      <button
+        onClick={discover}
+        disabled={searching}
+        className={`${BTN_OUTLINE} w-full sm:max-w-[17rem]`}
+      >
+        {searching ? 'Buscando bio y sector…' : 'Buscar bio'}
       </button>
       {note && <p className="mt-1.5 text-[11px] text-[var(--soft)]">{note}</p>}
+      {sectorRow}
     </div>
   );
 
