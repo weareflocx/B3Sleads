@@ -28,6 +28,9 @@ export interface ScanDimension {
   // idioma de la web) y su URL de origen.
   quote?: string | null;
   quoteUrl?: string | null;
+  // Términos cortos extraídos por el escáner (Atributos/Valores): p. ej.
+  // "Segura · Técnica · Exclusiva". Si vienen, se muestran en vez de la cita.
+  terms?: string[] | null;
   // Solo en scans v1: todas las baldosas con su estado.
   tilesDetail?: ScanTile[];
 }
@@ -68,7 +71,12 @@ export function parseScanReport(markdown: string): ScanReport {
     if (!name) continue;
 
     const missing = /_No detectado\._/.test(block);
-    const sc = block.match(/Nota:\s*\*\*\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+)/);
+    // La nota que cuenta es la ponderada "(N/M pts)": Magnetismo y Coherencia
+    // pesan ×2 y valen 20 (así el total cuadra a /100). El "**X/Y**" en
+    // negrita es la nota sin ponderar (8/10), que engañaba a la parrilla.
+    const ptsM = block.match(/\(\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+)\s*pts\)/);
+    const boldM = block.match(/Nota:\s*\*\*\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+)/);
+    const sc = ptsM ?? boldM;
     const score = sc ? parseFloat(sc[1]) : null;
     const max = sc ? parseFloat(sc[2]) : null;
     const ratio = score != null && max ? score / max : missing ? 0 : null;
@@ -77,11 +85,19 @@ export function parseScanReport(markdown: string): ScanReport {
     const verdict = verdictM ? verdictM[1].trim() : null;
 
     let analysis: string | null = null;
+    // Línea de términos cortos si el informe la trae ("Segura · Técnica · …").
+    let terms: string[] | null = null;
     for (const line of block.split('\n').slice(1)) {
       const l = line.trim();
-      if (!l || /^[>\-#_]/.test(l)) continue;
-      analysis = l;
-      break;
+      if (!l || /^[>\-#_]/.test(l) || /Nota:/.test(l)) continue;
+      if (!terms && l.includes('·') && l.length <= 90 && !/[.!?]/.test(l.replace(/\.\s*$/, ''))) {
+        const parts = l.split(/\s*·\s*/).map((s) => s.trim()).filter(Boolean);
+        if (parts.length >= 2 && parts.every((p) => p.split(/\s+/).length <= 4)) {
+          terms = parts.slice(0, 6);
+          continue;
+        }
+      }
+      if (!analysis) analysis = l;
     }
 
     const todos: ScanTodo[] = [];
@@ -93,7 +109,7 @@ export function parseScanReport(markdown: string): ScanReport {
       }
     }
 
-    dimensions.push({ name, score, max, ratio, verdict, analysis, todos, missing });
+    dimensions.push({ name, score, max, ratio, verdict, analysis, todos, missing, terms });
   }
 
   return categorize(summary, dimensions);
@@ -116,6 +132,36 @@ function cleanQuote(md: string): string {
     .replace(/[#*_`>|]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+// Términos cortos que el escáner extrae para Atributos y Valores
+// ("Segura · Técnica · Exclusiva · Eficiente"). No viajan en todas las
+// versiones del contrato: se buscan bajo los nombres de campo habituales y,
+// en su defecto, en un detected_content que ya venga en formato lista corta.
+// Devuelve null salvo que haya al menos dos términos de pocas palabras.
+function shortTerms(component: Record<string, unknown>): string[] | null {
+  const clean = (list: unknown[]): string[] =>
+    list
+      .filter((x): x is string => typeof x === 'string')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0 && s.length <= 32 && !/[.!?]$/.test(s) && s.split(/\s+/).length <= 4);
+
+  for (const key of ['attributes', 'values', 'descriptors', 'traits', 'terms', 'tags', 'keywords']) {
+    const value = component[key];
+    if (Array.isArray(value)) {
+      const terms = clean(value);
+      if (terms.length >= 2) return terms.slice(0, 6);
+    }
+  }
+
+  // detected_content ya en lista: "Segura · Técnica · Exclusiva" o con comas,
+  // corto y sin puntuación de frase.
+  const dc = typeof component.detected_content === 'string' ? component.detected_content.trim() : '';
+  if (dc && dc.length <= 90 && /·|,/.test(dc) && !/[.!?]/.test(dc.replace(/\.\s*$/, ''))) {
+    const parts = clean(dc.split(/\s*·\s*|\s*,\s*/));
+    if (parts.length >= 2) return parts.slice(0, 6);
+  }
+  return null;
 }
 
 function tileText(tile: Record<string, unknown>, keys: string[]): string | null {
@@ -189,6 +235,7 @@ function structuredScanReport(result: B3SScanResult): ScanReport {
         missing,
         quote: null as string | null,
         quoteUrl: null as string | null,
+        terms: shortTerms(component as unknown as Record<string, unknown>),
         tilesDetail,
       } satisfies ScanDimension,
       candidates,

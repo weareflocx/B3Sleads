@@ -70,19 +70,16 @@ function IconEye({ open }: { open: boolean }) {
   );
 }
 
-// Misma lógica que el score general (rojo/azul/verde), adaptada al máximo
-// de cada componente. El 0 va en neutro: aún no hay nada que colorear.
-//  /10 → 1-4 rojo · 5-7 azul · 8-10 verde
-//  /5  → 1-2 rojo · 3 azul · 4-5 verde
+// Misma lógica que el score general (rojo/azul/verde), pero por proporción
+// para que funcione con cualquier máximo (/5, /10 y el /20 de Magnetismo y
+// Coherencia). <50% rojo · 50-79% azul · ≥80% verde. El 0 va en neutro.
+//  /10 → 4=0.4 rojo · 5-7 azul · 8-10 verde   /5 → 2 rojo · 3 azul · 4-5 verde
+//  /20 → 14=0.7 azul · 16=0.8 verde
 function scoreTone(d: ScanDimension): string {
   if (d.missing || d.score == null) return 'border-[var(--border)] text-[var(--soft)]';
-  const s = d.score;
-  if (s === 0) return 'border-[var(--border)] text-[var(--text)]';
-  const max = d.max ?? 10;
-  const band =
-    max <= 5
-      ? s <= 2 ? 'rojo' : s === 3 ? 'azul' : 'verde'
-      : s <= 4 ? 'rojo' : s <= 7 ? 'azul' : 'verde';
+  if (d.score === 0) return 'border-[var(--border)] text-[var(--text)]';
+  const ratio = d.ratio ?? (d.max ? d.score / d.max : 0);
+  const band = ratio < 0.5 ? 'rojo' : ratio < 0.8 ? 'azul' : 'verde';
   if (band === 'rojo') return 'border-[var(--accent)]/50 text-[var(--accent)]';
   if (band === 'azul') return 'border-[var(--linkedin-soft)]/60 text-[var(--linkedin-soft)]';
   return 'border-[var(--cta)]/50 text-[var(--cta)]';
@@ -99,6 +96,38 @@ const TILE_TONE: Record<ScanTile['state'], string> = {
 // razonamiento, la evidencia literal con su fuente y las baldosas apagadas.
 // La cita es evidencia capturada de las superficies: se muestra tal cual
 // (traducirla sería falsificarla), en cursiva y con su enlace.
+// Normaliza el nombre del componente (viene en español del markdown o en
+// inglés del contrato v1) a un identificador estable para ordenar y agrupar.
+const CANON: Record<string, string> = {
+  'misión': 'mission', mission: 'mission',
+  'visión': 'vision', vision: 'vision',
+  valores: 'values', values: 'values',
+  atributos: 'attributes', attributes: 'attributes',
+  'propuesta de valor': 'value-prop', 'value proposition': 'value-prop',
+  'personalidad / arquetipo': 'personality', 'personality / archetype': 'personality',
+  'idea de marca': 'brand-idea', 'brand idea': 'brand-idea',
+  'propósito': 'purpose', 'proposito': 'purpose', purpose: 'purpose',
+  magnetismo: 'magnetism', magnetism: 'magnetism',
+  coherencia: 'coherence', coherence: 'coherence',
+};
+const canon = (name: string) => CANON[name.trim().toLowerCase()] ?? name.trim().toLowerCase();
+
+// Rejilla del informe original: el trío de identidad a 3 columnas, la
+// coherencia (síntesis) a una sola a lo ancho, el resto en parejas. Cada
+// banda dibuja solo los componentes que existan en el scan.
+const BANDS: { cols: 1 | 2 | 3; slugs: string[] }[] = [
+  { cols: 2, slugs: ['purpose', 'magnetism'] },
+  { cols: 3, slugs: ['value-prop', 'personality', 'brand-idea'] },
+  { cols: 2, slugs: ['attributes', 'values'] },
+  { cols: 2, slugs: ['mission', 'vision'] },
+  { cols: 1, slugs: ['coherence'] },
+];
+const BAND_COLS: Record<1 | 2 | 3, string> = {
+  1: 'grid-cols-1',
+  2: 'sm:grid-cols-2',
+  3: 'sm:grid-cols-2 lg:grid-cols-3',
+};
+
 export function ScanComponents({ dimensions }: { dimensions: ScanDimension[] }) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
 
@@ -110,15 +139,26 @@ export function ScanComponents({ dimensions }: { dimensions: ScanDimension[] }) 
     );
   }
 
-  return (
-    <div className="grid gap-3 md:grid-cols-2">
-      {dimensions.map((d) => {
-        const name = ES_LABELS[d.name] ?? d.name;
-        const isOpen = !!open[d.name];
-        const tiles = d.tilesDetail ?? [];
-        return (
+  // Reparte las dimensiones en las bandas del original; lo que no encaje en
+  // ninguna cae en una banda final de parejas, así ningún scan pierde nada.
+  const bySlug = new Map(dimensions.map((d) => [canon(d.name), d]));
+  const placed = new Set<string>();
+  const bands = BANDS.map((band) => ({
+    cols: band.cols,
+    items: band.slugs.map((s) => bySlug.get(s)).filter((d): d is ScanDimension => !!d),
+  })).filter((band) => {
+    band.items.forEach((d) => placed.add(canon(d.name)));
+    return band.items.length > 0;
+  });
+  const leftovers = dimensions.filter((d) => !placed.has(canon(d.name)));
+  if (leftovers.length) bands.push({ cols: 2, items: leftovers });
+
+  function Card({ d }: { d: ScanDimension }) {
+    const name = ES_LABELS[d.name] ?? d.name;
+    const isOpen = !!open[d.name];
+    const tiles = d.tilesDetail ?? [];
+    return (
           <div
-            key={d.name}
             className="flex flex-col rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4"
           >
             <div className="flex items-center justify-between gap-3">
@@ -147,10 +187,13 @@ export function ScanComponents({ dimensions }: { dimensions: ScanDimension[] }) 
               </span>
             </div>
 
-            {/* Lo visible es la frase literal capturada, en su idioma, en
-                texto normal (aquí no se entrecomilla ni se pone en cursiva).
-                Sin cita, el veredicto. */}
-            {d.quote ? (
+            {/* Atributos y Valores, cuando el escáner los da: términos cortos
+                separados por punto medio ("Segura · Técnica · Exclusiva").
+                Si no, la frase literal capturada tal cual; y sin cita, el
+                veredicto. */}
+            {d.terms?.length ? (
+              <p className="mt-2.5 text-sm leading-relaxed">{d.terms.join(' · ')}</p>
+            ) : d.quote ? (
               <p className="mt-2.5 text-sm leading-relaxed">{d.quote}</p>
             ) : (
               <p className="mt-2.5 text-sm leading-relaxed text-[var(--muted)]">
@@ -211,8 +254,18 @@ export function ScanComponents({ dimensions }: { dimensions: ScanDimension[] }) 
               </div>
             )}
           </div>
-        );
-      })}
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {bands.map((band, i) => (
+        <div key={i} className={`grid gap-3 ${BAND_COLS[band.cols]}`}>
+          {band.items.map((d) => (
+            <Card key={d.name} d={d} />
+          ))}
+        </div>
+      ))}
     </div>
   );
 }
