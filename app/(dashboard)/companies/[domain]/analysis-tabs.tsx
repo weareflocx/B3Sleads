@@ -2,6 +2,12 @@
 
 import { useState, type ReactNode } from 'react';
 import type { ScanDimension, ScanTile } from '@/lib/scan-report';
+import {
+  canonDimension,
+  defaultVersion,
+  detectionNote,
+  type DimensionVersions,
+} from '@/lib/scan-versions';
 
 // Pestañas del análisis de la ficha: el Scanner esquemático primero (los
 // componentes tal cual los mide B3S) y el argumentario después. El contenido
@@ -128,8 +134,16 @@ const BAND_COLS: Record<1 | 2 | 3, string> = {
   3: 'sm:grid-cols-2 lg:grid-cols-3',
 };
 
-export function ScanComponents({ dimensions }: { dimensions: ScanDimension[] }) {
+export function ScanComponents({
+  dimensions,
+  versions = [],
+}: {
+  dimensions: ScanDimension[];
+  // Todas las pasadas de cada componente, derivadas del histórico de scans.
+  versions?: DimensionVersions[];
+}) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  const versionsByKey = new Map(versions.map((v) => [v.key, v]));
 
   if (!dimensions.length) {
     return (
@@ -157,6 +171,9 @@ export function ScanComponents({ dimensions }: { dimensions: ScanDimension[] }) 
     const name = ES_LABELS[d.name] ?? d.name;
     const isOpen = !!open[d.name];
     const tiles = d.tilesDetail ?? [];
+    const dimVersions = versionsByKey.get(canonDimension(d.name)) ?? null;
+    // La versión mostrada es la del último run válido, nunca la más alta.
+    const prov = dimVersions ? defaultVersion(dimVersions) : null;
     return (
           <div
             className="flex flex-col rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4"
@@ -173,7 +190,7 @@ export function ScanComponents({ dimensions }: { dimensions: ScanDimension[] }) 
                 </span>
                 <button
                   onClick={() => setOpen((o) => ({ ...o, [d.name]: !o[d.name] }))}
-                  title={isOpen ? 'Ocultar análisis' : 'Ver análisis, evidencia y baldosas'}
+                  title={isOpen ? 'Ocultar versiones' : 'Ver todas las versiones de este componente'}
                   aria-label={`${isOpen ? 'Ocultar' : 'Ver'} detalle de ${name}`}
                   aria-expanded={isOpen}
                   className={`flex h-6 w-6 items-center justify-center rounded border transition-colors ${
@@ -187,72 +204,77 @@ export function ScanComponents({ dimensions }: { dimensions: ScanDimension[] }) 
               </span>
             </div>
 
-            {/* Atributos y Valores, cuando el escáner los da: términos cortos
-                separados por punto medio ("Segura · Técnica · Exclusiva").
-                Si no, la frase literal capturada tal cual; y sin cita, el
-                veredicto. */}
-            {d.terms?.length ? (
-              <p className="mt-2.5 text-sm leading-relaxed">{d.terms.join(' · ')}</p>
-            ) : d.quote ? (
-              <p className="mt-2.5 text-sm leading-relaxed">{d.quote}</p>
-            ) : (
+            {/* Lectura estratégica primero: qué sostiene hoy y qué tiene que
+                demostrar en el ciclo siguiente. Es el bloque con el que abre
+                el componente en el Scanner y que aquí no se estaba pintando. */}
+            {d.reading && <p className="mt-2.5 text-sm leading-relaxed">{d.reading}</p>}
+
+            {/* El análisis es otra cosa: la tensión presente. Van los dos. */}
+            {d.analysis && d.analysis !== d.reading && (
+              <p className="mt-2 text-sm leading-relaxed text-[var(--muted)]">{d.analysis}</p>
+            )}
+
+            {!d.reading && !d.analysis && (
               <p className="mt-2.5 text-sm leading-relaxed text-[var(--muted)]">
-                {d.verdict || d.analysis || 'Sin rastro en superficies públicas.'}
+                {d.verdict || 'Sin rastro en superficies públicas.'}
               </p>
             )}
 
-            {isOpen && (
-              <div className="mt-3 space-y-3 border-t border-[var(--border)] pt-3">
-                {d.verdict && (
-                  <p className="text-sm leading-relaxed">{d.verdict}</p>
-                )}
-                {d.analysis && d.analysis !== d.verdict && (
-                  <p className="text-xs leading-relaxed text-[var(--muted)]">{d.analysis}</p>
-                )}
-                {d.quoteUrl && (
-                  <a
-                    href={d.quoteUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-block rounded border border-[var(--border)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--muted)] hover:border-[var(--muted)] hover:text-[var(--text)]"
-                  >
-                    fuente ↗
-                  </a>
-                )}
-                {tiles.length > 0 && (
-                  <div>
-                    <p className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">
-                      Baldosas · encendida verde · no detectada azul · sin medir rojo
-                    </p>
-                    <div className="mt-1.5 flex flex-wrap gap-1">
-                      {tiles.map((t) => (
-                        <span
-                          key={t.label}
-                          title={t.reason ?? undefined}
-                          className={`inline-flex h-5 items-center rounded border px-1.5 font-mono text-[10px] ${TILE_TONE[t.state]}`}
-                        >
-                          {t.label}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {d.todos.length > 0 && (
-                  <ul className="space-y-1">
-                    {d.todos.map((t) => (
-                      <li key={t.label} className="text-xs leading-relaxed text-[var(--muted)]">
-                        <span className="font-medium text-[var(--text)]">{t.label}</span> — {t.desc}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {!d.verdict && !tiles.length && !d.todos.length && (
-                  <p className="text-xs text-[var(--soft)]">
-                    Este scan no guarda evidencia detallada para este componente.
+            {/* Extracto y cita. Toda cita lleva su fuente: si no la hay se
+                dice, porque omitir el botón parece un descuido de UI cuando en
+                realidad es un hueco de evidencia. */}
+            {(d.terms?.length || d.quote) && (
+              <div className="mt-3 border-t border-dashed border-[var(--border)] pt-2.5">
+                {d.terms?.length ? (
+                  <p className="font-mono text-xs text-[var(--muted)]">{d.terms.join(' · ')}</p>
+                ) : null}
+                {d.quote && (
+                  <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
+                    <span className="italic">{d.quote}</span>{' '}
+                    {d.quoteUrl ? (
+                      <a
+                        href={d.quoteUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="ml-1 inline-block rounded border border-[var(--border)] px-1.5 py-0.5 font-mono text-[10px] not-italic hover:border-[var(--muted)] hover:text-[var(--text)]"
+                      >
+                        fuente ↗
+                      </a>
+                    ) : (
+                      <span
+                        title="El escaneo no guardó de dónde salió esta cita"
+                        className="ml-1 inline-block rounded border border-dashed border-[var(--border)] px-1.5 py-0.5 font-mono text-[10px] not-italic text-[var(--soft)]"
+                      >
+                        sin fuente
+                      </span>
+                    )}
                   </p>
                 )}
               </div>
             )}
+
+            {/* Procedencia: de qué pasada salió este número. */}
+            {prov && (
+              <p className="mt-2 font-mono text-[10px] text-[var(--soft)]">
+                escaneo del {fmtRun(prov.runAt)}
+                {prov.rubricVersion ? ` · ${prov.rubricVersion}` : ''}
+                {prov.uiUrl ? (
+                  <>
+                    {' · '}
+                    <a
+                      href={prov.uiUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="hover:text-[var(--cta)] hover:underline"
+                    >
+                      ver en Scanner ↗
+                    </a>
+                  </>
+                ) : null}
+              </p>
+            )}
+
+            {isOpen && <VersionPanel dim={dimVersions} tiles={tiles} todos={d.todos} />}
           </div>
     );
   }
@@ -266,6 +288,152 @@ export function ScanComponents({ dimensions }: { dimensions: ScanDimension[] }) 
           ))}
         </div>
       ))}
+    </div>
+  );
+}
+
+function fmtRun(iso: string): string {
+  return new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+}
+
+// Panel de versiones: todas las pasadas de un componente, en orden
+// cronológico descendente. La cabecera resume su fiabilidad, que es lo que
+// convierte esta pantalla en un instrumento de calibración y no solo en un
+// visor. Las pasadas donde no se detectó también salen: ver que la visión
+// apareció un día y desapareció al siguiente es lo que explica el score.
+function VersionPanel({
+  dim,
+  tiles,
+  todos,
+}: {
+  dim: DimensionVersions | null;
+  tiles: ScanTile[];
+  todos: { label: string; desc: string }[];
+}) {
+  if (!dim) {
+    return (
+      <div className="mt-3 border-t border-[var(--border)] pt-3">
+        <p className="text-xs text-[var(--soft)]">
+          Este scan no guarda el detalle por componente, así que no hay versiones que comparar.
+        </p>
+      </div>
+    );
+  }
+
+  const { min, max, stdev, detectedIn, totalRuns } = dim.stats;
+  const activeId = defaultVersion(dim)?.scanId;
+
+  return (
+    <div className="mt-3 border-t border-[var(--border)] pt-3">
+      {/* Fiabilidad del componente a lo largo de los escaneos. */}
+      <p className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">
+        {min != null ? `Rango ${min}-${max}` : 'Nunca detectado'}
+        {stdev != null ? ` · desviación ${stdev}` : ''}
+        {` · detectado en ${detectedIn} de ${totalRuns} ${totalRuns === 1 ? 'escaneo' : 'escaneos'}`}
+      </p>
+
+      <ul className="mt-2 space-y-2">
+        {dim.versions.map((v, i) => {
+          const active = v.scanId === activeId;
+          return (
+            <li
+              key={`${v.scanId}-${i}`}
+              className={`rounded-md border p-2.5 ${
+                active ? 'border-[var(--cta)]/50' : 'border-[var(--border)]'
+              } ${v.detected ? '' : 'opacity-60'}`}
+            >
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span
+                  className={`inline-flex h-5 items-center rounded border px-1.5 font-mono text-[10px] ${
+                    v.detected
+                      ? 'border-[var(--border)] text-[var(--text)]'
+                      : 'border-dashed border-[var(--border)] text-[var(--soft)]'
+                  }`}
+                >
+                  {v.detected ? `${v.score}/${v.max ?? 10}` : 'No detectado'}
+                </span>
+                <span className="font-mono text-[10px] text-[var(--muted)]">{fmtRun(v.runAt)}</span>
+                {v.rubricVersion && (
+                  <span
+                    title="Dos rúbricas distintas no son comparables"
+                    className="font-mono text-[10px] text-[var(--soft)]"
+                  >
+                    {v.rubricVersion}
+                  </span>
+                )}
+                {v.uiUrl && (
+                  <a
+                    href={v.uiUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-mono text-[10px] text-[var(--muted)] hover:text-[var(--cta)] hover:underline"
+                  >
+                    ver run ↗
+                  </a>
+                )}
+                {active && (
+                  <span className="ml-auto font-mono text-[10px] text-[var(--cta)]">en uso</span>
+                )}
+              </div>
+
+              {v.detected ? (
+                <>
+                  {v.reading && (
+                    <p className="mt-1.5 text-xs leading-relaxed">{v.reading}</p>
+                  )}
+                  {v.analysis && v.analysis !== v.reading && (
+                    <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">{v.analysis}</p>
+                  )}
+                  {v.quote && (
+                    <p className="mt-1 text-[11px] italic leading-relaxed text-[var(--soft)]">
+                      {v.quote}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="mt-1.5 text-xs text-[var(--soft)]">
+                  Este escaneo no llegó a esta baldosa.
+                </p>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+
+      {detectedIn > 0 && detectedIn < totalRuns && (
+        <p className="mt-2 text-[10px] text-[var(--warning)]">
+          Inestable entre pasadas: {detectionNote(dim)}
+        </p>
+      )}
+
+      {/* Baldosas y plan de trabajo de la versión en uso. */}
+      {tiles.length > 0 && (
+        <div className="mt-3">
+          <p className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">
+            Baldosas · encendida verde · no detectada azul · sin medir rojo
+          </p>
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {tiles.map((t) => (
+              <span
+                key={t.label}
+                title={t.reason ?? undefined}
+                className={`inline-flex h-5 items-center rounded border px-1.5 font-mono text-[10px] ${TILE_TONE[t.state]}`}
+              >
+                {t.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      {todos.length > 0 && (
+        <ul className="mt-3 space-y-1">
+          {todos.map((t) => (
+            <li key={t.label} className="text-xs leading-relaxed text-[var(--muted)]">
+              <span className="font-medium text-[var(--text)]">{t.label}</span> — {t.desc}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

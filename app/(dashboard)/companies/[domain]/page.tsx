@@ -24,6 +24,7 @@ import { LeadOwner } from './lead-owner';
 import { FundingPanel } from './funding-panel';
 import { LeadTools } from './lead-tools';
 import { AnalysisTabs, ScanComponents } from './analysis-tabs';
+import { componentVersions, detectionNote, DIMENSION_LABELS } from '@/lib/scan-versions';
 import { BTN_LINKEDIN_OUTLINE } from '../../buttons';
 import { CompanyLogo } from '../../company-logo';
 import { CompanyBio } from './company-bio';
@@ -91,7 +92,26 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
 
   const tldr =
     typeof scan?.tldr === 'string' ? scan.tldr : ((scan?.tldr as { summary?: string })?.summary ?? null);
-  const gaps = (scan?.tldr as { gaps?: string[] } | null)?.gaps ?? [];
+  // Versiones de cada componente a lo largo de todos los escaneos.
+  const versions = componentVersions(scanHistory);
+
+  // Los huecos se calculan sobre la UNIÓN de escaneos, no sobre el último.
+  // Si una pasada anterior sí detectó la misión, ese hueco es falso: decírselo
+  // a un founder es el error más caro del sistema, porque lo desmonta la única
+  // persona que sabe con certeza que te equivocas.
+  const gapsRaw = (scan?.tldr as { gaps?: string[] } | null)?.gaps ?? [];
+  const gaps = gapsRaw.map((g) => {
+    const key = Object.keys(DIMENSION_LABELS).find(
+      (k) => k === g.trim().toLowerCase() || DIMENSION_LABELS[k].toLowerCase() === g.trim().toLowerCase(),
+    );
+    const dim = key ? versions.find((v) => v.key === key) : undefined;
+    return {
+      label: key ? DIMENSION_LABELS[key] : g,
+      note: dim ? detectionNote(dim) : null,
+      // Solo es hueco de verdad si NINGÚN escaneo lo detectó.
+      confirmed: !dim || dim.stats.detectedIn === 0,
+    };
+  });
   const stageLabel = stageLabelFor(lead.stage);
   const firstName = displayName(contact?.full_name).split(' ')[0] || null;
   const temp = leadTemperature(bl);
@@ -269,9 +289,22 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                         {gaps.length > 0 && (
                           <ul className="mt-3 space-y-1 text-sm">
                             {gaps.map((g) => (
-                              <li key={g} className="flex gap-2">
-                                <span className="text-[var(--accent)]">·</span>
-                                <span className="text-[var(--muted)]">{g}</span>
+                              <li key={g.label} className="flex gap-2">
+                                <span
+                                  className={
+                                    g.confirmed ? 'text-[var(--accent)]' : 'text-[var(--warning)]'
+                                  }
+                                >
+                                  ·
+                                </span>
+                                <span className="text-[var(--muted)]">
+                                  {g.label}
+                                  {g.note && (
+                                    <span className="ml-1.5 font-mono text-[10px] text-[var(--soft)]">
+                                      {g.note}
+                                    </span>
+                                  )}
+                                </span>
                               </li>
                             ))}
                           </ul>
@@ -304,7 +337,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                   {
                     key: 'scanner',
                     label: 'B3S Seed',
-                    content: <ScanComponents dimensions={report?.dimensions ?? []} />,
+                    content: <ScanComponents dimensions={report?.dimensions ?? []} versions={versions} />,
                   },
                   {
                     key: 'argumentario',

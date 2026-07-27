@@ -92,6 +92,22 @@ export default async function SettingsPage() {
         </p>
       </div>
 
+      {/* Calibración del Scanner: mide el instrumento, no las marcas. */}
+      <h2 className="mb-3 mt-8 text-lg font-semibold">Calibración</h2>
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+        <p className="text-sm text-[var(--muted)]">
+          Qué dimensiones de la rúbrica son inestables entre pasadas, y cuánto se mueve el score de
+          una misma marca en menos de una semana. Es lo que dice qué arreglar del Scanner y en qué
+          orden.
+        </p>
+        <Link
+          href="/settings/calibracion"
+          className="mt-2.5 inline-block text-sm text-[var(--cta)] hover:underline"
+        >
+          Ver calibración →
+        </Link>
+      </div>
+
       {/* Sistema */}
       <h2 className="mb-3 mt-8 text-lg font-semibold">Sistema</h2>
       <div className="overflow-hidden rounded-lg border border-[var(--border)]">
