@@ -62,6 +62,11 @@ async function hydrateLeads(leads: Lead[]): Promise<BriefingLead[]> {
     signal: lead.company_id
       ? ((signals.data as Signal[] | null)?.find((s) => s.company_id === lead.company_id) ?? null)
       : null,
+    // El radar necesita TODAS las señales para quedarse con la de más valor
+    // viva (máximo, no la última ni la suma).
+    signals: lead.company_id
+      ? ((signals.data as Signal[] | null)?.filter((s) => s.company_id === lead.company_id) ?? [])
+      : [],
     scan: lead.scan_id ? (scanById.get(lead.scan_id) ?? null) : null,
     contact: lead.contact_id ? (contactById.get(lead.contact_id) ?? null) : null,
     message: (messages.data as Message[] | null)?.find((m) => m.lead_id === lead.id) ?? null,

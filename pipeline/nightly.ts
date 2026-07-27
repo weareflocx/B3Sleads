@@ -168,6 +168,7 @@ async function main() {
             lead,
             company: company as Company,
             signal: signal as Signal | null,
+            signals: signal ? [signal as Signal] : [],
             scan,
             contact: null,
             message: null,

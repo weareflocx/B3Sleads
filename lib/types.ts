@@ -10,7 +10,29 @@ export type CompanySource =
   | 'explee'
   | 'linkedin';
 export type ContactSource = 'explee' | 'linkedin' | 'lusha' | 'engaged' | 'manual';
-export type SignalType = 'funding_round' | 'hiring' | 'launch' | 'rebrand' | 'engagement';
+// Tipos de señal. Los cinco primeros son históricos (esquema 001); el resto
+// son los eventos del radar v2 (ver lib/radar.ts, que deriva peso y nivel del
+// tipo). La columna en BD es text, así que ampliar aquí no requiere migración.
+export type SignalType =
+  | 'funding_round'
+  | 'hiring'
+  | 'launch'
+  | 'rebrand'
+  | 'engagement'
+  // Nivel A: intención de marca declarada
+  | 'rebranding_declarado'
+  | 'oferta_empleo_marca'
+  | 'busqueda_agencia'
+  // Nivel B: movimiento en la superficie
+  | 'web_nueva'
+  | 'cambio_nombre'
+  | 'pivot_lanzamiento'
+  | 'cambio_ceo_cmo'
+  | 'expansion_mercado'
+  | 'levantando_ronda'
+  // Nivel C: contexto
+  | 'ronda'
+  | 'crecimiento_plantilla';
 // La BD mantiene `ready` como nombre histórico de `completed` en B3S API.
 export type ScanStatus = 'queued' | 'running' | 'blocked' | 'ready' | 'failed' | 'cancelled';
 export type LeadStage =
@@ -173,7 +195,10 @@ export interface Message {
 export interface BriefingLead {
   lead: Lead;
   company: Company | null;
-  signal: Signal | null;
+  signal: Signal | null; // la más reciente (compatibilidad)
+  // Todas las señales de la compañía, la más reciente primero. El radar v2
+  // necesita el conjunto: se queda con la de MÁS VALOR viva, no con la última.
+  signals: Signal[];
   scan: Scan | null;
   contact: Contact | null;
   message: Message | null;
