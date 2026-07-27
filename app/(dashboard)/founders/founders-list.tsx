@@ -5,9 +5,10 @@ import { FounderRow } from './founder-row';
 import type { BriefingLead } from '@/lib/types';
 import type { Temperature } from '@/lib/scoring';
 
-// La cola de founders con controles: ordenar por prioridad (temperatura viva)
-// o por recientes (última actividad), y verla en tarjetas, lista o cuadrícula.
-// El servidor precalcula opener/prompt/temp y los pasa ya listos.
+// Toda la sección Founders bajo un mismo control: ordenar por prioridad
+// (temperatura viva = etapa + si está caliente + oportunidad) o por recientes
+// (última actividad), y verla en cards o en listado compacto. El servidor
+// precalcula opener/prompt/temp y los pasa ya listos.
 export type FounderItem = {
   key: string;
   initial: BriefingLead;
@@ -15,24 +16,46 @@ export type FounderItem = {
   draftPrompt: string | null;
   temp: Temperature;
   updatedAt: string;
-  conversation?: boolean;
 };
 
 type Sort = 'prioridad' | 'recientes';
-type View = 'tarjetas' | 'lista' | 'cuadricula';
+type View = 'cards' | 'lista';
 
-export function FoundersList({ items }: { items: FounderItem[] }) {
+export function FoundersBoard({
+  conversations,
+  queue,
+}: {
+  conversations: FounderItem[];
+  queue: FounderItem[];
+}) {
   const [sort, setSort] = useState<Sort>('prioridad');
-  const [view, setView] = useState<View>('tarjetas');
+  const [view, setView] = useState<View>('cards');
 
-  const sorted = [...items].sort((a, b) =>
-    sort === 'prioridad' ? b.temp.score - a.temp.score : b.updatedAt.localeCompare(a.updatedAt),
+  const sortItems = (items: FounderItem[]) =>
+    [...items].sort((a, b) =>
+      sort === 'prioridad' ? b.temp.score - a.temp.score : b.updatedAt.localeCompare(a.updatedAt),
+    );
+  const variant = view === 'lista' ? 'list' : 'card';
+
+  const renderList = (items: FounderItem[], conversation: boolean) => (
+    <div className={view === 'lista' ? 'space-y-2' : 'space-y-3'}>
+      {sortItems(items).map((it) => (
+        <FounderRow
+          key={it.key}
+          variant={variant}
+          initial={it.initial}
+          opener={it.opener}
+          draftPrompt={it.draftPrompt}
+          temp={it.temp}
+          conversation={conversation}
+        />
+      ))}
+    </div>
   );
-  const variant = view === 'lista' ? 'list' : view === 'cuadricula' ? 'grid' : 'card';
 
   return (
-    <div>
-      <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-2">
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
         <Segmented
           label="Orden"
           value={sort}
@@ -47,38 +70,36 @@ export function FoundersList({ items }: { items: FounderItem[] }) {
           value={view}
           onChange={(v) => setView(v as View)}
           options={[
-            ['tarjetas', 'Tarjetas'],
-            ['lista', 'Lista'],
-            ['cuadricula', 'Cuadrícula'],
+            ['cards', 'Cards'],
+            ['lista', 'Listado'],
           ]}
         />
       </div>
 
-      {view === 'cuadricula' ? (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {sorted.map((it) => (
-            <FounderRow key={it.key} variant="grid" {...rowProps(it)} />
-          ))}
-        </div>
-      ) : (
-        <div className={view === 'lista' ? 'space-y-2' : 'space-y-3'}>
-          {sorted.map((it) => (
-            <FounderRow key={it.key} variant={variant} {...rowProps(it)} />
-          ))}
-        </div>
+      {conversations.length > 0 && (
+        <section>
+          <h2 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--success)]">
+            <span className="inline-block h-2 w-2 rounded-full bg-[var(--success)]" />
+            En conversación ({conversations.length}) — te respondieron por privado
+          </h2>
+          {renderList(conversations, true)}
+        </section>
       )}
+
+      <section>
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
+          Cola de contacto en frío ({queue.length})
+        </h2>
+        {queue.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-[var(--border)] p-10 text-center text-[var(--muted)]">
+            Nadie en cola. Añade founders desde el Briefing o espera al pipeline nocturno.
+          </p>
+        ) : (
+          renderList(queue, false)
+        )}
+      </section>
     </div>
   );
-}
-
-function rowProps(it: FounderItem) {
-  return {
-    initial: it.initial,
-    opener: it.opener,
-    draftPrompt: it.draftPrompt,
-    temp: it.temp,
-    conversation: it.conversation,
-  };
 }
 
 function Segmented({
