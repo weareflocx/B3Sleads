@@ -5,8 +5,8 @@ import { buildPitch } from '@/lib/pitch';
 import { buildDraftPrompt } from '@/lib/claude';
 import { leadTemperature } from '@/lib/scoring';
 import type { BriefingLead } from '@/lib/types';
-import { ImportBox } from './import-box';
 import { FounderRow } from './founder-row';
+import { FoundersList, type FounderItem } from './founders-list';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,8 +35,6 @@ export default async function FoundersPage() {
     <main className={`${PAGE} space-y-6`}>
       <h1 className="text-2xl font-bold tracking-tight">Founders</h1>
 
-      <ImportBox />
-
       {/* Conversaciones abiertas: lo más valioso. Founders que respondieron. */}
       {conversations.length > 0 && (
         <section>
@@ -64,20 +62,21 @@ export default async function FoundersPage() {
       </h2>
       {queue.length === 0 ? (
         <p className="rounded-lg border border-dashed border-[var(--border)] p-10 text-center text-[var(--muted)]">
-          Nadie en cola. Pega perfiles arriba o espera al pipeline nocturno.
+          Nadie en cola. Añade founders desde el Briefing o espera al pipeline nocturno.
         </p>
       ) : (
-        <div className="space-y-3">
-          {queue.map((bl) => (
-            <FounderRow
-              key={bl.lead.id}
-              initial={bl}
-              opener={opener(bl)}
-              draftPrompt={buildDraftPrompt(bl)}
-              temp={leadTemperature(bl)}
-            />
-          ))}
-        </div>
+        <FoundersList
+          items={queue.map(
+            (bl): FounderItem => ({
+              key: bl.lead.id,
+              initial: bl,
+              opener: opener(bl),
+              draftPrompt: buildDraftPrompt(bl),
+              temp: leadTemperature(bl),
+              updatedAt: bl.lead.updated_at,
+            }),
+          )}
+        />
       )}
 
       {sinLinkedin.length > 0 && (

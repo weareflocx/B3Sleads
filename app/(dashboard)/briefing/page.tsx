@@ -1,6 +1,7 @@
 import { PAGE } from '@/app/(dashboard)/page-width';
 import { getBriefingLeads } from '@/lib/data';
 import { LeadCard } from './lead-card';
+import { ImportBox } from '../import-box';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +21,13 @@ export default async function BriefingPage() {
           {active.length} {active.length === 1 ? 'lead' : 'leads'} en cola
         </span>
       </div>
+
+      {/* El alta vive aquí, el punto de entrada del día: pegar un founder y a
+          la cola. Barra compacta que se despliega para nombre/nota/lote. */}
+      <div className="mb-6">
+        <ImportBox />
+      </div>
+
       {active.length === 0 ? (
         <p className="rounded-lg border border-dashed border-[var(--border)] p-10 text-center text-[var(--muted)]">
           Nada en cola. El pipeline nocturno traerá candidatos nuevos, o añade founders desde

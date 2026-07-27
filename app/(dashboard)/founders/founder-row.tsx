@@ -20,12 +20,16 @@ export function FounderRow({
   draftPrompt = null,
   temp,
   conversation = false,
+  variant = 'card',
 }: {
   initial: BriefingLead;
   opener?: string | null; // frase de entrada del argumentario (lib/pitch.ts, sin API)
   draftPrompt?: string | null; // prompt autocontenido para redactar en tu Claude
   temp: Temperature; // temperatura viva del lead (lib/scoring.leadTemperature)
   conversation?: boolean;
+  // card = ficha completa (con argumentario); list = fila compacta;
+  // grid = tarjeta compacta para cuadrícula. list/grid omiten el argumentario.
+  variant?: 'card' | 'list' | 'grid';
 }) {
   const bl = initial;
   const router = useRouter();
@@ -96,6 +100,121 @@ export function FounderRow({
   const hasCompany = bl.company != null;
   const score = bl.scan?.status === 'ready' ? bl.scan.score : null;
   const scanning = bl.scan?.status === 'queued' || bl.scan?.status === 'running';
+  const borderCls = conversation ? 'border-[var(--success)]/50' : 'border-[var(--border)]';
+
+  // Acciones compartidas por las vistas compactas (list/grid).
+  const fichaBtn = hasCompany && (
+    <Link
+      href={`/companies/${bl.company!.domain}`}
+      className="rounded-md border border-[var(--border)] bg-white px-2.5 py-1 text-center text-xs font-medium text-black transition-opacity hover:opacity-85"
+    >
+      Ficha
+    </Link>
+  );
+  const linkedinBtn = (
+    <button
+      onClick={copyAndOpen}
+      className="rounded-md border border-[var(--linkedin-soft)] px-2.5 py-1 text-center text-xs font-medium text-[var(--linkedin-soft)] transition-colors hover:bg-[var(--linkedin-soft)]/10"
+    >
+      {copied ? '✓ LinkedIn' : 'LinkedIn'}
+    </button>
+  );
+  const stageSelect = (
+    <select
+      value={stage}
+      disabled={savingStage}
+      onChange={(e) => changeStage(e.target.value as LeadStage)}
+      className="rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-xs text-[var(--text)] outline-none transition-colors focus:border-[var(--cta)] disabled:opacity-50"
+    >
+      {STAGES.map((s) => (
+        <option key={s.key} value={s.key}>
+          {s.label}
+        </option>
+      ))}
+    </select>
+  );
+
+  // Vista Lista: una fila apretada. Identidad + métricas + acciones en línea.
+  if (variant === 'list') {
+    return (
+      <div className={`flex items-center gap-3 rounded-md border bg-[var(--surface)] px-3 py-2.5 ${borderCls}`}>
+        <Avatar name={name} src={bl.contact?.avatar_url} size={30} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-baseline gap-x-2">
+            <span className="truncate font-medium">{name}</span>
+            {hasCompany ? (
+              <Link
+                href={`/companies/${bl.company!.domain}`}
+                className="truncate text-xs text-[var(--muted)] hover:text-[var(--text)] hover:underline"
+              >
+                {companyLabel(bl.company!.name, bl.company!.domain)}
+              </Link>
+            ) : (
+              <span className="text-xs text-[var(--warning)]">sin empresa</span>
+            )}
+          </div>
+          {bl.contact?.headline && (
+            <p className="truncate text-xs text-[var(--muted)]">{bl.contact.headline}</p>
+          )}
+        </div>
+        <Heat temp={temp} size={11} />
+        {score != null ? (
+          <ScoreRing score={score} size={26} />
+        ) : hasCompany ? (
+          <span className="shrink-0 text-xs text-[var(--muted)]">{scanning ? '…' : 'sin scan'}</span>
+        ) : null}
+        <span className="hidden shrink-0 items-center gap-2 sm:flex">
+          {fichaBtn}
+          {linkedinBtn}
+          {stageSelect}
+        </span>
+      </div>
+    );
+  }
+
+  // Vista Cuadrícula: tarjeta compacta, acciones abajo.
+  if (variant === 'grid') {
+    return (
+      <div className={`flex h-full flex-col rounded-lg border bg-[var(--surface)] p-3.5 ${borderCls}`}>
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex min-w-0 gap-2.5">
+            <Avatar name={name} src={bl.contact?.avatar_url} size={34} />
+            <div className="min-w-0">
+              <div className="truncate font-medium">{name}</div>
+              {hasCompany ? (
+                <Link
+                  href={`/companies/${bl.company!.domain}`}
+                  className="block truncate text-xs text-[var(--muted)] hover:text-[var(--text)] hover:underline"
+                >
+                  {companyLabel(bl.company!.name, bl.company!.domain)}
+                </Link>
+              ) : (
+                <span className="text-xs text-[var(--warning)]">sin empresa</span>
+              )}
+            </div>
+          </div>
+          <Heat temp={temp} size={11} />
+        </div>
+        <div className="mt-2 flex items-center gap-1.5">
+          {score != null ? (
+            <>
+              <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">Score</span>
+              <ScoreRing score={score} size={28} />
+            </>
+          ) : hasCompany ? (
+            <span className="text-xs text-[var(--muted)]">{scanning ? 'escaneando…' : 'sin scan'}</span>
+          ) : null}
+        </div>
+        <div className="mt-auto flex flex-col gap-2 pt-3">
+          <div className="flex gap-2 [&>*]:flex-1">
+            {fichaBtn}
+            {linkedinBtn}
+          </div>
+          {stageSelect}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
