@@ -2,7 +2,22 @@
 // sin credenciales, sirve datos demo para desarrollo de UI.
 import { getServiceSupabase, isDemoMode } from './supabase';
 import { DEMO_LEADS } from './demo-data';
+import { mergeSectorVocabulary, parseSectorList } from './sectors';
 import type { BriefingLead, Company, Contact, Lead, Message, Note, Scan, Signal } from './types';
+
+// Vocabulario de sectores para el picker: lista curada + los ya usados en la
+// BD, sin duplicar. Así "añadir uno nuevo" se incorpora al vocabulario.
+export async function getSectorVocabulary(): Promise<string[]> {
+  let inUse: string[] = [];
+  if (!isDemoMode()) {
+    const db = getServiceSupabase()!;
+    const { data } = await db.from('companies').select('sector').not('sector', 'is', null);
+    inUse = ((data as { sector: string | null }[] | null) ?? []).flatMap((r) =>
+      parseSectorList(r.sector),
+    );
+  }
+  return mergeSectorVocabulary(inUse);
+}
 
 export async function getBriefingLeads(): Promise<BriefingLead[]> {
   if (isDemoMode()) {
@@ -112,6 +127,23 @@ export async function getConversations(): Promise<BriefingLead[]> {
   return all.filter(
     (l) => l.contact?.linkedin_url && ['conversation', 'call', 'proposal'].includes(l.lead.stage),
   );
+}
+
+// Catálogo de startups (marcas): una entrada por empresa, no por lead. Es la
+// vista brand-first (score B3S, sector, ronda, founder), independiente del
+// stage; el trabajo por etapa sigue en Pipeline. De cada marca se elige el
+// lead más informativo (scan listo primero, luego con founder).
+export async function getStartups(): Promise<BriefingLead[]> {
+  const all = await getBriefingLeads();
+  const rank = (x: BriefingLead) =>
+    (x.scan?.status === 'ready' ? 2 : 0) + (x.contact?.linkedin_url ? 1 : 0);
+  const byDomain = new Map<string, BriefingLead>();
+  for (const bl of all) {
+    if (!bl.company) continue;
+    const cur = byDomain.get(bl.company.domain);
+    if (!cur || rank(bl) > rank(cur)) byDomain.set(bl.company.domain, bl);
+  }
+  return [...byDomain.values()];
 }
 
 export async function updateLeadStage(

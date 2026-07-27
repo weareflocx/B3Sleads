@@ -21,6 +21,9 @@ interface LogRow {
 export function ImportBox() {
   const router = useRouter();
   const [mode, setMode] = useState<'uno' | 'lote'>('uno');
+  // Barra compacta por defecto: solo LinkedIn + dominio + Añadir. Los campos
+  // extra (nombre, nota, señales) se despliegan a demanda.
+  const [expanded, setExpanded] = useState(false);
 
   // Modo uno a uno
   const [linkedin, setLinkedin] = useState('');
@@ -176,34 +179,47 @@ export function ImportBox() {
 
       {mode === 'uno' ? (
         <>
-          <div className="mt-3.5 space-y-2.5">
-            <div className="grid gap-2.5 sm:grid-cols-2">
-              <div>
-                <label htmlFor="li" className="text-xs text-[var(--muted)]">
-                  Founder · URL de LinkedIn
-                </label>
-                <input
-                  id="li"
-                  value={linkedin}
-                  onChange={(e) => onLinkedinChange(e.target.value)}
-                  placeholder="linkedin.com/in/janedoe"
-                  className={`mt-1 ${inputCls}`}
-                />
-              </div>
-              <div>
-                <label htmlFor="dm" className="text-xs text-[var(--muted)]">
-                  Marca · dominio
-                </label>
-                <input
-                  id="dm"
-                  value={domain}
-                  onChange={(e) => setDomain(e.target.value)}
-                  placeholder="acmelabs.io"
-                  className={`mt-1 ${inputCls}`}
-                />
-              </div>
-            </div>
-            <div className="grid gap-2.5 sm:grid-cols-2">
+          {/* Barra: pegar la URL de LinkedIn (y opcionalmente el dominio) y
+              Añadir. Sin etiquetas: el placeholder ya lo dice. */}
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+            <input
+              id="li"
+              value={linkedin}
+              onChange={(e) => onLinkedinChange(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && submitUno()}
+              placeholder="URL de LinkedIn del founder — linkedin.com/in/janedoe"
+              className={`${inputCls} sm:flex-1`}
+            />
+            <input
+              id="dm"
+              value={domain}
+              onChange={(e) => setDomain(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && submitUno()}
+              placeholder="dominio de la marca (opcional)"
+              className={`${inputCls} sm:w-60`}
+            />
+            <button
+              onClick={submitUno}
+              disabled={busy || (!linkedin.trim() && !domain.trim())}
+              className="shrink-0 rounded-md bg-[var(--cta)] px-5 py-2 text-sm font-medium text-[var(--cta-text)] transition-opacity hover:opacity-90 disabled:opacity-40"
+            >
+              {busy ? 'Añadiendo…' : 'Añadir'}
+            </button>
+          </div>
+
+          {/* Campos extra a demanda: nombre, nota y señales de temperatura. */}
+          <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <button
+              onClick={() => setExpanded((v) => !v)}
+              className="text-xs text-[var(--muted)] transition-colors hover:text-[var(--text)]"
+            >
+              {expanded ? '− menos campos' : '+ nombre, nota y señales'}
+            </button>
+            {expanded && <Checkboxes {...{ warm, setWarm, replied, setReplied }} />}
+          </div>
+
+          {expanded && (
+            <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
               <div>
                 <label htmlFor="nm" className="text-xs text-[var(--muted)]">
                   Nombre {linkedin && !nameEdited && name ? '· auto' : ''}
@@ -233,18 +249,7 @@ export function ImportBox() {
                 />
               </div>
             </div>
-          </div>
-
-          <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
-            <button
-              onClick={submitUno}
-              disabled={busy || (!linkedin.trim() && !domain.trim())}
-              className="rounded-md bg-[var(--cta)] px-4 py-2 text-sm font-medium text-[var(--cta-text)] transition-opacity hover:opacity-90 disabled:opacity-40"
-            >
-              {busy ? 'Añadiendo…' : 'Añadir al radar'}
-            </button>
-            <Checkboxes {...{ warm, setWarm, replied, setReplied }} />
-          </div>
+          )}
         </>
       ) : preview ? (
         <>

@@ -5,8 +5,7 @@ import { buildPitch } from '@/lib/pitch';
 import { buildDraftPrompt } from '@/lib/claude';
 import { leadTemperature } from '@/lib/scoring';
 import type { BriefingLead } from '@/lib/types';
-import { ImportBox } from './import-box';
-import { FounderRow } from './founder-row';
+import { FoundersBoard, type FounderItem } from './founders-list';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,54 +30,22 @@ export default async function FoundersPage() {
     (l) => l.company && !l.contact?.linkedin_url && ['detected', 'briefed'].includes(l.lead.stage),
   );
 
+  // Precalcula lo que la card necesita (opener/prompt/temp) para pasarlo al
+  // board cliente, que ordena y elige la vista.
+  const toItem = (bl: BriefingLead): FounderItem => ({
+    key: bl.lead.id,
+    initial: bl,
+    opener: opener(bl),
+    draftPrompt: buildDraftPrompt(bl),
+    temp: leadTemperature(bl),
+    updatedAt: bl.lead.updated_at,
+  });
+
   return (
     <main className={`${PAGE} space-y-6`}>
       <h1 className="text-2xl font-bold tracking-tight">Founders</h1>
 
-      <ImportBox />
-
-      {/* Conversaciones abiertas: lo más valioso. Founders que respondieron. */}
-      {conversations.length > 0 && (
-        <section>
-          <h2 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--success)]">
-            <span className="inline-block h-2 w-2 rounded-full bg-[var(--success)]" />
-            En conversación ({conversations.length}) — te respondieron por privado
-          </h2>
-          <div className="space-y-3">
-            {conversations.map((bl) => (
-              <FounderRow
-                key={bl.lead.id}
-                initial={bl}
-                opener={opener(bl)}
-                draftPrompt={buildDraftPrompt(bl)}
-                temp={leadTemperature(bl)}
-                conversation
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
-        Cola de contacto en frío
-      </h2>
-      {queue.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-[var(--border)] p-10 text-center text-[var(--muted)]">
-          Nadie en cola. Pega perfiles arriba o espera al pipeline nocturno.
-        </p>
-      ) : (
-        <div className="space-y-3">
-          {queue.map((bl) => (
-            <FounderRow
-              key={bl.lead.id}
-              initial={bl}
-              opener={opener(bl)}
-              draftPrompt={buildDraftPrompt(bl)}
-              temp={leadTemperature(bl)}
-            />
-          ))}
-        </div>
-      )}
+      <FoundersBoard conversations={conversations.map(toItem)} queue={queue.map(toItem)} />
 
       {sinLinkedin.length > 0 && (
         <section>

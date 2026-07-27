@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Lead, LeadStage } from '@/lib/types';
 import { STAGES, DISCARD_REASONS } from '@/lib/types';
+import { Select } from '../../select';
 
 // Seguimiento del lead: etapa del pipeline. Las notas viven ahora en la
 // bitácora (NotesLog), con fecha y hora por entrada.
@@ -37,23 +38,14 @@ export function FollowUp({ lead }: { lead: Lead }) {
   return (
     <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
       <div className="flex items-center justify-between gap-3">
-        <label htmlFor="stage" className="text-xs text-[var(--muted)]">
-          Etapa
-        </label>
-        <select
-          id="stage"
+        <span className="text-xs text-[var(--muted)]">Etapa</span>
+        <Select
           value={stage}
-          onChange={(e) => changeStage(e.target.value as LeadStage)}
+          onChange={(v) => changeStage(v as LeadStage)}
+          options={STAGES.map((s) => ({ value: s.key, label: s.label }))}
+          ariaLabel="Etapa del lead"
           disabled={saving === 'stage'}
-          className="rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5 text-sm outline-none focus:border-[var(--cta)]"
-        >
-          {STAGES.map((s) => (
-            <option key={s.key} value={s.key}>
-              {s.label}
-            </option>
-          ))}
-          <option value="lost">Perdido</option>
-        </select>
+        />
       </div>
 
       {stage === 'discarded' && lead.stage !== 'discarded' && (

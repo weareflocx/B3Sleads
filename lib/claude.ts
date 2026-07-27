@@ -5,6 +5,7 @@ import path from 'node:path';
 import { displayName } from './types';
 import type { BriefingLead } from './types';
 import { storedScanReport, reportDigest } from './scan-report';
+import { curatedSectors } from './sectors';
 
 const MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-4-6';
 
@@ -192,14 +193,16 @@ export async function extractSectors(input: {
   scan: string;
 }): Promise<string[]> {
   if (!process.env.ANTHROPIC_API_KEY) return [];
+  const vocab = curatedSectors();
   const res = await client().messages.create({
     model: MODEL,
     max_tokens: 200,
     system:
       'Clasificas startups por sector para un CRM. Devuelves SOLO un array ' +
       'JSON de 2 a 4 etiquetas de sector en español, en Title Case, cortas y ' +
-      'REUTILIZABLES entre empresas (p. ej. "Ciberseguridad", "SaaS B2B", ' +
-      '"Fintech", "Cleantech", "Salud Digital", "IA"). Nada de eslóganes ni ' +
+      'REUTILIZABLES entre empresas. ELIGE de esta lista siempre que alguna ' +
+      `encaje (usa su forma EXACTA): ${vocab.join(', ')}. Crea una etiqueta ` +
+      'nueva SOLO si ninguna de la lista encaja. Nada de eslóganes ni ' +
       'etiquetas únicas de una sola marca. Solo el array JSON.',
     messages: [
       {

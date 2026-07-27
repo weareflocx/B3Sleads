@@ -19,6 +19,7 @@ export const STAGE_POINTS: Record<LeadStage, number> = {
   conversation: 8,
   call: 12,
   proposal: 20,
+  paused: 2, // aparcado a propósito: se trabajó algo, pero no es el momento
   won: 40,
   lost: 5, // llegó lejos aunque no cerrara
   discarded: 0,

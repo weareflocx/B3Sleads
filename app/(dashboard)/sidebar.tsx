@@ -13,6 +13,7 @@ import {
   IconBriefing,
   IconPipeline,
   IconFounders,
+  IconBuilding,
   IconLeaderboard,
   IconCollapse,
   IconExpand,
@@ -32,9 +33,10 @@ import {
 type NavItem = { href: string; label: string; Icon: (p: IconProps) => React.ReactElement; match?: string[] };
 
 const NAV: NavItem[] = [
-  { href: '/briefing', label: 'Briefing', Icon: IconBriefing, match: ['/companies'] },
+  { href: '/briefing', label: 'Briefing', Icon: IconBriefing },
   { href: '/pipeline', label: 'Pipeline', Icon: IconPipeline },
   { href: '/founders', label: 'Founders', Icon: IconFounders },
+  { href: '/startups', label: 'Startups', Icon: IconBuilding, match: ['/companies'] },
   { href: '/leaderboard', label: 'Leaderboard', Icon: IconLeaderboard, match: ['/investors'] },
 ];
 

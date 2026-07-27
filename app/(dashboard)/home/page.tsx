@@ -22,12 +22,12 @@ export default async function HomePage() {
   const contacted = leads.filter((l) => l.lead.stage === 'contacted');
   const won = leads.filter((l) => l.lead.stage === 'won');
   const sinScan = leads.filter(
-    (l) => l.company && (!l.scan || l.scan.status !== 'ready') && !['discarded', 'won', 'lost'].includes(l.lead.stage),
+    (l) => l.company && (!l.scan || l.scan.status !== 'ready') && !['discarded', 'won', 'lost', 'paused'].includes(l.lead.stage),
   );
 
   // Leads más calientes (activos), por temperatura viva
   const hottest = leads
-    .filter((l) => !['discarded', 'won', 'lost'].includes(l.lead.stage))
+    .filter((l) => !['discarded', 'won', 'lost', 'paused'].includes(l.lead.stage))
     .map((bl) => ({ bl, temp: leadTemperature(bl) }))
     .sort((a, b) => b.temp.score - a.temp.score)
     .slice(0, 3);
