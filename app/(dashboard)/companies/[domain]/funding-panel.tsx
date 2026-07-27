@@ -327,6 +327,49 @@ export function FundingPanel({
   const [proposals, setProposals] = useState<RoundProposal[] | null>(null);
   const [searchMsg, setSearchMsg] = useState<string | null>(null);
   const [pasted, setPasted] = useState('');
+  // "Levantando ronda": no es una ronda cerrada, es que están AHORA buscando.
+  // Momento clave: necesitan narrativa para el deck. Señal de nivel B.
+  const [raising, setRaising] = useState(false);
+  const [raisingRound, setRaisingRound] = useState('seed');
+  const [raisingValue, setRaisingValue] = useState('');
+  const [raisingUnit, setRaisingUnit] = useState<AmountUnit>('M');
+  const [raisingNote, setRaisingNote] = useState('');
+
+  async function saveRaising() {
+    const objetivo = raisingValue.trim()
+      ? `${formatAmount(raisingValue, raisingUnit)}`
+      : 'importe no confirmado';
+    const evidence =
+      raisingNote.trim() ||
+      `Levantando ronda ${raisingRound} · buscan ${objetivo}`;
+    setBusy(true);
+    try {
+      const res = await fetch('/api/signals/mark', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          type: 'levantando_ronda',
+          occurredAt: new Date().toISOString(),
+          evidence,
+          detail: {
+            round: raisingRound,
+            target_amount: raisingValue.trim() ? formatAmount(raisingValue, raisingUnit) : null,
+            target_amount_eur: raisingValue.trim() ? amountToEur(raisingValue, raisingUnit) : null,
+            raising: true,
+          },
+        }),
+      });
+      if (res.ok) {
+        setRaising(false);
+        setRaisingValue('');
+        setRaisingNote('');
+        router.refresh();
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
   const [showPaste, setShowPaste] = useState(false);
 
   async function discover(pastedText?: string) {
@@ -459,6 +502,52 @@ export function FundingPanel({
           <button onClick={() => setOpen(true)} className={`${BTN_OUTLINE} w-full`}>
             {fundingSignals.length ? 'Registrar otra ronda' : 'Registrar a mano'}
           </button>
+          <button onClick={() => setRaising((v) => !v)} className={`${BTN_OUTLINE} w-full`}>
+            Están levantando ronda ahora
+          </button>
+        </div>
+      )}
+
+      {/* Levantando ronda: el momento, no el cierre. Cuánto buscan es el dato
+          que importa, y entra como señal de timing en el radar. */}
+      {raising && (
+        <div className="mt-3 space-y-2 rounded-md border border-[var(--cta)] p-2">
+          <p className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">
+            En ronda · qué buscan
+          </p>
+          <div className="flex gap-2">
+            <select
+              value={raisingRound}
+              onChange={(e) => setRaisingRound(e.target.value)}
+              className={`${FIELD} flex-1`}
+            >
+              {ROUNDS.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+            <AmountField
+              value={raisingValue}
+              unit={raisingUnit}
+              onValue={setRaisingValue}
+              onUnit={setRaisingUnit}
+            />
+          </div>
+          <input
+            value={raisingNote}
+            onChange={(e) => setRaisingNote(e.target.value)}
+            placeholder="cómo lo sabes (queda como evidencia)"
+            className={`${FIELD} w-full`}
+          />
+          <div className="flex gap-2">
+            <button onClick={saveRaising} disabled={busy} className={`${BTN_CTA} flex-1`}>
+              {busy ? 'Guardando…' : 'Guardar'}
+            </button>
+            <button onClick={() => setRaising(false)} className={BTN_OUTLINE}>
+              Cancelar
+            </button>
+          </div>
         </div>
       )}
 

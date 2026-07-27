@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import type { BriefingLead, LeadStage } from '@/lib/types';
 import { STAGES, displayName, companyLabel } from '@/lib/types';
+import { computeRadar } from '@/lib/radar';
 
 // Columnas visibles del kanban (detected y briefed se agrupan como "Detectado")
 const COLUMNS: { key: LeadStage; label: string; includes: LeadStage[] }[] = [
@@ -78,11 +79,24 @@ export function Kanban({ initial }: { initial: BriefingLead[] }) {
                         {displayName(bl.contact?.full_name) || 'Sin nombre'}
                       </span>
                     )}
-                    {bl.lead.priority_score != null && (
-                      <span className="shrink-0 rounded border border-[var(--border)] px-1.5 py-0.5 font-mono text-xs text-[var(--muted)]">
-                        {Math.round(bl.lead.priority_score)}
-                      </span>
-                    )}
+                    {/* El radar es una métrica PRE-contacto: aquí es contexto
+                        en gris, nunca criterio de orden (eso lo marca el
+                        próximo paso). Sin señal viva, se dice; no un número. */}
+                    {(() => {
+                      const r = computeRadar(bl, bl.signals);
+                      return r.score != null ? (
+                        <span
+                          title={`Radar ${r.score} = fit ${r.fit} × timing ${r.timing} · ${r.best?.label}`}
+                          className="shrink-0 rounded border border-[var(--border)] px-1.5 py-0.5 font-mono text-xs text-[var(--muted)]"
+                        >
+                          {r.score}
+                        </span>
+                      ) : (
+                        <span className="shrink-0 rounded border border-[var(--border)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--soft)]">
+                          Sin señal
+                        </span>
+                      );
+                    })()}
                   </div>
                   {/* Si el nombre de la empresa es el propio dominio, repetirlo
                       no aporta: mejor enseñar quién es el founder. */}

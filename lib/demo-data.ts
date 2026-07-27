@@ -5,7 +5,9 @@ import type { BriefingLead } from './types';
 
 const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
 
-export const DEMO_LEADS: BriefingLead[] = [
+// Los literales de abajo no declaran `signals`: se deriva del `signal` en el
+// export, para no duplicar el objeto en cada lead de demo.
+const DEMO_LEADS_RAW: Omit<BriefingLead, 'signals'>[] = [
   {
     lead: {
       id: 'demo-lead-1',
@@ -286,3 +288,8 @@ export const DEMO_LEADS: BriefingLead[] = [
     message: null,
   },
 ];
+
+export const DEMO_LEADS: BriefingLead[] = DEMO_LEADS_RAW.map((bl) => ({
+  ...bl,
+  signals: bl.signal ? [bl.signal] : [],
+}));

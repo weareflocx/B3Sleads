@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import type { BriefingLead } from '@/lib/types';
 import { DISCARD_REASONS, displayName, companyLabel } from '@/lib/types';
-import { priorityBreakdown } from '@/lib/scoring';
+import { agoLabel, computeRadar, type Radar } from '@/lib/radar';
 
 function timeAgo(iso: string): string {
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
@@ -30,8 +30,45 @@ function tldrText(bl: BriefingLead): string | null {
   return (t.summary as string) ?? JSON.stringify(t).slice(0, 200);
 }
 
+// El número del radar y la señal que lo sostiene. Sin señal no hay número:
+// se dice "Sin señal" en gris, nunca un valor por defecto.
+function RadarLine({ radar }: { radar: Radar }) {
+  if (radar.state !== 'activo' || !radar.best) {
+    return (
+      <p className="mt-2 font-mono text-xs text-[var(--soft)]">
+        {radar.state === 'no_escaneable'
+          ? 'Sin scan utilizable · fuera de la cola hasta re-escanear'
+          : 'Sin señal viva · en reserva hasta que aparezca una'}
+      </p>
+    );
+  }
+  const s = radar.best;
+  return (
+    <div className="mt-2">
+      <p className="font-mono text-xs text-[var(--muted)]">
+        Radar {radar.score} · Fit {radar.fit} × Timing {radar.timing}
+      </p>
+      <p className="mt-1 text-xs text-[var(--muted)]">
+        Señal: {s.label} · {agoLabel(s.days)}
+        {s.sourceUrl && (
+          <a
+            href={s.sourceUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="ml-1 text-[var(--cta)] hover:underline"
+          >
+            ↗
+          </a>
+        )}
+      </p>
+      <p className="mt-0.5 text-xs leading-relaxed text-[var(--soft)]">{s.evidence}</p>
+    </div>
+  );
+}
+
 export function LeadCard({ initial }: { initial: BriefingLead }) {
   const bl = initial;
+  const radar = computeRadar(bl, bl.signals);
   const [draft, setDraft] = useState(bl.message?.draft ?? '');
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -122,28 +159,23 @@ export function LeadCard({ initial }: { initial: BriefingLead }) {
             {signalLabel(bl)}
           </p>
         </div>
-        {bl.lead.priority_score != null && (
+        {radar.score != null ? (
           <span
             className="rounded-md border border-[var(--border)] px-2 py-1 font-mono text-sm"
-            title="Desglose del priority score"
+            title={`Radar ${radar.score} = fit ${radar.fit} × timing ${radar.timing} (${radar.version})`}
           >
-            {Math.round(bl.lead.priority_score)}
+            {radar.score}
+          </span>
+        ) : (
+          <span className="rounded-md border border-[var(--border)] px-2 py-1 font-mono text-xs text-[var(--soft)]">
+            Sin señal
           </span>
         )}
       </div>
 
-      {/* Por qué está aquí este lead (patrón Explee: trace visible) */}
-      {(() => {
-        const b = priorityBreakdown({ company: bl.company, signal: bl.signal, scan: bl.scan });
-        return (
-          <p className="mt-2 font-mono text-xs text-[var(--muted)]">
-            señal {b.recencia} · ronda {b.ronda} · gap marca {b.gap_marca} · fit {b.fit_icp}
-            {b.bonus_engaged > 0 && (
-              <span className="text-[var(--success)]"> · warm +{b.bonus_engaged}</span>
-            )}
-          </p>
-        );
-      })()}
+      {/* Por qué está aquí este lead. Ningún número del radar se muestra sin
+          la señal que lo produjo: fecha, evidencia literal y fuente. */}
+      <RadarLine radar={radar} />
 
       {bl.scan && (
         <div className="mt-4 text-sm">
