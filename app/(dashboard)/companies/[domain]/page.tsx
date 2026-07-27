@@ -1,7 +1,13 @@
 import { PAGE_XL } from '@/app/(dashboard)/page-width';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getCompanyFiche, getCompanyScans, getCompanySignals, getLeadNotes } from '@/lib/data';
+import {
+  getCompanyFiche,
+  getCompanyScans,
+  getCompanySignals,
+  getLeadNotes,
+  getSectorVocabulary,
+} from '@/lib/data';
 import { leadTemperature } from '@/lib/scoring';
 import { buildPitch } from '@/lib/pitch';
 import { storedScanReport } from '@/lib/scan-report';
@@ -64,11 +70,12 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
   if (!bl || !bl.company) notFound();
 
   const { company, contact, scan, lead, message } = bl;
-  const [scanHistory, signals, notes, team] = await Promise.all([
+  const [scanHistory, signals, notes, team, sectorVocab] = await Promise.all([
     getCompanyScans(company.id),
     getCompanySignals(company.id),
     getLeadNotes(lead.id),
     getTeamMembers(),
+    getSectorVocabulary(),
   ]);
   const ownerEmail = leadOwner(lead);
   const owner = { email: ownerEmail, label: userLabel(ownerEmail) };
@@ -239,6 +246,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                       companyId={company.id}
                       initial={company.description}
                       initialSector={company.sector}
+                      availableSectors={sectorVocab}
                     />
                   </div>
 

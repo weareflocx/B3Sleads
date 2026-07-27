@@ -21,10 +21,13 @@ export function CompanyBio({
   companyId,
   initial,
   initialSector,
+  availableSectors = [],
 }: {
   companyId: string;
   initial: string | null;
   initialSector: string | null;
+  // Vocabulario de sectores (curados + en uso) para el picker.
+  availableSectors?: string[];
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -150,10 +153,10 @@ export function CompanyBio({
     </ul>
   );
 
-  const sectorRow = (sectors.length > 0 || suggested.length > 0) && (
+  const sectorRow = (
     <div className="mt-2.5">
       <p className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">Sector</p>
-      <div className="mt-1.5 flex flex-wrap gap-1.5">
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
         {sectors.map((s) => (
           <button
             key={s}
@@ -165,17 +168,19 @@ export function CompanyBio({
             <span className="text-[var(--cta)]/60 group-hover:text-[var(--danger)]">×</span>
           </button>
         ))}
+        {/* Sugerencias de la IA (ya elegidas de la lista cuando encajan). */}
         {suggested.map((s) => (
           <button
             key={s}
             onClick={() => addSector(s)}
-            title="Añadir sector"
+            title="Añadir sector sugerido"
             className="inline-flex items-center gap-1 rounded-md border border-dashed border-[var(--border)] px-2 py-0.5 text-xs text-[var(--muted)] transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)]"
           >
             <span className="text-[var(--soft)]">+</span>
             {s}
           </button>
         ))}
+        <SectorPicker available={availableSectors} selected={sectors} onAdd={addSector} />
       </div>
     </div>
   );
@@ -254,6 +259,111 @@ export function CompanyBio({
     </span>
     {acciones}
     {candidatas}
+    </div>
+  );
+}
+
+// Picker de sector: elegir de un vocabulario controlado (curados + en uso) o
+// crear uno nuevo. Tags limitados y consistentes para poder filtrar después.
+function SectorPicker({
+  available,
+  selected,
+  onAdd,
+}: {
+  available: string[];
+  selected: string[];
+  onAdd: (s: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setQ('');
+      }
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  const selLower = new Set(selected.map((s) => s.toLowerCase()));
+  const pool = available.filter((s) => !selLower.has(s.toLowerCase()));
+  const nq = q.trim().toLowerCase();
+  const filtered = nq ? pool.filter((s) => s.toLowerCase().includes(nq)) : pool;
+  const existsAnywhere = [...available, ...selected].some((s) => s.toLowerCase() === nq);
+  const canCreate = q.trim().length >= 2 && !existsAnywhere;
+
+  const pick = (s: string) => {
+    onAdd(s.trim());
+    setQ('');
+    setOpen(false);
+  };
+
+  return (
+    <div ref={ref} className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-1 rounded-md border border-dashed border-[var(--muted)] px-2 py-0.5 text-xs text-[var(--text)] transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)]"
+      >
+        <span className="text-[var(--soft)]">+</span> Sector
+      </button>
+
+      {open && (
+        <div
+          className="absolute left-0 z-50 mt-1 w-64 rounded-md border border-[var(--border)] bg-[var(--surface)] p-1 shadow-lg"
+          style={{ animation: 'b3s-pop 130ms cubic-bezier(0.23, 1, 0.32, 1)', transformOrigin: 'top' }}
+        >
+          <input
+            autoFocus
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && canCreate) pick(q);
+              else if (e.key === 'Enter' && filtered.length === 1) pick(filtered[0]);
+              else if (e.key === 'Escape') {
+                setOpen(false);
+                setQ('');
+              }
+            }}
+            placeholder="Buscar o crear sector…"
+            className="w-full rounded border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5 text-sm outline-none focus:border-[var(--cta)]"
+          />
+          <ul className="mt-1 max-h-52 overflow-auto">
+            {filtered.map((s) => (
+              <li key={s}>
+                <button
+                  type="button"
+                  onClick={() => pick(s)}
+                  className="w-full rounded px-2 py-1.5 text-left text-sm text-[var(--text)] transition-colors hover:bg-[var(--surface-2)]"
+                >
+                  {s}
+                </button>
+              </li>
+            ))}
+            {canCreate && (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => pick(q)}
+                  className="w-full rounded px-2 py-1.5 text-left text-sm font-medium text-[var(--cta)] transition-colors hover:bg-[var(--surface-2)]"
+                >
+                  + Añadir “{q.trim()}”
+                </button>
+              </li>
+            )}
+            {filtered.length === 0 && !canCreate && (
+              <li className="px-2 py-1.5 text-xs text-[var(--soft)]">
+                {nq ? 'Sin coincidencias' : 'Todos añadidos'}
+              </li>
+            )}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
