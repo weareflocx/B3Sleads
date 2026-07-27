@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { displayName, companyLabel, STAGES } from '@/lib/types';
 import type { BriefingLead, LeadStage } from '@/lib/types';
+import { Select } from '../select';
 import type { Temperature } from '@/lib/scoring';
 import { ScoreRing } from '../score-ring';
 import { Heat } from '../heat';
@@ -120,18 +121,13 @@ export function FounderRow({
     </button>
   );
   const stageSelect = (
-    <select
+    <Select
       value={stage}
+      onChange={(v) => changeStage(v as LeadStage)}
+      options={STAGES.map((s) => ({ value: s.key, label: s.label }))}
+      ariaLabel="Etapa del lead"
       disabled={savingStage}
-      onChange={(e) => changeStage(e.target.value as LeadStage)}
-      className="rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-xs text-[var(--text)] outline-none transition-colors focus:border-[var(--cta)] disabled:opacity-50"
-    >
-      {STAGES.map((s) => (
-        <option key={s.key} value={s.key}>
-          {s.label}
-        </option>
-      ))}
-    </select>
+    />
   );
 
   // Vista Lista: una fila apretada. Identidad + métricas + acciones en línea.
@@ -366,21 +362,10 @@ export function FounderRow({
               ? 'Copiar y abrir LinkedIn'
               : 'Abrir LinkedIn'}
         </button>
-        <label className="ml-auto flex items-center gap-1.5 text-xs text-[var(--muted)]">
+        <span className="ml-auto flex items-center gap-1.5 text-xs text-[var(--muted)]">
           Etapa
-          <select
-            value={stage}
-            disabled={savingStage}
-            onChange={(e) => changeStage(e.target.value as LeadStage)}
-            className="rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5 text-sm text-[var(--text)] outline-none transition-colors focus:border-[var(--cta)] disabled:opacity-50"
-          >
-            {STAGES.map((s) => (
-              <option key={s.key} value={s.key}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-        </label>
+          {stageSelect}
+        </span>
       </div>
     </div>
   );

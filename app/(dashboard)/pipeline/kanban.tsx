@@ -12,6 +12,7 @@ const COLUMNS: { key: LeadStage; label: string; includes: LeadStage[] }[] = [
   { key: 'conversation', label: 'Conversación', includes: ['conversation'] },
   { key: 'call', label: 'Call', includes: ['call'] },
   { key: 'proposal', label: 'Propuesta', includes: ['proposal'] },
+  { key: 'paused', label: 'En pausa', includes: ['paused'] },
   { key: 'won', label: 'Cerrado', includes: ['won', 'lost'] },
   { key: 'discarded', label: 'Descartado', includes: ['discarded'] },
 ];

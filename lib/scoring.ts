@@ -39,6 +39,9 @@ export function leadTemperature(bl: BriefingLead): Temperature {
   if (stage === 'won') return { level: 5, score: 100, trend: 'flat', note: 'Cerrado' };
   if (stage === 'lost') return { level: 0, score: 0, trend: 'flat', note: 'Perdido' };
   if (stage === 'discarded') return { level: 0, score: 0, trend: 'flat', note: 'Descartado' };
+  // Aparcado a propósito: no es el momento. Baja prioridad para que no estorbe
+  // arriba, pero vivo para recordatorios y seguimiento (no es un descarte).
+  if (stage === 'paused') return { level: 1, score: 12, trend: 'flat', note: 'En pausa' };
 
   let score = 0;
   const reasons: string[] = [];

@@ -20,6 +20,7 @@ export type LeadStage =
   | 'conversation'
   | 'call'
   | 'proposal'
+  | 'paused'
   | 'won'
   | 'lost'
   | 'discarded';
@@ -186,6 +187,7 @@ export const STAGES: { key: LeadStage; label: string }[] = [
   { key: 'conversation', label: 'Conversación' },
   { key: 'call', label: 'Call' },
   { key: 'proposal', label: 'Propuesta' },
+  { key: 'paused', label: 'En pausa' },
   { key: 'won', label: 'Cerrado' },
   { key: 'discarded', label: 'Descartado' },
 ];

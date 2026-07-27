@@ -7,6 +7,19 @@
   --font-mono: var(--font-jetbrains), ui-monospace, "JetBrains Mono", monospace;
 }
 
+/* Apertura de menús propios (Select): entra desde arriba, sutil, ease-out
+   fuerte. Nada de scale(0): parte de 0.97 para no aparecer de la nada. */
+@keyframes b3s-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* B3S Leads — hereda el sistema de diseño de Brand3 Scanner (web/static/main.css):
    desk operativo, monoespaciado, claro por defecto con modo oscuro, acento rojo,
    bordes rectos y textura de líneas sutil. Así B3S y Brand3 se ven de la misma familia. */
