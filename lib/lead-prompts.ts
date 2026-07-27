@@ -60,6 +60,7 @@ export function buildLeadContext(bl: BriefingLead): string {
     lines.push('');
     lines.push('## B3S Scanner');
     lines.push(`Score: ${Number(bl.scan.score)}/100`);
+    if (bl.scan.ui_url) lines.push(`Informe completo: ${bl.scan.ui_url}`);
     if (report) lines.push(reportDigest(report));
   }
 
@@ -103,11 +104,17 @@ function offerContext(): string {
 export function buildCallBriefPrompt(bl: BriefingLead): string {
   const founder = displayName(bl.contact?.full_name) || 'el founder';
   const url = bl.company ? `https://${bl.company.domain}` : null;
+  // Los dos links que B3S ya guarda y que enriquecen el brief: el LinkedIn del
+  // founder (la persona) y el informe completo del Scanner (la marca).
+  const li = bl.contact?.linkedin_url ?? null;
+  const reportUrl = bl.scan?.ui_url ?? null;
 
   const instructions = `Eres el estratega de ventas de Sergio (FLOC*, estudio de diseño estratégico de marca para founders de startups). A partir del dossier de abajo, redacta un BRIEF DE LLAMADA para preparar una conversación con ${founder}. Documento interno, confidencial, founder-to-founder. No es un guion de venta agresiva.
 
 Antes de escribir, VERIFICA. No te fíes del Scanner a ciegas.
 ${url ? `- Abre la web real del lead (${url}) y, si hay, la ficha de app o capturas. Compara lo que dice el Scanner con lo que hay vivo hoy.` : '- Este lead aún no tiene web en el dossier: trabaja solo con lo que hay y márcalo.'}
+${li ? `- Abre el LinkedIn del founder (${li}) y léelo de verdad: su trayectoria (dónde ha estado, a qué se ha expuesto), cómo se define, de qué escribe y con quién, qué defiende y qué critica. Ahí está el ángulo humano de la llamada.` : '- No hay LinkedIn del founder en el dossier: trata su perfil como hipótesis.'}
+${reportUrl ? `- Abre el informe completo de B3S (${reportUrl}) para el detalle por componente, no te quedes solo con el resumen del dossier.` : ''}
 - Si el Scanner y la web se contradicen (p.ej. el scan dice "sin valores" y la web sí los tiene, o leyó otra versión o idioma), dilo explícito y no uses el score como diagnóstico. El fallo del scan suele ser en sí un hallazgo: señal de incoherencia entre superficies.
 - Si no puedes navegar desde aquí, dilo en una línea al principio y trata TODO lo no confirmado como hipótesis. No lo disimules.
 - Marca como HIPÓTESIS todo lo que no puedas confirmar. No inventes datos.
@@ -120,19 +127,20 @@ Devuelve Markdown con estas secciones:
 
 1. **Lo esencial en diez líneas** — el brief entero comprimido, por si solo se lee esto antes de descolgar.
 2. **La idea que sostiene la llamada** — una sola frase que capture la grieta estratégica.
-3. **Inteligencia del lead** — quién es, tracción real, estado, el pivote o tensión que casi nadie ha visto, qué revelan la web y la app (con detalles concretos), cómo es como operador, señal de compra si la hay en la bitácora.
-4. **Síntesis del Scanner** — qué aguanta contra la realidad y qué no; el matiz a tener claro (si el scan leyó una superficie desactualizada o en otro idioma); y por qué el score no entra en la sala.
-5. **El gancho** — una sola idea con la que entrar, por la distancia entre lo construido y lo que se ve.
-6. **Dolor profundo (5 porqués)** — dolor declarado (o hipótesis), motivación ulterior en una frase, escenario pesadilla realista, su propio idioma literal (reflejarlo, no traducirlo a "branding").
-7. **GUION DE LLAMADA** — la sección clave. Debe ser seguible en vivo:
+3. **Inteligencia del lead** — quién es la empresa, tracción real, estado, el pivote o tensión que casi nadie ha visto, qué revelan la web y la app (con detalles concretos), señal de compra si la hay en la bitácora.
+4. **El founder, de cerca** — a partir de su LinkedIn${li ? ` (${li})` : ''}: de dónde viene (empresas, roles, a qué ha estado expuesto), cómo se presenta al mundo, de qué habla y qué le importa, su forma de pensar y su postura (qué defiende, qué critica). Cierra con el terreno común y el ángulo founder-to-founder para conectar de verdad, y una señal de por dónde NO entrar con él. Si no puedes abrir el perfil, dilo y trátalo como hipótesis; no lo inventes.
+5. **Síntesis del Scanner** — qué aguanta contra la realidad y qué no; el matiz a tener claro (si el scan leyó una superficie desactualizada o en otro idioma); y por qué el score no entra en la sala.
+6. **El gancho** — una sola idea con la que entrar, por la distancia entre lo construido y lo que se ve.
+7. **Dolor profundo (5 porqués)** — dolor declarado (o hipótesis), motivación ulterior en una frase, escenario pesadilla realista, su propio idioma literal (reflejarlo, no traducirlo a "branding").
+8. **GUION DE LLAMADA** — la sección clave. Debe ser seguible en vivo:
    - Apertura: las palabras exactas para abrir, desarmar y ganar el derecho a diagnosticar.
    - Bloques de descubrimiento en orden (situación, grieta marca-empresa, autonomía/dependencia, visión y voz, decisión y timing), cada uno con las PREGUNTAS LITERALES numeradas que debe hacer Sergio, una por beat, con una nota breve de "qué escuchar". Que las verbalice ${founder}, no Sergio.
    - El puente: la frase de transición que refleja sus palabras, nombra la grieta y pide un sí.
    - Nota de cómo usar los 5 porqués como brújula durante la llamada, no como preguntas nuevas.
-8. **Cierre** — qué programa de FLOC* encaja y por qué AHORA, con las palabras exactas del cierre, fricción cero, sin pitch de metodología ni cifras en frío. Justifica la elección de programa por el estado real del lead. Objetivo: segunda conversación con fecha.
-9. **Manejo de objeciones** — 3 o 4 objeciones probables y cómo reconducir desde la posición de par, sin defender metodología ni soltar precio.
-10. **Notas de riesgo** — dónde se rompe la llamada sola.
-11. **Chuleta** — solo las preguntas del guion en orden, para mirar de reojo durante la llamada.`;
+9. **Cierre** — qué programa de FLOC* encaja y por qué AHORA, con las palabras exactas del cierre, fricción cero, sin pitch de metodología ni cifras en frío. Justifica la elección de programa por el estado real del lead. Objetivo: segunda conversación con fecha.
+10. **Manejo de objeciones** — 3 o 4 objeciones probables y cómo reconducir desde la posición de par, sin defender metodología ni soltar precio.
+11. **Notas de riesgo** — dónde se rompe la llamada sola.
+12. **Chuleta** — solo las preguntas del guion en orden, para mirar de reojo durante la llamada.`;
 
   return `${instructions}\n\n---\n\n${buildLeadContext(bl)}\n\n---\n\n${offerContext()}`;
 }
