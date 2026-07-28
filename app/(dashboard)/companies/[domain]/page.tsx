@@ -128,11 +128,6 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
   const callBriefPrompt = buildCallBriefPrompt(bl, consolidado.dimensions);
   const leadContext = buildLeadContext(bl, consolidado.dimensions);
 
-  // Rúbrica del último run, para etiquetar el score automático.
-  const autoRubric =
-    ((scan?.result_raw as { metadata?: { rubric_version?: string } } | null)?.metadata
-      ?.rubric_version as string | undefined) ?? null;
-
   // Los huecos se calculan sobre la UNIÓN de escaneos, no sobre el último.
   // Si una pasada anterior sí detectó la misión, ese hueco es falso: decírselo
   // a un founder es el error más caro del sistema, porque lo desmonta la única
@@ -340,9 +335,31 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                           </span>
                         </div>
                         {tldr && (
-                          <p className="mt-3 border-l-2 border-[var(--border)] pl-3 text-sm leading-relaxed text-[var(--muted)]">
-                            {tldr}
-                          </p>
+                          <div className="mt-3 border-l-2 border-[var(--border)] pl-3">
+                            {/* La lectura en prosa es de UN run concreto y no se
+                                reescribe: se atribuye. Si la curación ya corrigió
+                                una dimensión, este párrafo puede contradecirla y
+                                hay que ver de cuándo es y con qué score se dijo. */}
+                            {autoScore != null && (
+                              <p className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">
+                                automático ·{' '}
+                                <span className="text-xs text-[var(--muted)]">{autoScore}</span>/100 ·
+                                último scan{' '}
+                                {new Date(scan!.created_at).toLocaleDateString('es-ES', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: '2-digit',
+                                })}
+                              </p>
+                            )}
+                            <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">{tldr}</p>
+                            {consolidado.manualCount > 0 && (
+                              <p className="mt-1.5 font-mono text-[10px] text-[var(--soft)]">
+                                Texto de ese escaneo. Donde contradiga a un componente curado, manda
+                                la curación.
+                              </p>
+                            )}
+                          </div>
                         )}
                         {gaps.length > 0 && (
                           <ul className="mt-3 space-y-1 text-sm">
@@ -391,19 +408,6 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
           {(report || pitch.lectura.length > 0 || pitch.programa) && (
             <Section title="Brand3 Scanner">
               <AnalysisTabs
-                aside={
-                  autoScore != null ? (
-                    <p className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">
-                      automático · <span className="text-sm normal-case text-[var(--text)]">{autoScore}</span>
-                      /100 · último scan{' '}
-                      {new Date(scan!.created_at).toLocaleDateString('es-ES', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: '2-digit',
-                      })}
-                    </p>
-                  ) : undefined
-                }
                 tabs={[
                   {
                     key: 'scanner',
