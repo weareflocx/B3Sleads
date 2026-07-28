@@ -1,54 +1,93 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { apiAgent, unauthorized } from '@/lib/api-auth';
-import { loadLeads } from '@/lib/api-v1';
+import { NextRequest } from 'next/server';
 import { POST as foundersPost } from '@/app/api/founders/route';
+import {
+  parseCompatibleLeadListQuery,
+  parseLeadCreate,
+  optionalIdempotencyKey,
+  readJson,
+} from '@/lib/agent-api/contracts';
+import { handleCompatibleAgentRequest } from '@/lib/agent-api/handler';
+import { AgentApiError } from '@/lib/agent-api/errors';
+import { recordAgentAction } from '@/lib/agent-api/audit';
+import { runIdempotentAgentOperation } from '@/lib/agent-api/idempotency';
+import { loadLeads } from '@/lib/api-v1';
 
-// GET /api/v1/leads — la cola completa con su radar y su evidencia.
-export async function GET(req: NextRequest) {
-  if (!apiAgent(req)) return unauthorized();
-  try {
-    const url = new URL(req.url);
-    const state = url.searchParams.get('state');
-    const stage = url.searchParams.get('stage');
-    const limit = Math.min(Number(url.searchParams.get('limit')) || 200, 500);
-
+// Mantiene la forma `{ count, leads }` consumida por Hermes y añade
+// paginación sin romper clientes existentes.
+export async function GET(request: Request) {
+  return handleCompatibleAgentRequest(request, ['leads:read'], async () => {
+    const query = parseCompatibleLeadListQuery(request);
     let leads = await loadLeads();
-    if (state) leads = leads.filter((l) => l.radar.state === state);
-    if (stage) leads = leads.filter((l) => l.stage === stage);
-    // Activos primero por radar; el resto por actividad reciente.
+    if (query.state) leads = leads.filter((lead) => lead.radar.state === query.state);
+    if (query.stage) leads = leads.filter((lead) => lead.stage === query.stage);
     leads.sort(
-      (a, b) => (b.radar.score ?? -1) - (a.radar.score ?? -1) || b.updated_at.localeCompare(a.updated_at),
+      (left, right) =>
+        (right.radar.score ?? -1) - (left.radar.score ?? -1) ||
+        right.updated_at.localeCompare(left.updated_at),
     );
-    return NextResponse.json({ count: Math.min(leads.length, limit), leads: leads.slice(0, limit) });
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
-  }
+
+    const total = leads.length;
+    const page = leads.slice(query.offset, query.offset + query.limit);
+    return {
+      body: {
+        count: page.length,
+        leads: page,
+        pagination: {
+          total,
+          limit: query.limit,
+          offset: query.offset,
+          has_more: query.offset + page.length < total,
+        },
+      },
+    };
+  });
 }
 
-// POST /api/v1/leads — alta de un lead. Reutiliza el mismo camino que el alta
-// del dashboard (dedupe, autocompletado del nombre, búsqueda de scan por
-// dominio), para que un lead entre igual venga de donde venga.
-export async function POST(req: NextRequest) {
-  const agent = apiAgent(req);
-  if (!agent) return unauthorized();
-  try {
-    const { linkedin, name, domain, note } = await req.json();
-    if (!linkedin?.trim() && !domain?.trim()) {
-      return NextResponse.json({ error: 'linkedin o domain requeridos' }, { status: 400 });
-    }
+// Conserva el mismo flujo de alta del dashboard: dedupe, enriquecimiento e
+// importación del último scan. La identidad del agente queda en la nota.
+export async function POST(request: Request) {
+  return handleCompatibleAgentRequest(request, ['leads:write'], async (context) => {
+    const { principal } = context;
+    const input = parseLeadCreate(await readJson(request));
+    const { linkedin, name, domain, note } = input;
     const entry = {
-      linkedin: linkedin?.trim() || undefined,
-      name: name?.trim() || undefined,
-      domain: domain?.trim() || undefined,
-      note: [note?.trim(), `alta vía API (${agent.name})`].filter(Boolean).join(' · '),
+      linkedin,
+      name,
+      domain,
+      note: [note, `alta vía API (${principal.name})`].filter(Boolean).join(' · '),
     };
-    const inner = new NextRequest('http://internal/api/founders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ entries: [entry] }),
+    return runIdempotentAgentOperation({
+      principal,
+      operation: 'create_lead',
+      idempotencyKey: optionalIdempotencyKey(request),
+      payload: input,
+      execute: async () => {
+        const inner = new NextRequest('http://internal/api/founders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entries: [entry] }),
+        });
+        const response = await foundersPost(inner);
+        const body = await response.json().catch(() => null);
+        if (!response.ok) {
+          const message =
+            body && typeof body === 'object' && typeof body.error === 'string'
+              ? body.error
+              : 'No se pudo crear el lead.';
+          throw new AgentApiError(response.status, 'lead_create_failed', message);
+        }
+        const first =
+          body && typeof body === 'object' && Array.isArray(body.results) ? body.results[0] : null;
+        await recordAgentAction(context, {
+          action: 'create_lead',
+          resourceType: 'lead',
+          resourceId:
+            first && typeof first === 'object' && typeof first.domain === 'string'
+              ? first.domain
+              : domain ?? linkedin ?? null,
+        });
+        return { body, status: response.status };
+      },
     });
-    return await foundersPost(inner);
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
-  }
+  });
 }

@@ -150,7 +150,6 @@ export async function serializeFiche(bundle: FicheBundle) {
           role: bl.contact.role,
           linkedin_url: bl.contact.linkedin_url,
           headline: bl.contact.headline,
-          email: bl.contact.email,
         }
       : null,
     radar: {
@@ -197,8 +196,14 @@ export async function serializeFiche(bundle: FicheBundle) {
       type: s.type,
       detected_at: s.detected_at,
       detail: s.detail,
+      author: (s as Signal & { agent_name?: string | null }).agent_name ?? null,
     })),
-    notes: notes.map((n) => ({ at: n.created_at, kind: n.kind, body: n.body })),
+    notes: notes.map((n) => ({
+      at: n.created_at,
+      kind: n.kind,
+      body: n.body,
+      author: (n as typeof n & { agent_name?: string | null }).agent_name ?? null,
+    })),
   };
 }
 

@@ -12,15 +12,14 @@ Base: `https://b3slead.netlify.app/api/v1` (o `http://localhost:3000/api/v1`).
 
 ## Autenticación
 
-Una clave **por agente**, en la variable `B3SLEADS_API_KEYS` del servidor:
+Una clave **por agente**. Las claves nuevas se guardan como hash SHA-256 en
+`agent_api_keys`, con scopes, caducidad, revocación y `last_used_at`. La clave
+en claro se entrega una sola vez y no se registra.
 
-```
-B3SLEADS_API_KEYS=hermes:sk_xxxxxxxxxxxxxxxx,openclaw:sk_yyyyyyyyyyyyyyyy
-```
-
-El nombre firma lo que el agente escribe (las notas salen como `[hermes] …` en
-la bitácora; las señales llevan `source: api:hermes`). Para revocar a un
-agente, se quita su entrada y el resto sigue funcionando.
+El nombre firma lo que el agente escribe. Las mutaciones también dejan una
+acción de auditoría asociada a la huella de la clave y al `request_id`.
+`B3SLEADS_API_KEYS=nombre:clave,...` y `x-api-key` se mantienen como
+compatibilidad temporal para los clientes existentes.
 
 Cada petición lleva la clave en la cabecera estándar:
 
@@ -28,9 +27,19 @@ Cada petición lleva la clave en la cabecera estándar:
 Authorization: Bearer sk_xxxxxxxxxxxxxxxx
 ```
 
-(También se acepta `x-api-key: <key>`.) Sin clave → `401`. `GET /api/v1` es el
-único endpoint sin auth: devuelve este índice en JSON para que un agente se
-autodescubra.
+Sin clave → `401`; sin scope → `403`; exceso de cuota → `429` con
+`Retry-After`. `GET /api/v1`, `/health` y `/openapi.json` no exigen auth.
+
+Scopes: `leads:read`, `leads:write`, `notes:write`, `signals:write` y
+`scans:write`.
+
+## Reintentos e idempotencia
+
+Incluye `Idempotency-Key` (8–200 caracteres seguros) en las escrituras. Es
+obligatoria en `POST /leads/{leadId}/notes` y
+`POST /companies/{domain}/scans`, y recomendable en las rutas compatibles
+`POST /leads`, `/notes` y `/signals`. La misma clave con el mismo body devuelve
+el resultado anterior; reutilizarla con otro body devuelve `409`.
 
 ## Los dos scores
 
@@ -49,7 +58,8 @@ La cola completa con el radar (`fit × timing`) y la señal que sostiene cada
 número. Ordenada: activos por radar descendente, el resto por actividad.
 
 Filtros: `?state=activo|reserva|no_escaneable` · `?stage=detected|contacted|…`
-· `?limit=50`
+· `?limit=50&offset=0`. La respuesta conserva `{count, leads}` y añade
+`pagination`.
 
 ```bash
 curl -s https://b3slead.netlify.app/api/v1/leads?state=activo \
@@ -72,6 +82,9 @@ componentes del Brand Seed **consolidado** (lectura estratégica, análisis, cit
 con fuente, términos, si está curado y su frecuencia de detección), señales y
 bitácora.
 
+La vista para agentes minimiza PII: no devuelve email, teléfono ni secretos.
+Notas y señales creadas por agentes incluyen `author`.
+
 ### `GET /api/v1/companies/{domain}/dossier`
 
 El dossier del lead en texto plano — lo mismo que copia el botón "Pregunta al
@@ -92,6 +105,7 @@ del nombre desde la URL, búsqueda de scan por dominio.
 ```bash
 curl -s -X POST https://b3slead.netlify.app/api/v1/leads \
   -H "Authorization: Bearer $B3S_KEY" -H "Content-Type: application/json" \
+  -H "Idempotency-Key: lead-acmelabs-jane-001" \
   -d '{"linkedin":"linkedin.com/in/janedoe","domain":"acmelabs.io","note":"CTO pidiendo agencia en un post"}'
 ```
 
@@ -107,17 +121,19 @@ Anotar en la bitácora. La nota queda firmada por el agente en el cuerpo.
 ```bash
 curl -s -X POST https://b3slead.netlify.app/api/v1/notes \
   -H "Authorization: Bearer $B3S_KEY" -H "Content-Type: application/json" \
+  -H "Idempotency-Key: note-acmelabs-rebrand-001" \
   -d '{"domain":"acmelabs.io","body":"El founder publicó que buscan rebranding","kind":"insight"}'
 ```
 
 ### `POST /api/v1/signals`
 
 Registrar una señal del radar. **Sin evidencia o sin fecha en que ocurrió, la
-API devuelve 400**: una señal sin evidencia no sostiene un número.
+API devuelve `422`**: una señal sin evidencia no sostiene un número.
 
 ```bash
 curl -s -X POST https://b3slead.netlify.app/api/v1/signals \
   -H "Authorization: Bearer $B3S_KEY" -H "Content-Type: application/json" \
+  -H "Idempotency-Key: signal-acmelabs-brandjob-001" \
   -d '{"domain":"acmelabs.io","type":"oferta_empleo_marca","occurredAt":"2026-07-25","evidence":"Vacante de Head of Brand publicada en su LinkedIn","sourceUrl":"https://…"}'
 ```
 
@@ -125,7 +141,27 @@ Tipos y pesos: nivel A (10) `rebranding_declarado`, `oferta_empleo_marca`,
 `busqueda_agencia` · nivel B (6) `web_nueva`, `cambio_nombre`,
 `pivot_lanzamiento`, `cambio_ceo_cmo`, `expansion_mercado`, `levantando_ronda`
 · nivel C (3) `ronda`, `crecimiento_plantilla`. Mandar un `type` desconocido
-devuelve 400 con la lista.
+devuelve `422`.
+
+### `POST /api/v1/leads/{leadId}/notes`
+
+Variante nueva de notas, orientada a herramientas tipadas. Exige
+`Idempotency-Key` y devuelve un envelope `{data:{note,deduped}}`.
+
+### `POST /api/v1/companies/{domain}/scans`
+
+Lanza un scan B3S idempotente. Exige `Idempotency-Key` y el scope
+`scans:write`; devuelve `202` al crear el trabajo o `200` al reutilizar uno.
+
+## Respuestas y trazabilidad
+
+Todas las respuestas llevan `x-request-id` y `x-b3s-api-version: v1`. Las
+rutas compatibles conservan sus cuerpos históricos; sus errores tienen
+`{error, code, request_id}`. Los endpoints nuevos usan
+`{data}` y errores `{error:{code,message,request_id}}`.
+
+La especificación completa y autoritativa se sirve en
+`GET /api/v1/openapi.json`.
 
 ## Flujo típico de un agente
 

@@ -6,12 +6,15 @@ import { NextResponse, type NextRequest } from 'next/server';
 // no hay auth que aplicar y se deja pasar todo.
 const PUBLIC_PATHS = ['/', '/login', '/api/health'];
 
-// La API pública (/api/v1) no usa la sesión del navegador: cada ruta valida
-// su propia clave Bearer (lib/api-auth). El middleware solo la deja pasar.
+// La Agent API (/api/v1) no usa la sesión del navegador: cada ruta valida su
+// propia clave Bearer con scopes (lib/agent-api/auth).
 const API_V1_PREFIX = '/api/v1';
 
 export async function middleware(request: NextRequest) {
-  if (request.nextUrl.pathname.startsWith(API_V1_PREFIX)) return NextResponse.next();
+  // Evita convertir un error de autenticación de la API en un redirect HTML.
+  if (request.nextUrl.pathname.startsWith(API_V1_PREFIX)) {
+    return NextResponse.next();
+  }
 
   // Acceso directo para desarrollo local. NODE_ENV impide que una variable
   // olvidada pueda desactivar la autenticación en un build de producción.

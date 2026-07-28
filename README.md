@@ -16,6 +16,61 @@ npm run dev                  # http://localhost:3000
 Sin credenciales de Supabase la app arranca en **modo demo** con datos de
 ejemplo, útil para revisar la UI.
 
+## Agent API v1
+
+La API server-to-server vive bajo `/api/v1` y está pensada para agentes LLM.
+No reutiliza la cookie del dashboard: exige una clave Bearer con scopes. El
+contrato machine-readable está en `GET /api/v1/openapi.json` y el documento de
+descubrimiento en `GET /api/v1`.
+
+Primero aplica todas las migraciones de `supabase/migrations/`. Para crear una
+clave persistida (el valor solo se muestra una vez):
+
+```bash
+npm run agent:key:create -- \
+  --name "agente-comercial" \
+  --scopes leads:read,leads:write,notes:write,signals:write,scans:write \
+  --expires-days 90
+```
+
+Si se filtra o deja de usarse, revócala por el ID que devuelve el comando:
+
+```bash
+npm run agent:key:revoke -- --id <key-uuid>
+```
+
+Para desarrollo también se puede definir una única `B3S_AGENT_API_KEY` de al
+menos 24 caracteres en `.env.local`. Las claves son secretos server-only:
+nunca deben llevar el prefijo `NEXT_PUBLIC_` ni enviarse al navegador.
+
+Ejemplos:
+
+```bash
+# Consultar leads
+curl -sS \
+  -H "Authorization: Bearer $B3S_AGENT_API_KEY" \
+  "http://localhost:3000/api/v1/leads?state=activo&stage=detected&limit=10"
+
+# Añadir una nota idempotente
+curl -sS -X POST \
+  -H "Authorization: Bearer $B3S_AGENT_API_KEY" \
+  -H "Idempotency-Key: note-lead-123-20260728" \
+  -H "Content-Type: application/json" \
+  -d '{"body":"Revisar el ángulo de expansión internacional","kind":"insight"}' \
+  "http://localhost:3000/api/v1/leads/<lead-id>/notes"
+```
+
+Scopes disponibles: `leads:read`, `leads:write`, `notes:write`,
+`signals:write` y `scans:write`. Las mutaciones idempotentes rechazan con `409` la reutilización
+de una clave con parámetros distintos. Los límites por credencial son 120
+lecturas/min, 30 cambios de lead/min, 60 notas/min, 30 señales/min y 10 scans/hora; un exceso
+devuelve `429` con `Retry-After`. En modo demo hay lectura, pero todas las
+mutaciones devuelven `demo_mode_read_only`.
+
+La API no ofrece envío automático: cualquier mensaje saliente requiere
+revisión humana. También prohíbe scraping o automatización del navegador
+contra LinkedIn.
+
 ### Supabase local
 
 La primera instalación en macOS usa Colima como runtime Docker. Con Docker
@@ -53,9 +108,9 @@ Supabase Studio queda en `http://localhost:54323` y Mailpit en
 
 ## Setup de producción
 
-1. **Supabase**: crear proyecto, ejecutar en orden
-   `supabase/migrations/001_init.sql` a `005_b3s_scanner_api_v1.sql`,
-   copiar URL + anon key + service role key a `.env.local`.
+1. **Supabase**: crear proyecto, aplicar en orden todas las migraciones de
+   `supabase/migrations/`, copiar URL + anon key + service role key a
+   `.env.local`.
 2. **B3S Scanner API**: configurar `B3S_SCANNER_API_URL` y el Bearer
    server-only `B3S_SCANNER_API_TOKEN`. Nunca usar un prefijo `NEXT_PUBLIC_`.
 3. **Claude API**: key de console.anthropic.com → `ANTHROPIC_API_KEY`.

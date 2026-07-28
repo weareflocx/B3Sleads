@@ -1,29 +1,74 @@
-import { NextResponse } from 'next/server';
-import { apiConfigured } from '@/lib/api-auth';
+import { agentApiConfigured, AGENT_SCOPES } from '@/lib/agent-api/auth';
+import { publicAgentDocument } from '@/lib/agent-api/handler';
+import { AGENT_RATE_LIMITS } from '@/lib/agent-api/rate-limit';
 
-// Índice autodescriptivo de la API. Es lo primero que un agente debe leer:
-// qué hay, cómo autenticarse y qué reglas aplican. Sin auth: descubrir la
-// puerta no es abrirla.
-export async function GET() {
-  return NextResponse.json({
+// Contrato de descubrimiento compatible con la API ya entregada a Hermes.
+// Se amplía con scopes, cuotas, health y OpenAPI sin envolver la respuesta.
+export async function GET(request: Request) {
+  return publicAgentDocument(request, {
     service: 'B3S Leads API',
     version: 'v1',
-    configured: apiConfigured(),
-    auth: 'Authorization: Bearer <key> (o x-api-key). Claves por agente en B3SLEADS_API_KEYS.',
+    configured: agentApiConfigured(),
+    documentation: '/api/v1/openapi.json',
+    health: '/api/v1/health',
+    auth: 'Authorization: Bearer <key>. x-api-key se mantiene solo por compatibilidad.',
+    scopes: AGENT_SCOPES,
+    rate_limits: Object.fromEntries(
+      Object.entries(AGENT_RATE_LIMITS).map(([scope, rule]) => [
+        scope,
+        { limit: rule.limit, window_seconds: rule.windowSeconds },
+      ]),
+    ),
     rules: [
       'El envío a founders es SIEMPRE humano y por LinkedIn: no hay endpoints de mensajería.',
-      'Toda señal exige evidencia y fecha en que ocurrió (occurred_at); sin eso, 400.',
+      'Toda señal exige evidencia y fecha en que ocurrió; sin eso, se rechaza.',
       'score_automatico ordena; score_consolidado lleva curación humana y no ordena nada.',
     ],
     endpoints: [
-      { method: 'GET', path: '/api/v1/leads', desc: 'La cola con radar (fit × timing) y la señal que sostiene cada número. Filtros: ?state=activo|reserva|no_escaneable&stage=&limit=' },
-      { method: 'POST', path: '/api/v1/leads', desc: 'Añadir un lead: { linkedin?, name?, domain?, note? } (al menos linkedin o domain)' },
-      { method: 'PATCH', path: '/api/v1/leads/{leadId}', desc: 'Cambiar etapa: { stage, discardReason? }' },
-      { method: 'GET', path: '/api/v1/companies/{domain}', desc: 'Ficha completa: empresa, founder, radar, scan (automático + consolidado, componentes con lectura/cita), señales y bitácora' },
-      { method: 'GET', path: '/api/v1/companies/{domain}/dossier', desc: 'El dossier del lead en texto plano, listo para dárselo a un LLM' },
-      { method: 'GET', path: '/api/v1/companies/{domain}/brief', desc: 'El prompt completo del brief de llamada (instrucciones + dossier)' },
-      { method: 'POST', path: '/api/v1/notes', desc: 'Anotar en la bitácora: { domain | leadId, body, kind? }' },
-      { method: 'POST', path: '/api/v1/signals', desc: 'Registrar una señal del radar: { domain, type, occurredAt, evidence, sourceUrl? }' },
+      { method: 'GET', path: '/api/v1/leads', desc: 'Cola con radar y evidencia.' },
+      { method: 'POST', path: '/api/v1/leads', desc: 'Añadir un lead.' },
+      { method: 'GET', path: '/api/v1/leads/{leadId}', desc: 'Detalle por ID.' },
+      {
+        method: 'PATCH',
+        path: '/api/v1/leads/{leadId}',
+        desc: 'Cambiar etapa o responsable.',
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/leads/{leadId}/notes',
+        desc: 'Añadir nota idempotente.',
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/companies/{domain}',
+        desc: 'Ficha completa de marca.',
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/companies/{domain}/dossier',
+        desc: 'Dossier para LLM.',
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/companies/{domain}/brief',
+        desc: 'Prompt del brief.',
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/companies/{domain}/scans',
+        desc: 'Lanzar scan idempotente.',
+      },
+      { method: 'POST', path: '/api/v1/notes', desc: 'Ruta compatible para notas.' },
+      {
+        method: 'POST',
+        path: '/api/v1/signals',
+        desc: 'Registrar señal con evidencia.',
+      },
     ],
+    safety: {
+      outbound_messages_require_human: true,
+      linkedin_browser_automation_allowed: false,
+      linkedin_scraping_allowed: false,
+    },
   });
 }
