@@ -175,7 +175,53 @@ function shortTerms(component: Record<string, unknown>): string[] | null {
     const parts = clean(dc.split(/\s*·\s*|\s*,\s*/));
     if (parts.length >= 2) return parts.slice(0, 6);
   }
+
+  // Y el caso real: el Scanner los enumera dentro de una frase, no como lista.
+  //   "Boxten destaca atributos clave como VELOCIDAD, MEMORÍA y EQUILIBRIO."
+  // Se extraen solo si la enumeración CIERRA la frase, para no quedarse con un
+  // trozo suelto de una explicación más larga.
+  for (const source of [dc, typeof component.summary === 'string' ? component.summary : '']) {
+    const terms = enumeratedTerms(source);
+    if (terms) return terms;
+  }
   return null;
+}
+
+// Términos enumerados al final de la primera frase: "… como A, B, C y D."
+// Devuelve null salvo que haya 3 o más, todos cortos: con menos, o con items
+// largos, casi siempre es prosa y no una lista de atributos.
+export function enumeratedTerms(text: string | null | undefined): string[] | null {
+  if (!text) return null;
+  const first = text.trim().split(/(?<=[.!?])\s+/)[0] ?? '';
+  if (!first || first.length > 220) return null;
+
+  // El arranque de la lista: tras "como", "son", ":" o el inicio de la frase.
+  const afterMarker = first.split(/\b(?:como|son|incluyen|se define por)\b|:/i).pop() ?? first;
+  const tail = afterMarker.replace(/[.!?]+\s*$/, '').trim();
+  if (!/\s(?:y|e)\s/i.test(tail) || !tail.includes(',')) return null;
+
+  const parts = tail
+    .split(/\s*,\s*|\s+(?:y|e)\s+/i)
+    .map((p) => p.trim().replace(/^["'«»]+|["'«»]+$/g, ''))
+    .filter(Boolean);
+  if (parts.length < 3) return null;
+  // Todos los items tienen que ser cortos: si uno se va, era prosa.
+  if (!parts.every((p) => p.length <= 28 && p.split(/\s+/).length <= 3)) return null;
+  // Nada de verbos o conectores sueltos colándose como "atributo".
+  if (parts.some((p) => /^(el|la|los|las|un|una|de|del|que|con|para|en)$/i.test(p))) return null;
+
+  return parts.slice(0, 6).map(titleCase);
+}
+
+// VELOCIDAD → Velocidad, pero se respetan las siglas (ITDR, SaaS B2B).
+function titleCase(s: string): string {
+  return s
+    .split(/\s+/)
+    .map((w) => {
+      if (w.length <= 4 && w === w.toUpperCase() && /[A-ZÁÉÍÓÚÑ]/.test(w)) return w;
+      return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+    })
+    .join(' ');
 }
 
 function tileText(tile: Record<string, unknown>, keys: string[]): string | null {
