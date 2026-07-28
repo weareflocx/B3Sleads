@@ -10,6 +10,7 @@ import {
   getComponentSelections,
 } from '@/lib/data';
 import { consolidateReport, consolidatedScore } from '@/lib/consolidated';
+import { componentTerms } from '@/lib/component-terms';
 import { leadTemperature } from '@/lib/scoring';
 import { buildPitch } from '@/lib/pitch';
 import { storedScanReport } from '@/lib/scan-report';
@@ -117,6 +118,24 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
         { scanId: sel.scan_id, selectedBy: sel.selected_by_email, note: sel.note },
       ]),
   );
+  // Atributos y Valores en términos cortos. El Scanner no los devuelve, así
+  // que se destilan de su propio texto (y se marcan como implícitos cuando el
+  // componente no llegó a detectarse). Cacheado por scan: se paga una vez.
+  const TERM_DIMENSIONS = new Set(['attributes', 'values']);
+  const termsByKey: Record<string, { terms: string[]; implicit: boolean }> = {};
+  await Promise.all(
+    consolidado.dimensions.map(async (d) => {
+      const key = canonDimension(d.name);
+      if (!TERM_DIMENSIONS.has(key) || d.terms?.length) return;
+      const scanId = consolidado.sourceByKey[key] ?? scan?.id;
+      if (!scanId) return;
+      const implicit = d.missing || d.score == null;
+      const text = [d.reading, d.analysis, d.verdict, d.quote].filter(Boolean).join(' ');
+      const terms = await componentTerms(scanId, key, text, implicit).catch(() => []);
+      if (terms.length) termsByKey[key] = { terms, implicit };
+    }),
+  );
+
   // Argumentario y brief beben del CONSOLIDADO: si la curación dice que la
   // misión existe, no pueden seguir diciendo "sin rastro".
   const pitch = buildPitch({
@@ -414,6 +433,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                     label: 'B3S Seed',
                     content: (
                       <ScanComponents
+                        generatedTerms={termsByKey}
                         dimensions={consolidado.dimensions}
                         versions={versions}
                         companyId={company.id}

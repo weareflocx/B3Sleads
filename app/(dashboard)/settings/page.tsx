@@ -33,7 +33,7 @@ export default async function SettingsPage() {
     { key: 'Supabase', value: isDemoMode() ? 'no configurado (modo demo)' : 'conectado' },
     {
       key: 'B3S Scanner API',
-      value: process.env.B3S_SCANNER_API_URL || 'falta URL',
+      value: process.env.B3S_SCANNER_API_URL || 'https://b3s.fly.dev/api/v1 (por defecto)',
     },
     {
       key: 'B3S Scanner token',

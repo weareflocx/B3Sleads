@@ -184,12 +184,14 @@ export class B3SApiError extends Error {
 // credenciales; es el plan B mientras no haya token de la API v1.
 const PUBLIC_BASE = 'https://b3s.fly.dev';
 
+// La API v1 vive siempre en el mismo sitio; configurarla era un paso extra que
+// solo servía para que "Lanzar scan" fallara por una variable olvidada. Se
+// asume por defecto y B3S_SCANNER_API_URL queda como override (staging, local).
+const DEFAULT_API_BASE = `${PUBLIC_BASE}/api/v1`;
+
 function apiBase(): string {
   const configured = process.env.B3S_SCANNER_API_URL?.trim();
-  if (!configured) {
-    throw new Error('B3S_SCANNER_API_URL no configurada (ej. https://b3s.fly.dev/api/v1)');
-  }
-  return configured.replace(/\/+$/, '');
+  return (configured || DEFAULT_API_BASE).replace(/\/+$/, '');
 }
 
 function readApiToken(): string | null {
@@ -210,7 +212,7 @@ function apiToken(): string {
 // La API v1 sólo es utilizable con las dos variables puestas. Sin ellas hay
 // caminos que siguen funcionando (importar un informe público por su URL).
 export function apiConfigured(): boolean {
-  return Boolean(process.env.B3S_SCANNER_API_URL?.trim() && readApiToken());
+  return Boolean(readApiToken());
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {

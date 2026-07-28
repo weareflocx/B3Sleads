@@ -155,6 +155,7 @@ export function ScanComponents({
   versions = [],
   companyId,
   selections = {},
+  generatedTerms = {},
 }: {
   dimensions: ScanDimension[];
   // Todas las pasadas de cada componente, derivadas del histórico de scans.
@@ -162,6 +163,8 @@ export function ScanComponents({
   // Para guardar la curación; sin él el panel es solo lectura.
   companyId?: string;
   selections?: Record<string, SelectionInfo>;
+  // Términos destilados del texto del Scanner cuando él no los da.
+  generatedTerms?: Record<string, { terms: string[]; implicit: boolean }>;
 }) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const versionsByKey = new Map(versions.map((v) => [v.key, v]));
@@ -197,6 +200,7 @@ export function ScanComponents({
     const selection = selections[key] ?? null;
     // La versión mostrada: la elegida a mano si la hay; si no, la del último
     // run válido. Nunca la más alta por defecto.
+    const gen = generatedTerms[key] ?? null;
     const prov = dimVersions
       ? (selection
           ? (dimVersions.versions.find((v) => v.scanId === selection.scanId) ??
@@ -233,6 +237,23 @@ export function ScanComponents({
               </span>
             </div>
 
+            {/* Atributos y Valores en términos cortos, como el informe
+                original. Si el componente no se detectó, se dice que son
+                implícitos: no es lo mismo que la marca los declare. */}
+            {(d.terms?.length || gen?.terms.length) && (
+              <p className="mt-2.5 font-mono text-sm text-[var(--text)]">
+                {(d.terms?.length ? d.terms : gen!.terms).join(' · ')}
+                {gen?.implicit && (
+                  <span
+                    title="El Scanner no detectó este componente; son los valores implícitos que describe su lectura"
+                    className="ml-2 rounded border border-dashed border-[var(--border)] px-1.5 py-0.5 text-[10px] text-[var(--soft)]"
+                  >
+                    implícitos
+                  </span>
+                )}
+              </p>
+            )}
+
             {/* Lectura estratégica primero: qué sostiene hoy y qué tiene que
                 demostrar en el ciclo siguiente. Es el bloque con el que abre
                 el componente en el Scanner y que aquí no se estaba pintando. */}
@@ -252,11 +273,8 @@ export function ScanComponents({
             {/* Extracto y cita. Toda cita lleva su fuente: si no la hay se
                 dice, porque omitir el botón parece un descuido de UI cuando en
                 realidad es un hueco de evidencia. */}
-            {(d.terms?.length || d.quote) && (
+            {d.quote && (
               <div className="mt-3 border-t border-dashed border-[var(--border)] pt-2.5">
-                {d.terms?.length ? (
-                  <p className="font-mono text-xs text-[var(--muted)]">{d.terms.join(' · ')}</p>
-                ) : null}
                 {d.quote && (
                   <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
                     <span className="italic">{d.quote}</span>{' '}
