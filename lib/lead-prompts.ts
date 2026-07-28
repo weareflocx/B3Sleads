@@ -11,6 +11,8 @@ import type { BriefingLead } from './types';
 import { displayName } from './types';
 import { buildPitch } from './pitch';
 import { storedScanReport, reportDigest, reportFromDimensions, type ScanDimension } from './scan-report';
+import { consolidatedScore } from './consolidated';
+import { canonDimension, DIMENSION_LABELS } from './scan-versions';
 
 function fundingLine(bl: BriefingLead): string | null {
   const f = bl.signal?.type === 'funding_round' ? bl.signal : null;
@@ -64,9 +66,36 @@ export function buildLeadContext(bl: BriefingLead, consolidated?: ScanDimension[
   if (bl.scan?.score != null) {
     lines.push('');
     lines.push('## B3S Scanner');
-    lines.push(`Score: ${Number(bl.scan.score)}/100`);
+    // Ningún score sin decir cuál es: si hay curación, van los dos con nombre.
+    const autoScore = Number(bl.scan.score);
+    const cons = consolidated?.length
+      ? consolidatedScore(autoScore, auto?.dimensions ?? [], consolidated)
+      : autoScore;
+    if (cons !== autoScore) {
+      lines.push(`Score consolidado (con curación humana por componente): ${cons}/100`);
+      lines.push(`Score automático (último scan, sin tocar): ${autoScore}/100`);
+    } else {
+      lines.push(`Score: ${autoScore}/100`);
+    }
     if (bl.scan.ui_url) lines.push(`Informe completo: ${bl.scan.ui_url}`);
     if (report) lines.push(reportDigest(report));
+    // La prosa del scan (lectura global) es del último run y no se reescribe:
+    // si la curación corrigió dimensiones, se avisa para que mande la
+    // corrección y no la narrativa vieja.
+    if (consolidated?.length && auto) {
+      const autoByKey = new Map(auto.dimensions.map((d) => [canonDimension(d.name), d]));
+      const changed = consolidated
+        .filter((d) => {
+          const a = autoByKey.get(canonDimension(d.name));
+          return !a || a.missing !== d.missing || a.score !== d.score;
+        })
+        .map((d) => DIMENSION_LABELS[canonDimension(d.name)] ?? d.name);
+      if (changed.length) {
+        lines.push(
+          `NOTA DE CURACIÓN: ${changed.join(', ')} se toman de pasadas del Scanner que sí las midieron bien (selección humana). Si la prosa de la "Lectura global" las contradice, manda la curación.`,
+        );
+      }
+    }
   }
 
   // Argumentario ya derivado (determinista), también sobre el consolidado.
