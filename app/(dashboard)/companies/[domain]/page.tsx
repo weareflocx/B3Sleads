@@ -281,8 +281,14 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
               className="flex flex-col items-center"
               title={`B3S Score ${Math.round(Number(score))}/100`}
             >
-              <ScoreRing score={Number(score)} size={56} />
-              <div className="mt-1 text-[10px] uppercase tracking-wider text-[var(--muted)]">Score</div>
+              {/* El anillo de la ficha enseña la lectura de FLOC* (consolidado),
+                  como el RESUMEN: dos números distintos en la misma pantalla
+                  sin explicación es lo que no puede pasar. Los rankings y el
+                  radar siguen ordenando por el automático. */}
+              <ScoreRing score={scoreConsolidado ?? Number(score)} size={56} />
+              <div className="mt-1 text-[10px] uppercase tracking-wider text-[var(--muted)]">
+                {consolidado.manualCount > 0 ? 'Consolidado' : 'Score'}
+              </div>
             </div>
           )}
         </div>
