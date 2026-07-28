@@ -7,7 +7,7 @@
 // este mismo material; esto es el suelo, no el techo.
 import offer from '@/config/floc-offer.json';
 import type { Company, Scan, Signal } from './types';
-import { storedScanReport, type ScanDimension, type ScanReport } from './scan-report';
+import { storedScanReport, reportFromDimensions, type ScanDimension, type ScanReport } from './scan-report';
 
 export interface Pitch {
   lectura: string[]; // qué dice el scan de su marca (frases de la propia marca)
@@ -282,9 +282,16 @@ export function buildPitch(opts: {
   company: Company;
   scan: Scan | null;
   fundingSignal: Signal | null;
+  // Dimensiones consolidadas (curación humana). Si llegan, el argumentario se
+  // construye sobre ellas: si la curación dice que la misión existe, aquí no
+  // puede seguir saliendo "sin rastro".
+  dimensions?: ScanDimension[];
 }): Pitch {
-  const { company, scan, fundingSignal } = opts;
-  const report = storedScanReport(scan?.result_raw);
+  const { company, scan, fundingSignal, dimensions } = opts;
+  const auto = storedScanReport(scan?.result_raw);
+  const report = dimensions?.length
+    ? reportFromDimensions(auto?.summary ?? null, dimensions)
+    : auto;
   if (scan && report) {
     if (report.dimensions.length) return pitchFromReport(report, company, scan, fundingSignal);
   }

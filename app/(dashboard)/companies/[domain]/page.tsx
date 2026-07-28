@@ -88,10 +88,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
     : null;
   const fundingSignals = signals.filter((s) => s.type === 'funding_round');
   const latestFunding = fundingSignals[0] ?? null;
-  const pitch = buildPitch({ company, scan, fundingSignal: latestFunding });
-  const callBriefPrompt = buildCallBriefPrompt(bl);
   const report = storedScanReport(scan?.result_raw ?? null);
-  const leadContext = buildLeadContext(bl);
 
   const tldr =
     typeof scan?.tldr === 'string' ? scan.tldr : ((scan?.tldr as { summary?: string })?.summary ?? null);
@@ -120,6 +117,17 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
         { scanId: sel.scan_id, selectedBy: sel.selected_by_email, note: sel.note },
       ]),
   );
+  // Argumentario y brief beben del CONSOLIDADO: si la curación dice que la
+  // misión existe, no pueden seguir diciendo "sin rastro".
+  const pitch = buildPitch({
+    company,
+    scan,
+    fundingSignal: latestFunding,
+    dimensions: consolidado.dimensions,
+  });
+  const callBriefPrompt = buildCallBriefPrompt(bl, consolidado.dimensions);
+  const leadContext = buildLeadContext(bl, consolidado.dimensions);
+
   // Rúbrica del último run, para etiquetar el score automático.
   const autoRubric =
     ((scan?.result_raw as { metadata?: { rubric_version?: string } } | null)?.metadata

@@ -278,8 +278,7 @@ export function ScanComponents({
             {/* Procedencia: de qué pasada salió este número. */}
             {prov && (
               <p className="mt-2 font-mono text-[10px] text-[var(--soft)]">
-                escaneo del {fmtRun(prov.runAt)}
-                {prov.rubricVersion ? ` · ${prov.rubricVersion}` : ''}
+                {fmtDateShort(prov.runAt)}
                 {prov.uiUrl ? (
                   <>
                     {' · '}
@@ -289,7 +288,7 @@ export function ScanComponents({
                       rel="noreferrer"
                       className="hover:text-[var(--cta)] hover:underline"
                     >
-                      ver en Scanner ↗
+                      Ver Scan ↗
                     </a>
                   </>
                 ) : null}
@@ -332,6 +331,16 @@ export function ScanComponents({
 
 function fmtRun(iso: string): string {
   return new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+}
+
+// Para la línea de procedencia de la tarjeta cerrada: lo mínimo (la rúbrica y
+// el detalle viven en el panel del ojo, aquí solo fecha y enlace).
+function fmtDateShort(iso: string): string {
+  return new Date(iso).toLocaleDateString('es-ES', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+  });
 }
 
 // Panel de versiones: todas las pasadas de un componente, en orden

@@ -119,6 +119,16 @@ export function parseScanReport(markdown: string): ScanReport {
   return categorize(summary, dimensions);
 }
 
+// Reconstruye un informe a partir de dimensiones ya resueltas. Es lo que
+// permite que el argumentario y el brief consuman el Brand Seed CONSOLIDADO
+// (la versión curada de cada componente) en vez del último run a secas.
+export function reportFromDimensions(
+  summary: string | null,
+  dimensions: ScanDimension[],
+): ScanReport {
+  return categorize(summary, dimensions);
+}
+
 // Extrae el markdown del scan (si se importó por URL de informe).
 export function reportMarkdown(resultRaw: Record<string, unknown> | null | undefined): string | null {
   const md = (resultRaw as { markdown?: unknown } | null)?.markdown;
