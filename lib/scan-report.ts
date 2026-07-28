@@ -21,6 +21,10 @@ export interface ScanDimension {
   max: number | null;
   ratio: number | null; // score/max, o 0 si "no detectado"
   verdict: string | null; // el blockquote ">" de la sección
+  // Lectura estratégica: el bloque prescriptivo que abre el componente en el
+  // Scanner original (campo `message` de la API). Mira al ciclo siguiente:
+  // qué sostiene hoy y qué tiene que demostrar después. No es el análisis.
+  reading: string | null;
   analysis: string | null; // primera frase de análisis en prosa
   todos: ScanTodo[]; // baldosas apagadas (acciones concretas)
   missing: boolean; // "_No detectado._"
@@ -109,9 +113,19 @@ export function parseScanReport(markdown: string): ScanReport {
       }
     }
 
-    dimensions.push({ name, score, max, ratio, verdict, analysis, todos, missing, terms });
+    dimensions.push({ name, score, max, ratio, verdict, reading: null, analysis, todos, missing, terms });
   }
 
+  return categorize(summary, dimensions);
+}
+
+// Reconstruye un informe a partir de dimensiones ya resueltas. Es lo que
+// permite que el argumentario y el brief consuman el Brand Seed CONSOLIDADO
+// (la versión curada de cada componente) en vez del último run a secas.
+export function reportFromDimensions(
+  summary: string | null,
+  dimensions: ScanDimension[],
+): ScanReport {
   return categorize(summary, dimensions);
 }
 
@@ -230,7 +244,10 @@ function structuredScanReport(result: B3SScanResult): ScanReport {
         max: component.max_score,
         ratio,
         verdict: component.verdict || null,
-        analysis: component.summary || component.message || null,
+        // `message` es la lectura estratégica del Scanner. Antes se usaba solo
+        // como recambio de `summary`, así que se perdía en cuanto había summary.
+        reading: component.message || null,
+        analysis: component.summary || null,
         todos,
         missing,
         quote: null as string | null,

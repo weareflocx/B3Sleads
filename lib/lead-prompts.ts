@@ -10,7 +10,9 @@ import offer from '@/config/floc-offer.json';
 import type { BriefingLead } from './types';
 import { displayName } from './types';
 import { buildPitch } from './pitch';
-import { storedScanReport, reportDigest } from './scan-report';
+import { storedScanReport, reportDigest, reportFromDimensions, type ScanDimension } from './scan-report';
+import { consolidatedScore } from './consolidated';
+import { canonDimension, DIMENSION_LABELS } from './scan-versions';
 
 function fundingLine(bl: BriefingLead): string | null {
   const f = bl.signal?.type === 'funding_round' ? bl.signal : null;
@@ -24,7 +26,7 @@ function fundingLine(bl: BriefingLead): string | null {
 }
 
 // El dossier: identidad, marca, scan y argumentario, en texto plano.
-export function buildLeadContext(bl: BriefingLead): string {
+export function buildLeadContext(bl: BriefingLead, consolidated?: ScanDimension[]): string {
   const c = bl.company;
   const k = bl.contact;
   const lines: string[] = [];
@@ -55,18 +57,55 @@ export function buildLeadContext(bl: BriefingLead): string {
   }
 
   // Análisis de marca del Scanner (lo específico e irrepetible)
-  const report = storedScanReport(bl.scan?.result_raw);
+  const auto = storedScanReport(bl.scan?.result_raw);
+  // Con curación, el dossier lleva la versión consolidada: es lo que se le
+  // enseña al founder y no puede contradecir lo que la selección ya corrigió.
+  const report = consolidated?.length
+    ? reportFromDimensions(auto?.summary ?? null, consolidated)
+    : auto;
   if (bl.scan?.score != null) {
     lines.push('');
     lines.push('## B3S Scanner');
-    lines.push(`Score: ${Number(bl.scan.score)}/100`);
+    // Ningún score sin decir cuál es: si hay curación, van los dos con nombre.
+    const autoScore = Number(bl.scan.score);
+    const cons = consolidated?.length
+      ? consolidatedScore(autoScore, auto?.dimensions ?? [], consolidated)
+      : autoScore;
+    if (cons !== autoScore) {
+      lines.push(`Score consolidado (con curación humana por componente): ${cons}/100`);
+      lines.push(`Score automático (último scan, sin tocar): ${autoScore}/100`);
+    } else {
+      lines.push(`Score: ${autoScore}/100`);
+    }
     if (bl.scan.ui_url) lines.push(`Informe completo: ${bl.scan.ui_url}`);
     if (report) lines.push(reportDigest(report));
+    // La prosa del scan (lectura global) es del último run y no se reescribe:
+    // si la curación corrigió dimensiones, se avisa para que mande la
+    // corrección y no la narrativa vieja.
+    if (consolidated?.length && auto) {
+      const autoByKey = new Map(auto.dimensions.map((d) => [canonDimension(d.name), d]));
+      const changed = consolidated
+        .filter((d) => {
+          const a = autoByKey.get(canonDimension(d.name));
+          return !a || a.missing !== d.missing || a.score !== d.score;
+        })
+        .map((d) => DIMENSION_LABELS[canonDimension(d.name)] ?? d.name);
+      if (changed.length) {
+        lines.push(
+          `NOTA DE CURACIÓN: ${changed.join(', ')} se toman de pasadas del Scanner que sí las midieron bien (selección humana). Si la prosa de la "Lectura global" las contradice, manda la curación.`,
+        );
+      }
+    }
   }
 
-  // Argumentario ya derivado (determinista)
+  // Argumentario ya derivado (determinista), también sobre el consolidado.
   if (c && bl.scan) {
-    const pitch = buildPitch({ company: c, scan: bl.scan, fundingSignal: bl.signal });
+    const pitch = buildPitch({
+      company: c,
+      scan: bl.scan,
+      fundingSignal: bl.signal,
+      dimensions: consolidated,
+    });
     if (pitch.lectura.length) {
       lines.push('');
       lines.push('## Lectura de marca');
@@ -101,7 +140,7 @@ function offerContext(): string {
 // seguible en vivo con preguntas literales y chuleta final. La diferencia
 // con el maestro original es que aquí el dossier no se pega a mano: va
 // relleno con lo que ya sabe la app.
-export function buildCallBriefPrompt(bl: BriefingLead): string {
+export function buildCallBriefPrompt(bl: BriefingLead, consolidated?: ScanDimension[]): string {
   const founder = displayName(bl.contact?.full_name) || 'el founder';
   const url = bl.company ? `https://${bl.company.domain}` : null;
   // Los dos links que B3S ya guarda y que enriquecen el brief: el LinkedIn del
@@ -142,5 +181,5 @@ Devuelve Markdown con estas secciones:
 11. **Notas de riesgo** — dónde se rompe la llamada sola.
 12. **Chuleta** — solo las preguntas del guion en orden, para mirar de reojo durante la llamada.`;
 
-  return `${instructions}\n\n---\n\n${buildLeadContext(bl)}\n\n---\n\n${offerContext()}`;
+  return `${instructions}\n\n---\n\n${buildLeadContext(bl, consolidated)}\n\n---\n\n${offerContext()}`;
 }

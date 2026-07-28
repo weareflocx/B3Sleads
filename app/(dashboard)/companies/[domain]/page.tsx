@@ -7,7 +7,9 @@ import {
   getCompanySignals,
   getLeadNotes,
   getSectorVocabulary,
+  getComponentSelections,
 } from '@/lib/data';
+import { consolidateReport, consolidatedScore } from '@/lib/consolidated';
 import { leadTemperature } from '@/lib/scoring';
 import { buildPitch } from '@/lib/pitch';
 import { storedScanReport } from '@/lib/scan-report';
@@ -24,6 +26,7 @@ import { LeadOwner } from './lead-owner';
 import { FundingPanel } from './funding-panel';
 import { LeadTools } from './lead-tools';
 import { AnalysisTabs, ScanComponents } from './analysis-tabs';
+import { componentVersions, detectionNote, canonDimension, DIMENSION_LABELS } from '@/lib/scan-versions';
 import { BTN_LINKEDIN_OUTLINE } from '../../buttons';
 import { CompanyLogo } from '../../company-logo';
 import { CompanyBio } from './company-bio';
@@ -70,12 +73,13 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
   if (!bl || !bl.company) notFound();
 
   const { company, contact, scan, lead, message } = bl;
-  const [scanHistory, signals, notes, team, sectorVocab] = await Promise.all([
+  const [scanHistory, signals, notes, team, sectorVocab, selections] = await Promise.all([
     getCompanyScans(company.id),
     getCompanySignals(company.id),
     getLeadNotes(lead.id),
     getTeamMembers(),
     getSectorVocabulary(),
+    getComponentSelections(company.id),
   ]);
   const ownerEmail = leadOwner(lead);
   const owner = { email: ownerEmail, label: userLabel(ownerEmail) };
@@ -84,14 +88,71 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
     : null;
   const fundingSignals = signals.filter((s) => s.type === 'funding_round');
   const latestFunding = fundingSignals[0] ?? null;
-  const pitch = buildPitch({ company, scan, fundingSignal: latestFunding });
-  const callBriefPrompt = buildCallBriefPrompt(bl);
   const report = storedScanReport(scan?.result_raw ?? null);
-  const leadContext = buildLeadContext(bl);
 
   const tldr =
     typeof scan?.tldr === 'string' ? scan.tldr : ((scan?.tldr as { summary?: string })?.summary ?? null);
-  const gaps = (scan?.tldr as { gaps?: string[] } | null)?.gaps ?? [];
+  // Versiones de cada componente a lo largo de todos los escaneos.
+  const versions = componentVersions(scanHistory);
+
+  // El Brand Seed consolidado: para cada dimensión, la versión elegida a mano
+  // o, sin elección, la del último run. Sin curar, el consolidado ES el
+  // automático (mismo número, misma agregación: no hay delta que aplicar).
+  const autoScore = scan?.status === 'ready' && scan.score != null ? Number(scan.score) : null;
+  const consolidado = consolidateReport(
+    report?.dimensions ?? [],
+    selections,
+    scanHistory,
+    scan?.id ?? null,
+  );
+  const scoreConsolidado =
+    autoScore != null
+      ? consolidatedScore(autoScore, report?.dimensions ?? [], consolidado.dimensions)
+      : null;
+  const selectionsMap = Object.fromEntries(
+    selections
+      .filter((sel) => sel.is_manual)
+      .map((sel) => [
+        sel.dimension,
+        { scanId: sel.scan_id, selectedBy: sel.selected_by_email, note: sel.note },
+      ]),
+  );
+  // Argumentario y brief beben del CONSOLIDADO: si la curación dice que la
+  // misión existe, no pueden seguir diciendo "sin rastro".
+  const pitch = buildPitch({
+    company,
+    scan,
+    fundingSignal: latestFunding,
+    dimensions: consolidado.dimensions,
+  });
+  const callBriefPrompt = buildCallBriefPrompt(bl, consolidado.dimensions);
+  const leadContext = buildLeadContext(bl, consolidado.dimensions);
+
+  // Los huecos se calculan sobre la UNIÓN de escaneos, no sobre el último.
+  // Si una pasada anterior sí detectó la misión, ese hueco es falso: decírselo
+  // a un founder es el error más caro del sistema, porque lo desmonta la única
+  // persona que sabe con certeza que te equivocas.
+  const gapsRaw = (scan?.tldr as { gaps?: string[] } | null)?.gaps ?? [];
+  const gaps = gapsRaw.map((g) => {
+    const key = Object.keys(DIMENSION_LABELS).find(
+      (k) => k === g.trim().toLowerCase() || DIMENSION_LABELS[k].toLowerCase() === g.trim().toLowerCase(),
+    );
+    const dim = key ? versions.find((v) => v.key === key) : undefined;
+    // Una dimensión es hueco solo si la VERSIÓN SELECCIONADA no la detectó.
+    // Si la curación eligió una pasada que sí la encontró, ya no es hueco.
+    const selectedDim = key
+      ? consolidado.dimensions.find(
+          (d) => canonDimension(d.name) === key && !d.missing && d.score != null,
+        )
+      : undefined;
+    return {
+      label: key ? DIMENSION_LABELS[key] : g,
+      note: dim ? detectionNote(dim) : null,
+      // Solo es hueco de verdad si NINGÚN escaneo lo detectó.
+      confirmed: !dim || dim.stats.detectedIn === 0,
+      resolved: !!selectedDim,
+    };
+  }).filter((g) => !g.resolved);
   const stageLabel = stageLabelFor(lead.stage);
   const firstName = displayName(contact?.full_name).split(' ')[0] || null;
   const temp = leadTemperature(bl);
@@ -215,8 +276,14 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
               className="flex flex-col items-center"
               title={`B3S Score ${Math.round(Number(score))}/100`}
             >
-              <ScoreRing score={Number(score)} size={56} />
-              <div className="mt-1 text-[10px] uppercase tracking-wider text-[var(--muted)]">Score</div>
+              {/* El anillo de la ficha enseña la lectura de FLOC* (consolidado),
+                  como el RESUMEN: dos números distintos en la misma pantalla
+                  sin explicación es lo que no puede pasar. Los rankings y el
+                  radar siguen ordenando por el automático. */}
+              <ScoreRing score={scoreConsolidado ?? Number(score)} size={56} />
+              <div className="mt-1 text-[10px] uppercase tracking-wider text-[var(--muted)]">
+                {consolidado.manualCount > 0 ? 'Consolidado' : 'Score'}
+              </div>
             </div>
           )}
         </div>
@@ -254,24 +321,65 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                   <div className="mt-4 border-t border-[var(--border)] pt-3">
                     {scan?.status === 'ready' && scan.score != null ? (
                       <>
-                        <div className="flex items-baseline gap-3">
-                          <span className="font-mono text-2xl">{Number(scan.score)}</span>
+                        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                          <span className="font-mono text-2xl">{scoreConsolidado}</span>
                           <span className="font-mono text-sm text-[var(--muted)]">/100</span>
                           <span className="text-xs text-[var(--muted)]">
-                            {scoreBandLabel(Number(scan.score))}
+                            {scoreBandLabel(scoreConsolidado ?? 0)}
+                          </span>
+                          {/* Ningún score sin decir cuál de los dos es. */}
+                          <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">
+                            {consolidado.manualCount > 0
+                              ? `consolidado · ${consolidado.manualCount}/${consolidado.totalCount} curadas`
+                              : 'sin curar'}
                           </span>
                         </div>
                         {tldr && (
-                          <p className="mt-3 border-l-2 border-[var(--border)] pl-3 text-sm leading-relaxed text-[var(--muted)]">
-                            {tldr}
-                          </p>
+                          <div className="mt-3 border-l-2 border-[var(--border)] pl-3">
+                            {/* La lectura en prosa es de UN run concreto y no se
+                                reescribe: se atribuye. Si la curación ya corrigió
+                                una dimensión, este párrafo puede contradecirla y
+                                hay que ver de cuándo es y con qué score se dijo. */}
+                            {autoScore != null && (
+                              <p className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">
+                                automático ·{' '}
+                                <span className="text-xs text-[var(--muted)]">{autoScore}</span>/100 ·
+                                último scan{' '}
+                                {new Date(scan!.created_at).toLocaleDateString('es-ES', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: '2-digit',
+                                })}
+                              </p>
+                            )}
+                            <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">{tldr}</p>
+                            {consolidado.manualCount > 0 && (
+                              <p className="mt-1.5 font-mono text-[10px] text-[var(--soft)]">
+                                Texto de ese escaneo. Donde contradiga a un componente curado, manda
+                                la curación.
+                              </p>
+                            )}
+                          </div>
                         )}
                         {gaps.length > 0 && (
                           <ul className="mt-3 space-y-1 text-sm">
                             {gaps.map((g) => (
-                              <li key={g} className="flex gap-2">
-                                <span className="text-[var(--accent)]">·</span>
-                                <span className="text-[var(--muted)]">{g}</span>
+                              <li key={g.label} className="flex gap-2">
+                                <span
+                                  className={
+                                    g.confirmed ? 'text-[var(--accent)]' : 'text-[var(--warning)]'
+                                  }
+                                >
+                                  ·
+                                </span>
+                                <span className="text-[var(--muted)]">
+                                  {g.label}
+                                  {g.note && (
+                                    <span className="ml-1.5 font-mono text-[10px] text-[var(--soft)]">
+                                      {g.note}
+                                    </span>
+                                  )}
+                                </span>
                               </li>
                             ))}
                           </ul>
@@ -304,7 +412,14 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                   {
                     key: 'scanner',
                     label: 'B3S Seed',
-                    content: <ScanComponents dimensions={report?.dimensions ?? []} />,
+                    content: (
+                      <ScanComponents
+                        dimensions={consolidado.dimensions}
+                        versions={versions}
+                        companyId={company.id}
+                        selections={selectionsMap}
+                      />
+                    ),
                   },
                   {
                     key: 'argumentario',

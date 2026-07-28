@@ -1,21 +1,33 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 import type { ScanDimension, ScanTile } from '@/lib/scan-report';
+import {
+  canonDimension,
+  defaultVersion,
+  detectionNote,
+  type DimensionVersions,
+} from '@/lib/scan-versions';
 
 // Pestañas del análisis de la ficha: el Scanner esquemático primero (los
 // componentes tal cual los mide B3S) y el argumentario después. El contenido
 // llega renderizado del servidor; aquí solo se elige qué se ve.
 export function AnalysisTabs({
   tabs,
+  aside,
 }: {
   tabs: { key: string; label: string; content: ReactNode }[];
+  // A la derecha de los tabs: el registro del score automático, visible
+  // siempre (no enterrado dentro de un tab).
+  aside?: ReactNode;
 }) {
   const [active, setActive] = useState(tabs[0]?.key);
   const current = tabs.find((t) => t.key === active) ?? tabs[0];
 
   return (
     <div>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
       <div className="flex flex-wrap gap-1.5">
         {tabs.map((t) => (
           <button
@@ -30,6 +42,8 @@ export function AnalysisTabs({
             {t.label}
           </button>
         ))}
+      </div>
+      {aside}
       </div>
       <div className="mt-3">{current?.content}</div>
     </div>
@@ -128,8 +142,29 @@ const BAND_COLS: Record<1 | 2 | 3, string> = {
   3: 'sm:grid-cols-2 lg:grid-cols-3',
 };
 
-export function ScanComponents({ dimensions }: { dimensions: ScanDimension[] }) {
+// Selección de curación activa sobre una dimensión: qué versión se eligió a
+// mano y quién la firmó. Llega del servidor (tabla component_selections).
+export interface SelectionInfo {
+  scanId: string;
+  selectedBy: string | null;
+  note: string | null;
+}
+
+export function ScanComponents({
+  dimensions,
+  versions = [],
+  companyId,
+  selections = {},
+}: {
+  dimensions: ScanDimension[];
+  // Todas las pasadas de cada componente, derivadas del histórico de scans.
+  versions?: DimensionVersions[];
+  // Para guardar la curación; sin él el panel es solo lectura.
+  companyId?: string;
+  selections?: Record<string, SelectionInfo>;
+}) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  const versionsByKey = new Map(versions.map((v) => [v.key, v]));
 
   if (!dimensions.length) {
     return (
@@ -157,6 +192,17 @@ export function ScanComponents({ dimensions }: { dimensions: ScanDimension[] }) 
     const name = ES_LABELS[d.name] ?? d.name;
     const isOpen = !!open[d.name];
     const tiles = d.tilesDetail ?? [];
+    const key = canonDimension(d.name);
+    const dimVersions = versionsByKey.get(key) ?? null;
+    const selection = selections[key] ?? null;
+    // La versión mostrada: la elegida a mano si la hay; si no, la del último
+    // run válido. Nunca la más alta por defecto.
+    const prov = dimVersions
+      ? (selection
+          ? (dimVersions.versions.find((v) => v.scanId === selection.scanId) ??
+            defaultVersion(dimVersions))
+          : defaultVersion(dimVersions))
+      : null;
     return (
           <div
             className="flex flex-col rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4"
@@ -173,7 +219,7 @@ export function ScanComponents({ dimensions }: { dimensions: ScanDimension[] }) 
                 </span>
                 <button
                   onClick={() => setOpen((o) => ({ ...o, [d.name]: !o[d.name] }))}
-                  title={isOpen ? 'Ocultar análisis' : 'Ver análisis, evidencia y baldosas'}
+                  title={isOpen ? 'Ocultar versiones' : 'Ver todas las versiones de este componente'}
                   aria-label={`${isOpen ? 'Ocultar' : 'Ver'} detalle de ${name}`}
                   aria-expanded={isOpen}
                   className={`flex h-6 w-6 items-center justify-center rounded border transition-colors ${
@@ -187,71 +233,91 @@ export function ScanComponents({ dimensions }: { dimensions: ScanDimension[] }) 
               </span>
             </div>
 
-            {/* Atributos y Valores, cuando el escáner los da: términos cortos
-                separados por punto medio ("Segura · Técnica · Exclusiva").
-                Si no, la frase literal capturada tal cual; y sin cita, el
-                veredicto. */}
-            {d.terms?.length ? (
-              <p className="mt-2.5 text-sm leading-relaxed">{d.terms.join(' · ')}</p>
-            ) : d.quote ? (
-              <p className="mt-2.5 text-sm leading-relaxed">{d.quote}</p>
-            ) : (
+            {/* Lectura estratégica primero: qué sostiene hoy y qué tiene que
+                demostrar en el ciclo siguiente. Es el bloque con el que abre
+                el componente en el Scanner y que aquí no se estaba pintando. */}
+            {d.reading && <p className="mt-2.5 text-sm leading-relaxed">{d.reading}</p>}
+
+            {/* El análisis es otra cosa: la tensión presente. Van los dos. */}
+            {d.analysis && d.analysis !== d.reading && (
+              <p className="mt-2 text-sm leading-relaxed text-[var(--muted)]">{d.analysis}</p>
+            )}
+
+            {!d.reading && !d.analysis && (
               <p className="mt-2.5 text-sm leading-relaxed text-[var(--muted)]">
-                {d.verdict || d.analysis || 'Sin rastro en superficies públicas.'}
+                {d.verdict || 'Sin rastro en superficies públicas.'}
+              </p>
+            )}
+
+            {/* Extracto y cita. Toda cita lleva su fuente: si no la hay se
+                dice, porque omitir el botón parece un descuido de UI cuando en
+                realidad es un hueco de evidencia. */}
+            {(d.terms?.length || d.quote) && (
+              <div className="mt-3 border-t border-dashed border-[var(--border)] pt-2.5">
+                {d.terms?.length ? (
+                  <p className="font-mono text-xs text-[var(--muted)]">{d.terms.join(' · ')}</p>
+                ) : null}
+                {d.quote && (
+                  <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
+                    <span className="italic">{d.quote}</span>{' '}
+                    {d.quoteUrl ? (
+                      <a
+                        href={d.quoteUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="ml-1 inline-block rounded border border-[var(--border)] px-1.5 py-0.5 font-mono text-[10px] not-italic hover:border-[var(--muted)] hover:text-[var(--text)]"
+                      >
+                        fuente ↗
+                      </a>
+                    ) : (
+                      <span
+                        title="El escaneo no guardó de dónde salió esta cita"
+                        className="ml-1 inline-block rounded border border-dashed border-[var(--border)] px-1.5 py-0.5 font-mono text-[10px] not-italic text-[var(--soft)]"
+                      >
+                        sin fuente
+                      </span>
+                    )}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Procedencia: de qué pasada salió este número. */}
+            {prov && (
+              <p className="mt-2 font-mono text-[10px] text-[var(--soft)]">
+                {fmtDateShort(prov.runAt)}
+                {prov.uiUrl ? (
+                  <>
+                    {' · '}
+                    <a
+                      href={prov.uiUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="hover:text-[var(--cta)] hover:underline"
+                    >
+                      Ver Scan ↗
+                    </a>
+                  </>
+                ) : null}
+                {selection && (
+                  <span
+                    title={selection.note ?? undefined}
+                    className="ml-2 rounded border border-[var(--cta)]/50 px-1.5 py-0.5 text-[var(--cta)]"
+                  >
+                    curado{selection.selectedBy ? ` por ${selection.selectedBy.split('@')[0]}` : ''}
+                  </span>
+                )}
               </p>
             )}
 
             {isOpen && (
-              <div className="mt-3 space-y-3 border-t border-[var(--border)] pt-3">
-                {d.verdict && (
-                  <p className="text-sm leading-relaxed">{d.verdict}</p>
-                )}
-                {d.analysis && d.analysis !== d.verdict && (
-                  <p className="text-xs leading-relaxed text-[var(--muted)]">{d.analysis}</p>
-                )}
-                {d.quoteUrl && (
-                  <a
-                    href={d.quoteUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-block rounded border border-[var(--border)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--muted)] hover:border-[var(--muted)] hover:text-[var(--text)]"
-                  >
-                    fuente ↗
-                  </a>
-                )}
-                {tiles.length > 0 && (
-                  <div>
-                    <p className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">
-                      Baldosas · encendida verde · no detectada azul · sin medir rojo
-                    </p>
-                    <div className="mt-1.5 flex flex-wrap gap-1">
-                      {tiles.map((t) => (
-                        <span
-                          key={t.label}
-                          title={t.reason ?? undefined}
-                          className={`inline-flex h-5 items-center rounded border px-1.5 font-mono text-[10px] ${TILE_TONE[t.state]}`}
-                        >
-                          {t.label}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {d.todos.length > 0 && (
-                  <ul className="space-y-1">
-                    {d.todos.map((t) => (
-                      <li key={t.label} className="text-xs leading-relaxed text-[var(--muted)]">
-                        <span className="font-medium text-[var(--text)]">{t.label}</span> — {t.desc}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {!d.verdict && !tiles.length && !d.todos.length && (
-                  <p className="text-xs text-[var(--soft)]">
-                    Este scan no guarda evidencia detallada para este componente.
-                  </p>
-                )}
-              </div>
+              <VersionPanel
+                dim={dimVersions}
+                tiles={tiles}
+                todos={d.todos}
+                companyId={companyId}
+                selection={selection}
+              />
             )}
           </div>
     );
@@ -266,6 +332,230 @@ export function ScanComponents({ dimensions }: { dimensions: ScanDimension[] }) 
           ))}
         </div>
       ))}
+    </div>
+  );
+}
+
+function fmtRun(iso: string): string {
+  return new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+}
+
+// Para la línea de procedencia de la tarjeta cerrada: lo mínimo (la rúbrica y
+// el detalle viven en el panel del ojo, aquí solo fecha y enlace).
+function fmtDateShort(iso: string): string {
+  return new Date(iso).toLocaleDateString('es-ES', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+  });
+}
+
+// Panel de versiones: todas las pasadas de un componente, en orden
+// cronológico descendente. La cabecera resume su fiabilidad, que es lo que
+// convierte esta pantalla en un instrumento de calibración y no solo en un
+// visor. Las pasadas donde no se detectó también salen: ver que la visión
+// apareció un día y desapareció al siguiente es lo que explica el score.
+function VersionPanel({
+  dim,
+  tiles,
+  todos,
+  companyId,
+  selection,
+}: {
+  dim: DimensionVersions | null;
+  tiles: ScanTile[];
+  todos: { label: string; desc: string }[];
+  companyId?: string;
+  selection?: SelectionInfo | null;
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = useState<string | null>(null); // scanId en curso
+  const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState(selection?.note ?? '');
+
+  // Guardar la elección: apunta a la versión, nunca la edita. `null` como
+  // scanId = volver al automático (borra la selección).
+  async function choose(scanId: string | null, withNote?: string) {
+    if (!dim || !companyId) return;
+    setBusy(scanId ?? 'revert');
+    setError(null);
+    try {
+      const res = await fetch('/api/components/select', {
+        method: scanId ? 'POST' : 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          scanId
+            ? { companyId, dimension: dim.key, scanId, note: withNote }
+            : { companyId, dimension: dim.key },
+        ),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) setError((json as { error?: string }).error ?? 'No se pudo guardar');
+      else router.refresh();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (!dim) {
+    return (
+      <div className="mt-3 border-t border-[var(--border)] pt-3">
+        <p className="text-xs text-[var(--soft)]">
+          Este scan no guarda el detalle por componente, así que no hay versiones que comparar.
+        </p>
+      </div>
+    );
+  }
+
+  const { min, max, stdev, detectedIn, totalRuns } = dim.stats;
+  const activeId = selection?.scanId ?? defaultVersion(dim)?.scanId;
+
+  return (
+    <div className="mt-3 border-t border-[var(--border)] pt-3">
+      {/* Fiabilidad del componente a lo largo de los escaneos. */}
+      <p className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">
+        {min != null ? `Rango ${min}-${max}` : 'Nunca detectado'}
+        {stdev != null ? ` · desviación ${stdev}` : ''}
+        {` · detectado en ${detectedIn} de ${totalRuns} ${totalRuns === 1 ? 'escaneo' : 'escaneos'}`}
+      </p>
+
+      <ul className="mt-2 space-y-2">
+        {dim.versions.map((v, i) => {
+          const active = v.scanId === activeId;
+          return (
+            <li
+              key={`${v.scanId}-${i}`}
+              className={`rounded-md border p-2.5 ${
+                active ? 'border-[var(--cta)]/50' : 'border-[var(--border)]'
+              } ${v.detected ? '' : 'opacity-60'}`}
+            >
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span
+                  className={`inline-flex h-5 items-center rounded border px-1.5 font-mono text-[10px] ${
+                    v.detected
+                      ? 'border-[var(--border)] text-[var(--text)]'
+                      : 'border-dashed border-[var(--border)] text-[var(--soft)]'
+                  }`}
+                >
+                  {v.detected ? `${v.score}/${v.max ?? 10}` : 'No detectado'}
+                </span>
+                <span className="font-mono text-[10px] text-[var(--muted)]">{fmtRun(v.runAt)}</span>
+                {v.rubricVersion && (
+                  <span
+                    title="Dos rúbricas distintas no son comparables"
+                    className="font-mono text-[10px] text-[var(--soft)]"
+                  >
+                    {v.rubricVersion}
+                  </span>
+                )}
+                {v.uiUrl && (
+                  <a
+                    href={v.uiUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-mono text-[10px] text-[var(--muted)] hover:text-[var(--cta)] hover:underline"
+                  >
+                    ver run ↗
+                  </a>
+                )}
+                {active ? (
+                  <span className="ml-auto font-mono text-[10px] text-[var(--cta)]">
+                    en uso{selection ? ' · curada' : ''}
+                  </span>
+                ) : v.detected && companyId ? (
+                  <button
+                    onClick={() => choose(v.scanId, note)}
+                    disabled={busy != null}
+                    className="ml-auto rounded border border-[var(--border)] px-2 py-0.5 font-mono text-[10px] text-[var(--muted)] transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)] disabled:opacity-40"
+                  >
+                    {busy === v.scanId ? 'guardando…' : 'usar esta versión'}
+                  </button>
+                ) : null}
+              </div>
+
+              {v.detected ? (
+                <>
+                  {v.reading && (
+                    <p className="mt-1.5 text-xs leading-relaxed">{v.reading}</p>
+                  )}
+                  {v.analysis && v.analysis !== v.reading && (
+                    <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">{v.analysis}</p>
+                  )}
+                  {v.quote && (
+                    <p className="mt-1 text-[11px] italic leading-relaxed text-[var(--soft)]">
+                      {v.quote}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="mt-1.5 text-xs text-[var(--soft)]">
+                  Este escaneo no llegó a esta baldosa.
+                </p>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+
+      {detectedIn > 0 && detectedIn < totalRuns && (
+        <p className="mt-2 text-[10px] text-[var(--warning)]">
+          Inestable entre pasadas: {detectionNote(dim)}
+        </p>
+      )}
+
+      {/* La curación queda firmada y con su porqué; y siempre es reversible:
+          sin "Volver al automático" una ficha mal curada sería irrecuperable. */}
+      {selection && companyId && (
+        <div className="mt-2.5 flex flex-wrap items-center gap-2">
+          <input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && choose(selection.scanId, note)}
+            onBlur={() => note.trim() !== (selection.note ?? '') && choose(selection.scanId, note)}
+            placeholder="por qué esta versión (opcional)"
+            className="min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-xs outline-none focus:border-[var(--cta)]"
+          />
+          <button
+            onClick={() => choose(null)}
+            disabled={busy != null}
+            className="rounded border border-[var(--border)] px-2 py-1 font-mono text-[10px] text-[var(--muted)] transition-colors hover:border-[var(--muted)] hover:text-[var(--text)] disabled:opacity-40"
+          >
+            {busy === 'revert' ? 'volviendo…' : 'volver al automático'}
+          </button>
+        </div>
+      )}
+      {error && <p className="mt-2 text-[11px] text-[var(--danger)]">{error}</p>}
+
+      {/* Baldosas y plan de trabajo de la versión en uso. */}
+      {tiles.length > 0 && (
+        <div className="mt-3">
+          <p className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">
+            Baldosas · encendida verde · no detectada azul · sin medir rojo
+          </p>
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {tiles.map((t) => (
+              <span
+                key={t.label}
+                title={t.reason ?? undefined}
+                className={`inline-flex h-5 items-center rounded border px-1.5 font-mono text-[10px] ${TILE_TONE[t.state]}`}
+              >
+                {t.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      {todos.length > 0 && (
+        <ul className="mt-3 space-y-1">
+          {todos.map((t) => (
+            <li key={t.label} className="text-xs leading-relaxed text-[var(--muted)]">
+              <span className="font-medium text-[var(--text)]">{t.label}</span> — {t.desc}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
