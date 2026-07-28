@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 import type { ScanDimension, ScanTile } from '@/lib/scan-report';
 import {
   canonDimension,
@@ -134,13 +135,26 @@ const BAND_COLS: Record<1 | 2 | 3, string> = {
   3: 'sm:grid-cols-2 lg:grid-cols-3',
 };
 
+// Selección de curación activa sobre una dimensión: qué versión se eligió a
+// mano y quién la firmó. Llega del servidor (tabla component_selections).
+export interface SelectionInfo {
+  scanId: string;
+  selectedBy: string | null;
+  note: string | null;
+}
+
 export function ScanComponents({
   dimensions,
   versions = [],
+  companyId,
+  selections = {},
 }: {
   dimensions: ScanDimension[];
   // Todas las pasadas de cada componente, derivadas del histórico de scans.
   versions?: DimensionVersions[];
+  // Para guardar la curación; sin él el panel es solo lectura.
+  companyId?: string;
+  selections?: Record<string, SelectionInfo>;
 }) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const versionsByKey = new Map(versions.map((v) => [v.key, v]));
@@ -171,9 +185,17 @@ export function ScanComponents({
     const name = ES_LABELS[d.name] ?? d.name;
     const isOpen = !!open[d.name];
     const tiles = d.tilesDetail ?? [];
-    const dimVersions = versionsByKey.get(canonDimension(d.name)) ?? null;
-    // La versión mostrada es la del último run válido, nunca la más alta.
-    const prov = dimVersions ? defaultVersion(dimVersions) : null;
+    const key = canonDimension(d.name);
+    const dimVersions = versionsByKey.get(key) ?? null;
+    const selection = selections[key] ?? null;
+    // La versión mostrada: la elegida a mano si la hay; si no, la del último
+    // run válido. Nunca la más alta por defecto.
+    const prov = dimVersions
+      ? (selection
+          ? (dimVersions.versions.find((v) => v.scanId === selection.scanId) ??
+            defaultVersion(dimVersions))
+          : defaultVersion(dimVersions))
+      : null;
     return (
           <div
             className="flex flex-col rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4"
@@ -271,10 +293,26 @@ export function ScanComponents({
                     </a>
                   </>
                 ) : null}
+                {selection && (
+                  <span
+                    title={selection.note ?? undefined}
+                    className="ml-2 rounded border border-[var(--cta)]/50 px-1.5 py-0.5 text-[var(--cta)]"
+                  >
+                    curado{selection.selectedBy ? ` por ${selection.selectedBy.split('@')[0]}` : ''}
+                  </span>
+                )}
               </p>
             )}
 
-            {isOpen && <VersionPanel dim={dimVersions} tiles={tiles} todos={d.todos} />}
+            {isOpen && (
+              <VersionPanel
+                dim={dimVersions}
+                tiles={tiles}
+                todos={d.todos}
+                companyId={companyId}
+                selection={selection}
+              />
+            )}
           </div>
     );
   }
@@ -305,11 +343,46 @@ function VersionPanel({
   dim,
   tiles,
   todos,
+  companyId,
+  selection,
 }: {
   dim: DimensionVersions | null;
   tiles: ScanTile[];
   todos: { label: string; desc: string }[];
+  companyId?: string;
+  selection?: SelectionInfo | null;
 }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState<string | null>(null); // scanId en curso
+  const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState(selection?.note ?? '');
+
+  // Guardar la elección: apunta a la versión, nunca la edita. `null` como
+  // scanId = volver al automático (borra la selección).
+  async function choose(scanId: string | null, withNote?: string) {
+    if (!dim || !companyId) return;
+    setBusy(scanId ?? 'revert');
+    setError(null);
+    try {
+      const res = await fetch('/api/components/select', {
+        method: scanId ? 'POST' : 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          scanId
+            ? { companyId, dimension: dim.key, scanId, note: withNote }
+            : { companyId, dimension: dim.key },
+        ),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) setError((json as { error?: string }).error ?? 'No se pudo guardar');
+      else router.refresh();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   if (!dim) {
     return (
       <div className="mt-3 border-t border-[var(--border)] pt-3">
@@ -321,7 +394,7 @@ function VersionPanel({
   }
 
   const { min, max, stdev, detectedIn, totalRuns } = dim.stats;
-  const activeId = defaultVersion(dim)?.scanId;
+  const activeId = selection?.scanId ?? defaultVersion(dim)?.scanId;
 
   return (
     <div className="mt-3 border-t border-[var(--border)] pt-3">
@@ -371,9 +444,19 @@ function VersionPanel({
                     ver run ↗
                   </a>
                 )}
-                {active && (
-                  <span className="ml-auto font-mono text-[10px] text-[var(--cta)]">en uso</span>
-                )}
+                {active ? (
+                  <span className="ml-auto font-mono text-[10px] text-[var(--cta)]">
+                    en uso{selection ? ' · curada' : ''}
+                  </span>
+                ) : v.detected && companyId ? (
+                  <button
+                    onClick={() => choose(v.scanId, note)}
+                    disabled={busy != null}
+                    className="ml-auto rounded border border-[var(--border)] px-2 py-0.5 font-mono text-[10px] text-[var(--muted)] transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)] disabled:opacity-40"
+                  >
+                    {busy === v.scanId ? 'guardando…' : 'usar esta versión'}
+                  </button>
+                ) : null}
               </div>
 
               {v.detected ? (
@@ -405,6 +488,29 @@ function VersionPanel({
           Inestable entre pasadas: {detectionNote(dim)}
         </p>
       )}
+
+      {/* La curación queda firmada y con su porqué; y siempre es reversible:
+          sin "Volver al automático" una ficha mal curada sería irrecuperable. */}
+      {selection && companyId && (
+        <div className="mt-2.5 flex flex-wrap items-center gap-2">
+          <input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && choose(selection.scanId, note)}
+            onBlur={() => note.trim() !== (selection.note ?? '') && choose(selection.scanId, note)}
+            placeholder="por qué esta versión (opcional)"
+            className="min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-xs outline-none focus:border-[var(--cta)]"
+          />
+          <button
+            onClick={() => choose(null)}
+            disabled={busy != null}
+            className="rounded border border-[var(--border)] px-2 py-1 font-mono text-[10px] text-[var(--muted)] transition-colors hover:border-[var(--muted)] hover:text-[var(--text)] disabled:opacity-40"
+          >
+            {busy === 'revert' ? 'volviendo…' : 'volver al automático'}
+          </button>
+        </div>
+      )}
+      {error && <p className="mt-2 text-[11px] text-[var(--danger)]">{error}</p>}
 
       {/* Baldosas y plan de trabajo de la versión en uso. */}
       {tiles.length > 0 && (

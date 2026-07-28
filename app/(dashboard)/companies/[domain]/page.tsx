@@ -7,7 +7,9 @@ import {
   getCompanySignals,
   getLeadNotes,
   getSectorVocabulary,
+  getComponentSelections,
 } from '@/lib/data';
+import { consolidateReport, consolidatedScore } from '@/lib/consolidated';
 import { leadTemperature } from '@/lib/scoring';
 import { buildPitch } from '@/lib/pitch';
 import { storedScanReport } from '@/lib/scan-report';
@@ -24,7 +26,7 @@ import { LeadOwner } from './lead-owner';
 import { FundingPanel } from './funding-panel';
 import { LeadTools } from './lead-tools';
 import { AnalysisTabs, ScanComponents } from './analysis-tabs';
-import { componentVersions, detectionNote, DIMENSION_LABELS } from '@/lib/scan-versions';
+import { componentVersions, detectionNote, canonDimension, DIMENSION_LABELS } from '@/lib/scan-versions';
 import { BTN_LINKEDIN_OUTLINE } from '../../buttons';
 import { CompanyLogo } from '../../company-logo';
 import { CompanyBio } from './company-bio';
@@ -71,12 +73,13 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
   if (!bl || !bl.company) notFound();
 
   const { company, contact, scan, lead, message } = bl;
-  const [scanHistory, signals, notes, team, sectorVocab] = await Promise.all([
+  const [scanHistory, signals, notes, team, sectorVocab, selections] = await Promise.all([
     getCompanyScans(company.id),
     getCompanySignals(company.id),
     getLeadNotes(lead.id),
     getTeamMembers(),
     getSectorVocabulary(),
+    getComponentSelections(company.id),
   ]);
   const ownerEmail = leadOwner(lead);
   const owner = { email: ownerEmail, label: userLabel(ownerEmail) };
@@ -95,6 +98,33 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
   // Versiones de cada componente a lo largo de todos los escaneos.
   const versions = componentVersions(scanHistory);
 
+  // El Brand Seed consolidado: para cada dimensión, la versión elegida a mano
+  // o, sin elección, la del último run. Sin curar, el consolidado ES el
+  // automático (mismo número, misma agregación: no hay delta que aplicar).
+  const autoScore = scan?.status === 'ready' && scan.score != null ? Number(scan.score) : null;
+  const consolidado = consolidateReport(
+    report?.dimensions ?? [],
+    selections,
+    scanHistory,
+    scan?.id ?? null,
+  );
+  const scoreConsolidado =
+    autoScore != null
+      ? consolidatedScore(autoScore, report?.dimensions ?? [], consolidado.dimensions)
+      : null;
+  const selectionsMap = Object.fromEntries(
+    selections
+      .filter((sel) => sel.is_manual)
+      .map((sel) => [
+        sel.dimension,
+        { scanId: sel.scan_id, selectedBy: sel.selected_by_email, note: sel.note },
+      ]),
+  );
+  // Rúbrica del último run, para etiquetar el score automático.
+  const autoRubric =
+    ((scan?.result_raw as { metadata?: { rubric_version?: string } } | null)?.metadata
+      ?.rubric_version as string | undefined) ?? null;
+
   // Los huecos se calculan sobre la UNIÓN de escaneos, no sobre el último.
   // Si una pasada anterior sí detectó la misión, ese hueco es falso: decírselo
   // a un founder es el error más caro del sistema, porque lo desmonta la única
@@ -105,13 +135,21 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
       (k) => k === g.trim().toLowerCase() || DIMENSION_LABELS[k].toLowerCase() === g.trim().toLowerCase(),
     );
     const dim = key ? versions.find((v) => v.key === key) : undefined;
+    // Una dimensión es hueco solo si la VERSIÓN SELECCIONADA no la detectó.
+    // Si la curación eligió una pasada que sí la encontró, ya no es hueco.
+    const selectedDim = key
+      ? consolidado.dimensions.find(
+          (d) => canonDimension(d.name) === key && !d.missing && d.score != null,
+        )
+      : undefined;
     return {
       label: key ? DIMENSION_LABELS[key] : g,
       note: dim ? detectionNote(dim) : null,
       // Solo es hueco de verdad si NINGÚN escaneo lo detectó.
       confirmed: !dim || dim.stats.detectedIn === 0,
+      resolved: !!selectedDim,
     };
-  });
+  }).filter((g) => !g.resolved);
   const stageLabel = stageLabelFor(lead.stage);
   const firstName = displayName(contact?.full_name).split(' ')[0] || null;
   const temp = leadTemperature(bl);
@@ -274,11 +312,17 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                   <div className="mt-4 border-t border-[var(--border)] pt-3">
                     {scan?.status === 'ready' && scan.score != null ? (
                       <>
-                        <div className="flex items-baseline gap-3">
-                          <span className="font-mono text-2xl">{Number(scan.score)}</span>
+                        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                          <span className="font-mono text-2xl">{scoreConsolidado}</span>
                           <span className="font-mono text-sm text-[var(--muted)]">/100</span>
                           <span className="text-xs text-[var(--muted)]">
-                            {scoreBandLabel(Number(scan.score))}
+                            {scoreBandLabel(scoreConsolidado ?? 0)}
+                          </span>
+                          {/* Ningún score sin decir cuál de los dos es. */}
+                          <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">
+                            {consolidado.manualCount > 0
+                              ? `consolidado · ${consolidado.manualCount}/${consolidado.totalCount} curadas`
+                              : 'sin curar'}
                           </span>
                         </div>
                         {tldr && (
@@ -337,7 +381,26 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                   {
                     key: 'scanner',
                     label: 'B3S Seed',
-                    content: <ScanComponents dimensions={report?.dimensions ?? []} versions={versions} />,
+                    content: (
+                      <>
+                        {autoScore != null && (
+                          <p className="mb-2.5 font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">
+                            automático · {autoScore}/100 · último scan{' '}
+                            {new Date(scan!.created_at).toLocaleDateString('es-ES', {
+                              day: '2-digit',
+                              month: 'short',
+                            })}
+                            {autoRubric ? ` · ${autoRubric}` : ''}
+                          </p>
+                        )}
+                        <ScanComponents
+                          dimensions={consolidado.dimensions}
+                          versions={versions}
+                          companyId={company.id}
+                          selections={selectionsMap}
+                        />
+                      </>
+                    ),
                   },
                   {
                     key: 'argumentario',

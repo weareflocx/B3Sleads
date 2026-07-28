@@ -134,6 +134,26 @@ export async function getConversations(): Promise<BriefingLead[]> {
   );
 }
 
+// Selecciones de curación por componente (migración 010). Si la tabla aún no
+// está aplicada, devuelve vacío: la ficha funciona igual con los defectos
+// (último run válido) y el consolidado es idéntico al automático.
+export async function getComponentSelections(
+  companyId: string,
+): Promise<import('./consolidated').ComponentSelection[]> {
+  if (isDemoMode()) return [];
+  try {
+    const db = getServiceSupabase()!;
+    const { data, error } = await db
+      .from('component_selections')
+      .select('dimension, scan_id, is_manual, selected_by_email, note, selected_at')
+      .eq('company_id', companyId);
+    if (error) return [];
+    return (data as import('./consolidated').ComponentSelection[] | null) ?? [];
+  } catch {
+    return [];
+  }
+}
+
 // Catálogo de startups (marcas): una entrada por empresa, no por lead. Es la
 // vista brand-first (score B3S, sector, ronda, founder), independiente del
 // stage; el trabajo por etapa sigue en Pipeline. De cada marca se elige el
