@@ -391,29 +391,30 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
           {(report || pitch.lectura.length > 0 || pitch.programa) && (
             <Section title="Brand3 Scanner">
               <AnalysisTabs
+                aside={
+                  autoScore != null ? (
+                    <p className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">
+                      automático · <span className="text-sm normal-case text-[var(--text)]">{autoScore}</span>
+                      /100 · último scan{' '}
+                      {new Date(scan!.created_at).toLocaleDateString('es-ES', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: '2-digit',
+                      })}
+                    </p>
+                  ) : undefined
+                }
                 tabs={[
                   {
                     key: 'scanner',
                     label: 'B3S Seed',
                     content: (
-                      <>
-                        {autoScore != null && (
-                          <p className="mb-2.5 font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">
-                            automático · {autoScore}/100 · último scan{' '}
-                            {new Date(scan!.created_at).toLocaleDateString('es-ES', {
-                              day: '2-digit',
-                              month: 'short',
-                            })}
-                            {autoRubric ? ` · ${autoRubric}` : ''}
-                          </p>
-                        )}
-                        <ScanComponents
-                          dimensions={consolidado.dimensions}
-                          versions={versions}
-                          companyId={company.id}
-                          selections={selectionsMap}
-                        />
-                      </>
+                      <ScanComponents
+                        dimensions={consolidado.dimensions}
+                        versions={versions}
+                        companyId={company.id}
+                        selections={selectionsMap}
+                      />
                     ),
                   },
                   {

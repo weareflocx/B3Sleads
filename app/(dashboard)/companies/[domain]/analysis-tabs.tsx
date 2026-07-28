@@ -15,14 +15,19 @@ import {
 // llega renderizado del servidor; aquí solo se elige qué se ve.
 export function AnalysisTabs({
   tabs,
+  aside,
 }: {
   tabs: { key: string; label: string; content: ReactNode }[];
+  // A la derecha de los tabs: el registro del score automático, visible
+  // siempre (no enterrado dentro de un tab).
+  aside?: ReactNode;
 }) {
   const [active, setActive] = useState(tabs[0]?.key);
   const current = tabs.find((t) => t.key === active) ?? tabs[0];
 
   return (
     <div>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
       <div className="flex flex-wrap gap-1.5">
         {tabs.map((t) => (
           <button
@@ -37,6 +42,8 @@ export function AnalysisTabs({
             {t.label}
           </button>
         ))}
+      </div>
+      {aside}
       </div>
       <div className="mt-3">{current?.content}</div>
     </div>
