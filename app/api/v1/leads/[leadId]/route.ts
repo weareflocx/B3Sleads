@@ -1,30 +1,39 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { apiAgent, unauthorized } from '@/lib/api-auth';
-import { updateLeadStage } from '@/lib/data';
-import { STAGES } from '@/lib/types';
+import { parseLeadPatch, readJson } from '@/lib/agent-api/contracts';
+import {
+  handleAgentRequest,
+  handleCompatibleAgentRequest,
+} from '@/lib/agent-api/handler';
+import { getAgentLead, patchAgentLead } from '@/lib/agent-api/leads';
+import { recordAgentAction } from '@/lib/agent-api/audit';
 
-// PATCH /api/v1/leads/{leadId} — mover de etapa. Descartar exige motivo,
-// igual que en el dashboard.
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ leadId: string }> },
-) {
-  if (!apiAgent(req)) return unauthorized();
-  try {
-    const { leadId } = await params;
-    const { stage, discardReason } = await req.json();
-    if (!STAGES.some((s) => s.key === stage)) {
-      return NextResponse.json(
-        { error: `stage inválido. Uno de: ${STAGES.map((s) => s.key).join(', ')}` },
-        { status: 400 },
-      );
-    }
-    if (stage === 'discarded' && !discardReason) {
-      return NextResponse.json({ error: 'Descartar exige discardReason' }, { status: 400 });
-    }
-    await updateLeadStage(leadId, stage, discardReason);
-    return NextResponse.json({ ok: true, stage });
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
-  }
+type RouteContext = { params: Promise<{ leadId: string }> };
+
+// Endpoint nuevo: usa el envelope estable de la API endurecida.
+export async function GET(request: Request, context: RouteContext) {
+  return handleAgentRequest(request, ['leads:read'], async () => {
+    const { leadId } = await context.params;
+    return { data: await getAgentLead(leadId) };
+  });
+}
+
+// PATCH conserva `{ ok, stage }` y `discardReason` para Hermes. También
+// acepta el contrato nuevo (`discard_reason`, `owner_email`).
+export async function PATCH(request: Request, context: RouteContext) {
+  return handleCompatibleAgentRequest(request, ['leads:write'], async (agentContext) => {
+    const { leadId } = await context.params;
+    const patch = parseLeadPatch(await readJson(request));
+    const lead = await patchAgentLead(leadId, patch);
+    await recordAgentAction(agentContext, {
+      action: 'update_lead',
+      resourceType: 'lead',
+      resourceId: leadId,
+    });
+    return {
+      body: {
+        ok: true,
+        stage: lead.stage,
+        owner_email: lead.owner_email,
+      },
+    };
+  });
 }

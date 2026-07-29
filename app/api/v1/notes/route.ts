@@ -1,47 +1,50 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { apiAgent, unauthorized } from '@/lib/api-auth';
+import { randomUUID } from 'node:crypto';
+import {
+  optionalIdempotencyKey,
+  parseCompatibleNoteInput,
+  readJson,
+} from '@/lib/agent-api/contracts';
+import { handleCompatibleAgentRequest } from '@/lib/agent-api/handler';
+import { AgentApiError } from '@/lib/agent-api/errors';
+import { createAgentNote } from '@/lib/agent-api/notes';
+import { noteView } from '@/lib/agent-api/serializers';
+import { recordAgentAction } from '@/lib/agent-api/audit';
 import { loadFiche } from '@/lib/api-v1';
-import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 
 // POST /api/v1/notes — anotar en la bitácora. La nota queda firmada por el
 // agente en el propio cuerpo ("[hermes] …"): la bitácora es evidencia y tiene
 // que decir quién habla.
-export async function POST(req: NextRequest) {
-  const agent = apiAgent(req);
-  if (!agent) return unauthorized();
-  try {
-    const { domain, leadId, body, kind } = await req.json();
-    if (typeof body !== 'string' || !body.trim()) {
-      return NextResponse.json({ error: 'body requerido' }, { status: 400 });
+export async function POST(request: Request) {
+  return handleCompatibleAgentRequest(request, ['notes:write'], async (context) => {
+    const input = parseCompatibleNoteInput(await readJson(request));
+    let leadId = input.leadId;
+    if (!leadId) {
+      const bundle = await loadFiche(input.domain!);
+      if (!bundle) {
+        throw new AgentApiError(404, 'company_not_found', 'Empresa no encontrada.');
+      }
+      leadId = bundle.bl.lead.id;
     }
-    if (!domain && !leadId) {
-      return NextResponse.json({ error: 'domain o leadId requeridos' }, { status: 400 });
+    const result = await createAgentNote({
+      leadId,
+      body: `[${context.principal.name}] ${input.body}`,
+      kind: input.kind,
+      agentApiKeyId: context.principal.id,
+      agentName: context.principal.name,
+      keyFingerprint: context.principal.keyFingerprint,
+      idempotencyKey:
+        optionalIdempotencyKey(request) ?? `legacy-note-${randomUUID()}`,
+    });
+    if (!result.deduped) {
+      await recordAgentAction(context, {
+        action: 'create_note',
+        resourceType: 'note',
+        resourceId: result.note.id,
+      });
     }
-    if (isDemoMode()) return NextResponse.json({ ok: true, demo: true });
-
-    let lead = leadId ? { id: leadId, companyId: null as string | null } : null;
-    if (!lead) {
-      const bundle = await loadFiche(String(domain));
-      if (!bundle) return NextResponse.json({ error: 'Empresa no encontrada' }, { status: 404 });
-      lead = { id: bundle.bl.lead.id, companyId: bundle.bl.company!.id };
-    }
-
-    const db = getServiceSupabase()!;
-    const { data: note, error } = await db
-      .from('notes')
-      .insert({
-        lead_id: lead.id,
-        company_id: lead.companyId,
-        body: `[${agent.name}] ${body.trim()}`,
-        kind: kind === 'call_report' || kind === 'insight' ? kind : 'note',
-      })
-      .select()
-      .single();
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    // Anotar es actividad: mantiene viva la temperatura del lead.
-    await db.from('leads').update({ updated_at: new Date().toISOString() }).eq('id', lead.id);
-    return NextResponse.json({ ok: true, note });
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
-  }
+    return {
+      body: { ok: true, note: noteView(result.note), deduped: result.deduped },
+      status: 200,
+    };
+  });
 }

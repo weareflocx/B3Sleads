@@ -17,6 +17,8 @@
     "supabase:types": "supabase gen types typescript --local > lib/database.types.ts",
     "pipeline:dry": "tsx pipeline/nightly.ts --dry-run",
     "pipeline:run": "tsx pipeline/nightly.ts",
+    "agent:key:create": "tsx scripts/create-agent-api-key.ts",
+    "agent:key:revoke": "tsx scripts/revoke-agent-api-key.ts",
     "import:explee": "tsx scripts/import-explee.ts",
     "import:explee:dry": "tsx scripts/import-explee.ts --dry-run"
   },

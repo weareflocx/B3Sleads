@@ -13,12 +13,15 @@ digo al agente".
 | Clave | **solo la suya** (ver abajo) |
 | Documentación | `docs/api-v1.md` de este repo |
 | Autodescubrimiento | `GET /api/v1` (sin auth) devuelve el índice de endpoints |
+| OpenAPI | `GET /api/v1/openapi.json` |
+| Salud | `GET /api/v1/health` |
 
 Cada agente recibe **únicamente su propia clave**, nunca la lista entera. Todo
-lo que escribe queda firmado con su nombre: las notas aparecen como
-`[guanchito] …` en la bitácora y las señales llevan `source: api:guanchito`.
-Si un día hay que revocar a uno, se quita su entrada de `B3SLEADS_API_KEYS` y
-los demás siguen funcionando.
+lo que escribe queda firmado de forma estructurada con su nombre y su clave
+(sin guardar el secreto). Cada clave persistida tiene scopes, caducidad y
+revocación independientes. `B3SLEADS_API_KEYS` se acepta temporalmente para no
+romper agentes existentes, pero las nuevas claves se guardan hasheadas en
+`agent_api_keys`.
 
 ## 2. Bloque de instrucciones para el agente
 
@@ -33,6 +36,7 @@ conversaciones con sus founders.
 **API:** `https://b3slead.netlify.app/api/v1`
 **Autenticación:** cabecera `Authorization: Bearer <SU_CLAVE>` en toda petición.
 Empieza por `GET /api/v1` para ver los endpoints disponibles.
+El contrato machine-readable está en `GET /api/v1/openapi.json`.
 
 **Cómo trabajar:**
 
@@ -64,6 +68,8 @@ Empieza por `GET /api/v1` para ver los endpoints disponibles.
 - **No inventes datos.** Si algo no está en la respuesta, dilo. Los huecos que
   la ficha marca con su frecuencia de detección (`detectada en 2 de 3`) son
   dudosos: no los presentes como carencias confirmadas.
+- **Reintentos seguros.** Envía una cabecera `Idempotency-Key` estable en cada
+  `POST`. Reutilízala solo para repetir exactamente la misma operación.
 
 **Tipos de señal** (el peso lo da el tipo, no tú):
 nivel A (10) `rebranding_declarado`, `oferta_empleo_marca`, `busqueda_agencia` ·
@@ -91,6 +97,7 @@ curl -s "$B3S_API/companies/nothiring.me/brief" -H "Authorization: Bearer $B3S_K
 # Registrar una señal encontrada (con evidencia y fecha real)
 curl -s -X POST "$B3S_API/signals" \
   -H "Authorization: Bearer $B3S_KEY" -H "Content-Type: application/json" \
+  -H "Idempotency-Key: signal-nothiring-brand-20260725" \
   -d '{"domain":"nothiring.me","type":"oferta_empleo_marca",
        "occurredAt":"2026-07-25",
        "evidence":"Vacante de Head of Brand publicada en su LinkedIn",
@@ -99,6 +106,7 @@ curl -s -X POST "$B3S_API/signals" \
 # Anotar una conclusión
 curl -s -X POST "$B3S_API/notes" \
   -H "Authorization: Bearer $B3S_KEY" -H "Content-Type: application/json" \
+  -H "Idempotency-Key: note-nothiring-rebrand-20260728" \
   -d '{"domain":"nothiring.me","body":"Publican sobre rebranding desde marzo","kind":"insight"}'
 ```
 
@@ -139,7 +147,7 @@ Para un agente con herramientas tipadas, estas cuatro cubren el 90% del uso:
 curl -s -o /dev/null -w '%{http_code}\n' "$B3S_API/leads" -H "Authorization: Bearer $B3S_KEY"
 ```
 
-`200` → listo. `401` → la clave no es válida o no está en el servidor: revisa
-`B3SLEADS_API_KEYS` en Netlify y **lanza un deploy nuevo** (las variables solo
-entran en un build nuevo). `GET /api/v1` dice `"configured": false` cuando el
-servidor no tiene ninguna clave cargada.
+`200` → listo. `401` → la clave no es válida, ha caducado o está revocada.
+`403` → la clave existe pero no tiene el scope de la operación. `429` → espera
+los segundos de `Retry-After`. `GET /api/v1` dice `"configured": false` cuando
+el servidor no tiene ninguna fuente de claves disponible.
