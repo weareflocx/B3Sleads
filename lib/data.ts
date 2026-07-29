@@ -154,6 +154,20 @@ export async function getComponentSelections(
   }
 }
 
+// Todos los founders de una marca. La tabla contacts ya cuelga de company_id,
+// así que una startup puede tener varios: el lead apunta a uno (con quien se
+// habla), pero la ficha los enseña todos.
+export async function getCompanyContacts(companyId: string): Promise<Contact[]> {
+  if (isDemoMode()) return [];
+  const db = getServiceSupabase()!;
+  const { data } = await db
+    .from('contacts')
+    .select('*')
+    .eq('company_id', companyId)
+    .order('full_name', { ascending: true });
+  return (data as Contact[] | null) ?? [];
+}
+
 // Catálogo de startups (marcas): una entrada por empresa, no por lead. Es la
 // vista brand-first (score B3S, sector, ronda, founder), independiente del
 // stage; el trabajo por etapa sigue en Pipeline. De cada marca se elige el
