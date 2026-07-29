@@ -8,6 +8,7 @@ import { LogoMark } from './logo-mark';
 import { Avatar } from './avatar';
 import { ThemeToggle } from './theme-toggle';
 import { SearchCommand } from './search-command';
+import { AddLeadButton } from './add-lead-modal';
 import { getBrowserSupabase } from '@/lib/supabase-browser';
 import {
   IconBriefing,
@@ -177,6 +178,11 @@ function SidebarBody({
 
       <div className={`px-3 py-1.5 ${collapsed ? 'flex justify-center' : ''}`}>
         <SearchCommand collapsed={collapsed} />
+      </div>
+
+      {/* La única acción del menú: meter algo al radar sin cambiar de pantalla. */}
+      <div className="px-3 pb-1 pt-1.5">
+        <AddLeadButton collapsed={collapsed} />
       </div>
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-2">

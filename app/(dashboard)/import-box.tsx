@@ -3,16 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { parseLinkedInHandle, humanizeHandle } from '@/lib/types';
 import type { PreviewRow } from '@/app/api/founders/preview/route';
-
-interface LogRow {
-  input: string;
-  status: string;
-  detail?: string;
-  domain?: string;
-  name?: string;
-}
+import { AddLeadForm, AddLeadLog, type LogRow } from './add-lead-form';
 
 // Añadir al radar. Vale con el founder, con la marca, o con ambos:
 //  - LinkedIn → el nombre se autocompleta desde el handle (editable)
@@ -21,16 +13,7 @@ interface LogRow {
 export function ImportBox() {
   const router = useRouter();
   const [mode, setMode] = useState<'uno' | 'lote'>('uno');
-  // Barra compacta por defecto: solo LinkedIn + dominio + Añadir. Los campos
-  // extra (nombre, nota, señales) se despliegan a demanda.
-  const [expanded, setExpanded] = useState(false);
 
-  // Modo uno a uno
-  const [linkedin, setLinkedin] = useState('');
-  const [name, setName] = useState('');
-  const [nameEdited, setNameEdited] = useState(false);
-  const [domain, setDomain] = useState('');
-  const [note, setNote] = useState('');
 
   // Modo lote: dos módulos, se emparejan por fila
   const [foundersText, setFoundersText] = useState('');
@@ -44,21 +27,7 @@ export function ImportBox() {
   const [log, setLog] = useState<LogRow[]>([]);
   const [busy, setBusy] = useState(false);
 
-  // Autocompletar el nombre desde el handle, estilo LinkedIn
-  function onLinkedinChange(value: string) {
-    setLinkedin(value);
-    if (!nameEdited) {
-      const handle = parseLinkedInHandle(value);
-      setName(handle ? humanizeHandle(handle) : '');
-    }
-  }
-
   function resetForm() {
-    setLinkedin('');
-    setName('');
-    setNameEdited(false);
-    setDomain('');
-    setNote('');
     setFoundersText('');
     setBrandsText('');
     setPreview(null);
@@ -84,18 +53,6 @@ export function ImportBox() {
     } finally {
       setBusy(false);
     }
-  }
-
-  function submitUno() {
-    if (!linkedin.trim() && !domain.trim()) return;
-    post([
-      {
-        linkedin: linkedin.trim() || undefined,
-        name: name.trim() || undefined,
-        domain: domain.trim() || undefined,
-        note: note.trim() || undefined,
-      },
-    ]);
   }
 
   // Empareja founders y marcas por fila en el texto que entiende el parser.
@@ -158,8 +115,9 @@ export function ImportBox() {
 
   return (
     <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-sm font-semibold">Añadir al radar</h2>
+      {/* Sin título ni explicación: dos campos y un botón se explican solos.
+          El acceso al lote queda a la derecha, donde no estorba. */}
+      <div className="flex items-center justify-end">
         <button
           onClick={() => {
             setMode(mode === 'uno' ? 'lote' : 'uno');
@@ -171,86 +129,9 @@ export function ImportBox() {
           {mode === 'uno' ? 'modo lote →' : '← uno a uno'}
         </button>
       </div>
-      <p className="mt-1 text-xs text-[var(--muted)]">
-        {mode === 'uno'
-          ? 'Con el founder, con la marca, o con ambos. El nombre se completa solo desde la URL; con dominio se busca su scan en B3S.'
-          : 'Pega varios de golpe: los founders a la izquierda y sus marcas a la derecha, uno por línea. La fila 1 de founders empareja con la fila 1 de marcas.'}
-      </p>
 
       {mode === 'uno' ? (
-        <>
-          {/* Barra: pegar la URL de LinkedIn (y opcionalmente el dominio) y
-              Añadir. Sin etiquetas: el placeholder ya lo dice. */}
-          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-            <input
-              id="li"
-              value={linkedin}
-              onChange={(e) => onLinkedinChange(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && submitUno()}
-              placeholder="URL de LinkedIn del founder — linkedin.com/in/janedoe"
-              className={`${inputCls} sm:flex-1`}
-            />
-            <input
-              id="dm"
-              value={domain}
-              onChange={(e) => setDomain(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && submitUno()}
-              placeholder="dominio de la marca (opcional)"
-              className={`${inputCls} sm:w-60`}
-            />
-            <button
-              onClick={submitUno}
-              disabled={busy || (!linkedin.trim() && !domain.trim())}
-              className="shrink-0 rounded-md bg-[var(--cta)] px-5 py-2 text-sm font-medium text-[var(--cta-text)] transition-opacity hover:opacity-90 disabled:opacity-40"
-            >
-              {busy ? 'Añadiendo…' : 'Añadir'}
-            </button>
-          </div>
-
-          {/* Campos extra a demanda: nombre, nota y señales de temperatura. */}
-          <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
-            <button
-              onClick={() => setExpanded((v) => !v)}
-              className="text-xs text-[var(--muted)] transition-colors hover:text-[var(--text)]"
-            >
-              {expanded ? '− menos campos' : '+ nombre, nota y señales'}
-            </button>
-            {expanded && <Checkboxes {...{ warm, setWarm, replied, setReplied }} />}
-          </div>
-
-          {expanded && (
-            <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
-              <div>
-                <label htmlFor="nm" className="text-xs text-[var(--muted)]">
-                  Nombre {linkedin && !nameEdited && name ? '· auto' : ''}
-                </label>
-                <input
-                  id="nm"
-                  value={name}
-                  onChange={(e) => {
-                    setName(e.target.value);
-                    setNameEdited(true);
-                  }}
-                  placeholder="Jane Doe"
-                  className={`mt-1 ${inputCls}`}
-                />
-              </div>
-              <div>
-                <label htmlFor="nt" className="text-xs text-[var(--muted)]">
-                  Nota · ángulo personal
-                </label>
-                <input
-                  id="nt"
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="comentó mi post sobre marcas"
-                  className={`mt-1 ${inputCls}`}
-                  onKeyDown={(e) => e.key === 'Enter' && submitUno()}
-                />
-              </div>
-            </div>
-          )}
-        </>
+        <AddLeadForm />
       ) : preview ? (
         <>
           <div className="mt-3.5 space-y-2 rounded-md border border-[var(--border)] bg-[var(--bg)] p-2.5">
@@ -324,35 +205,8 @@ export function ImportBox() {
         </>
       )}
 
-      {log.length > 0 && (
-        <ul className="mt-4 space-y-1.5 rounded-md border border-[var(--border)] bg-[var(--bg)] p-3 text-xs">
-          {log.map((r, i) => (
-            <li key={i} className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span
-                className={
-                  r.status === 'ok'
-                    ? 'text-[var(--success)]'
-                    : r.status === 'error'
-                      ? 'text-[var(--danger)]'
-                      : 'text-[var(--muted)]'
-                }
-              >
-                {r.status === 'ok' ? '✓' : r.status === 'error' ? '✗' : '·'}
-              </span>
-              <span className="font-medium">{r.name || r.input}</span>
-              {r.detail && <span className="text-[var(--muted)]">— {r.detail}</span>}
-              {r.status === 'ok' && r.domain && (
-                <Link
-                  href={`/companies/${r.domain}`}
-                  className="ml-auto rounded-md border border-[var(--border)] px-2 py-0.5 font-medium text-[var(--text)] transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)]"
-                >
-                  Ver ficha →
-                </Link>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+      {log.length > 0 && <AddLeadLog rows={log} />}
+
     </div>
   );
 }
