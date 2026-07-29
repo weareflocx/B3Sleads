@@ -22,12 +22,15 @@ export function CompanyBio({
   initial,
   initialSector,
   availableSectors = [],
+  recommended = [],
 }: {
   companyId: string;
   initial: string | null;
   initialSector: string | null;
   // Vocabulario de sectores (curados + en uso) para el picker.
   availableSectors?: string[];
+  // Sugeridos a partir de la bio y del scan: se proponen, no se ponen solos.
+  recommended?: string[];
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -40,6 +43,8 @@ export function CompanyBio({
   // (chips para añadir). Se guardan al tocar; nada se guarda solo.
   const [sectors, setSectors] = useState<string[]>(splitSectors(initialSector));
   const [suggested, setSuggested] = useState<string[]>([]);
+  // Lo que la bio y el scan ya sugieren, sin haber pulsado nada.
+  const hints = recommended.filter((r) => !sectors.includes(r) && !suggested.includes(r));
   const ref = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => setValue(initial ?? ''), [initial]);
@@ -162,7 +167,7 @@ export function CompanyBio({
             key={s}
             onClick={() => removeSector(s)}
             title="Quitar sector"
-            className="group inline-flex items-center gap-1 rounded-md border border-[var(--cta)]/50 px-2 py-0.5 text-xs text-[var(--cta)] transition-colors hover:border-[var(--danger)] hover:text-[var(--danger)]"
+            className="group inline-flex items-center gap-1 rounded-md border border-[var(--cta)]/50 px-2 py-1 text-xs text-[var(--cta)] transition-colors hover:border-[var(--danger)] hover:text-[var(--danger)]"
           >
             {s}
             <span className="text-[var(--cta)]/60 group-hover:text-[var(--danger)]">×</span>
@@ -174,13 +179,29 @@ export function CompanyBio({
             key={s}
             onClick={() => addSector(s)}
             title="Añadir sector sugerido"
-            className="inline-flex items-center gap-1 rounded-md border border-dashed border-[var(--border)] px-2 py-0.5 text-xs text-[var(--muted)] transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)]"
+            className="inline-flex items-center gap-1 rounded-md border border-dashed border-[var(--border)] px-2 py-1 text-xs text-[var(--muted)] transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)]"
           >
             <span className="text-[var(--soft)]">+</span>
             {s}
           </button>
         ))}
-        <SectorPicker available={availableSectors} selected={sectors} onAdd={addSector} />
+        {hints.map((s) => (
+          <button
+            key={s}
+            onClick={() => addSector(s)}
+            title="Sugerido por la bio y el scan"
+            className="inline-flex items-center gap-1 rounded-md border border-dashed border-[var(--border)] px-2 py-1 text-xs text-[var(--muted)] transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)]"
+          >
+            <span className="text-[var(--soft)]">+</span>
+            {s}
+          </button>
+        ))}
+        <SectorPicker
+          available={availableSectors}
+          selected={sectors}
+          onAdd={addSector}
+          compact={sectors.length > 0}
+        />
       </div>
     </div>
   );
@@ -269,10 +290,13 @@ function SectorPicker({
   available,
   selected,
   onAdd,
+  compact = false,
 }: {
   available: string[];
   selected: string[];
   onAdd: (s: string) => void;
+  // Con sectores ya puestos basta el "+": la fila se explica sola.
+  compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
@@ -308,9 +332,12 @@ function SectorPicker({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1 rounded-md border border-dashed border-[var(--muted)] px-2 py-0.5 text-xs text-[var(--text)] transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)]"
+        title="Añadir sector"
+        aria-label="Añadir sector"
+        className="inline-flex items-center gap-1 rounded-md border border-dashed border-[var(--muted)] px-2 py-1 text-xs text-[var(--text)] transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)]"
       >
-        <span className="text-[var(--soft)]">+</span> Sector
+        <span className="text-[var(--soft)]">+</span>
+        {!compact && <span>Sector</span>}
       </button>
 
       {open && (

@@ -8,8 +8,10 @@ import {
   getLeadNotes,
   getSectorVocabulary,
   getComponentSelections,
+  getCompanyContacts,
 } from '@/lib/data';
 import { consolidateReport, consolidatedScore } from '@/lib/consolidated';
+import { suggestSectors, parseSectorList } from '@/lib/sectors';
 import { componentTerms } from '@/lib/component-terms';
 import { leadTemperature } from '@/lib/scoring';
 import { buildPitch } from '@/lib/pitch';
@@ -28,7 +30,8 @@ import { FundingPanel } from './funding-panel';
 import { LeadTools } from './lead-tools';
 import { AnalysisTabs, ScanComponents } from './analysis-tabs';
 import { componentVersions, detectionNote, canonDimension, DIMENSION_LABELS } from '@/lib/scan-versions';
-import { BTN_LINKEDIN_OUTLINE } from '../../buttons';
+import { BTN_LINKEDIN_OUTLINE, BTN_OUTLINE } from '../../buttons';
+import { AddLeadButton } from '../../add-lead-modal';
 import { CompanyLogo } from '../../company-logo';
 import { CompanyBio } from './company-bio';
 import { EditableImage } from '../../editable-image';
@@ -74,13 +77,14 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
   if (!bl || !bl.company) notFound();
 
   const { company, contact, scan, lead, message } = bl;
-  const [scanHistory, signals, notes, team, sectorVocab, selections] = await Promise.all([
+  const [scanHistory, signals, notes, team, sectorVocab, selections, allContacts] = await Promise.all([
     getCompanyScans(company.id),
     getCompanySignals(company.id),
     getLeadNotes(lead.id),
     getTeamMembers(),
     getSectorVocabulary(),
     getComponentSelections(company.id),
+    getCompanyContacts(company.id),
   ]);
   const ownerEmail = leadOwner(lead);
   const owner = { email: ownerEmail, label: userLabel(ownerEmail) };
@@ -172,6 +176,20 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
       resolved: !!selectedDim,
     };
   }).filter((g) => !g.resolved);
+  // Todos los founders en una sola lista, con el del lead primero: es con
+  // quien se habla, pero se presenta igual que el resto.
+  // Sectores recomendados de lo que ya sabemos: la bio y el texto del scan.
+  const sectorHints = suggestSectors(
+    [company.description, tldr, ...consolidado.dimensions.map((d) => d.reading ?? d.analysis)]
+      .filter(Boolean)
+      .join(' '),
+    sectorVocab,
+    parseSectorList(company.sector),
+  );
+
+  const founders = contact
+    ? [contact, ...allContacts.filter((c) => c.id !== contact.id)]
+    : allContacts;
   const stageLabel = stageLabelFor(lead.stage);
   const firstName = displayName(contact?.full_name).split(' ')[0] || null;
   const temp = leadTemperature(bl);
@@ -272,10 +290,6 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                   {inv.name}
                 </Link>
               ))}
-              {company.sector
-                ?.split(/\s*·\s*|\s*,\s*/)
-                .filter(Boolean)
-                .map((s) => <Chip key={s}>{s}</Chip>)}
               {company.size && <Chip>{company.size} personas</Chip>}
               {company.city && <Chip>{company.city}</Chip>}
               {company.hq_country && <Chip>{company.hq_country}</Chip>}
@@ -333,6 +347,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                       initial={company.description}
                       initialSector={company.sector}
                       availableSectors={sectorVocab}
+                      recommended={sectorHints}
                     />
                   </div>
 
@@ -574,85 +589,98 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
 
         {/* ── Lateral: contacto, seguimiento, financiación ── */}
         <aside className="space-y-8">
-          <Section title="Founder">
+          <Section title={allContacts.length > 1 ? 'Founders' : 'Founder'}>
             <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
-              {contact ? (
-                <>
-                  <div className="flex gap-3">
-                    <EditableImage
-                    target={{ kind: 'contact', id: contact.id }}
-                    initial={contact.avatar_url}
-                    label="Cambiar foto del founder"
-                  >
-                    <Avatar name={displayName(contact.full_name)} src={contact.avatar_url} />
-                  </EditableImage>
-                    <div className="min-w-0">
-                      <EditableText
-                        initial={displayName(contact.full_name)}
-                        kind="contact"
-                        id={contact.id}
-                        className="text-sm font-medium"
-                        label="Editar nombre del founder"
-                      />
-                      {contact.role && (
-                        <div className="mt-0.5 text-xs text-[var(--muted)]">{contact.role}</div>
-                      )}
-                      {contact.city && (
-                        <div className="mt-0.5 text-xs text-[var(--muted)]">{contact.city}</div>
-                      )}
-                    </div>
-                  </div>
-                  {contact.headline && (
-                    <p className="mt-2.5 text-xs leading-relaxed text-[var(--muted)]">
-                      {contact.headline}
-                    </p>
-                  )}
-                  {/* Datos de contacto: email (Lusha vía MCP, 1 crédito) y teléfono
-                      (alta manual; el reveal de phone en Lusha son 10 créditos). */}
-                  {(contact.email || contact.phone) && (
-                    <div className="mt-3 space-y-1 text-xs">
-                      {contact.email && (
-                        <a
-                          href={`mailto:${contact.email}`}
-                          className="block truncate text-[var(--muted)] hover:text-[var(--text)]"
-                        >
-                          ✉ {contact.email}
-                          {!contact.email_verified && ' (no verificado)'}
-                        </a>
-                      )}
-                      {contact.phone && (
-                        <a href={`tel:${contact.phone}`} className="block text-[var(--muted)] hover:text-[var(--text)]">
-                          ☎ {contact.phone}
-                        </a>
-                      )}
-                    </div>
-                  )}
-                  <div className="mt-3.5">
-                    {contact.linkedin_url ? (
-                      <a
-                        href={contact.linkedin_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className={`${BTN_LINKEDIN_OUTLINE} block w-full`}
-                      >
-                        Abrir LinkedIn ↗
-                      </a>
-                    ) : (
-                      <p className="text-xs text-[var(--warning)]">
-                        Sin LinkedIn: no es contactable todavía.
-                      </p>
-                    )}
-                  </div>
-                </>
+              {founders.length === 0 ? (
+                <p className="text-sm text-[var(--muted)]">Sin contacto todavía.</p>
               ) : (
-                <p className="text-sm text-[var(--muted)]">
-                  Sin contacto. Añádelo desde{' '}
-                  <Link href="/founders" className="text-[var(--accent)] hover:underline">
-                    Founders
-                  </Link>
-                  .
-                </p>
+                <ul className="divide-y divide-[var(--border)]">
+                  {founders.map((c) => (
+                    <li key={c.id} className="py-3 first:pt-0 last:pb-0">
+                      <div className="flex items-center gap-3">
+                        <EditableImage
+                          target={{ kind: 'contact', id: c.id }}
+                          initial={c.avatar_url}
+                          label="Cambiar foto del founder"
+                        >
+                          <Avatar name={displayName(c.full_name)} src={c.avatar_url} size={34} />
+                        </EditableImage>
+                        <div className="min-w-0 flex-1">
+                          <EditableText
+                            initial={displayName(c.full_name)}
+                            kind="contact"
+                            id={c.id}
+                            className="text-sm font-medium"
+                            label="Editar nombre del founder"
+                          />
+                          <div className="mt-0.5 truncate text-xs text-[var(--muted)]">
+                            {[c.role, c.city].filter(Boolean).join(' · ') || 'sin cargo'}
+                          </div>
+                        </div>
+                        {/* Escribirle es abrir su LinkedIn: el icono lo dice sin
+                            texto, y así todos los founders ocupan lo mismo. */}
+                        {c.linkedin_url ? (
+                          <a
+                            href={c.linkedin_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            title={`Abrir LinkedIn de ${displayName(c.full_name)}`}
+                            aria-label={`Abrir LinkedIn de ${displayName(c.full_name)}`}
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[var(--linkedin)]/40 text-[var(--linkedin)] transition-colors hover:border-[var(--linkedin)] hover:bg-[var(--linkedin)]/10"
+                          >
+                            {/* La "in" escrita en la Geist del producto: a este
+                                tamaño el logo vectorial se empasta. */}
+                            <span className="font-sans text-[13px] font-bold leading-none tracking-tight">
+                              in
+                            </span>
+                          </a>
+                        ) : (
+                          <span
+                            title="Sin LinkedIn: no es contactable todavía"
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-dashed border-[var(--border)] text-[10px] text-[var(--soft)]"
+                          >
+                            —
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Lo demás solo cuando lo hay, sin romper la fila. */}
+                      {c.headline && (
+                        <p className="mt-2 text-xs leading-relaxed text-[var(--muted)]">{c.headline}</p>
+                      )}
+                      {(c.email || c.phone) && (
+                        <div className="mt-2 space-y-1 text-xs">
+                          {c.email && (
+                            <a
+                              href={`mailto:${c.email}`}
+                              className="block truncate text-[var(--muted)] hover:text-[var(--text)]"
+                            >
+                              ✉ {c.email}
+                              {!c.email_verified && ' (no verificado)'}
+                            </a>
+                          )}
+                          {c.phone && (
+                            <a
+                              href={`tel:${c.phone}`}
+                              className="block text-[var(--muted)] hover:text-[var(--text)]"
+                            >
+                              ☎ {c.phone}
+                            </a>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               )}
+
+              <div className="mt-3 border-t border-[var(--border)] pt-3">
+                <AddLeadButton
+                  domain={company.domain}
+                  label="Añadir founder"
+                  className={`${BTN_OUTLINE} flex w-full items-center justify-center gap-2`}
+                />
+              </div>
             </div>
           </Section>
 
