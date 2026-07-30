@@ -14,10 +14,16 @@ export function EditableText({
   as = 'span',
   className = '',
   label = 'Editar',
+  field = 'name',
+  placeholder,
 }: {
   initial: string;
   kind: 'company' | 'contact';
   id: string;
+  // Qué se edita. 'name' es el nombre (compañía o founder); 'role', el cargo.
+  field?: 'name' | 'role';
+  // Para campos que pueden estar vacíos: qué invitar a escribir.
+  placeholder?: string;
   as?: 'h1' | 'span';
   className?: string;
   label?: string;
@@ -30,20 +36,30 @@ export function EditableText({
 
   useEffect(() => setValue(initial), [initial]);
   useEffect(() => {
-    if (editing) inputRef.current?.select();
+    if (!editing) return;
+    // Enfocar y seleccionar son dos cosas: en un campo vacío (un cargo que
+    // aún no está) select() no tiene nada que seleccionar y el foco no llega,
+    // así que se escribía al vacío.
+    inputRef.current?.focus();
+    inputRef.current?.select();
   }, [editing]);
 
   async function save() {
     const next = value.trim();
     setEditing(false);
-    if (!next || next === initial) {
+    // El nombre no puede quedarse vacío; el cargo sí (se borra).
+    if (next === initial || (!next && field === 'name')) {
       setValue(initial);
       return;
     }
     setSaving(true);
     const endpoint = kind === 'company' ? '/api/companies' : '/api/contacts';
     const body =
-      kind === 'company' ? { companyId: id, name: next } : { contactId: id, full_name: next };
+      kind === 'company'
+        ? { companyId: id, name: next }
+        : field === 'role'
+          ? { contactId: id, role: next }
+          : { contactId: id, full_name: next };
     try {
       const res = await fetch(endpoint, {
         method: 'PATCH',
@@ -67,6 +83,7 @@ export function EditableText({
         ref={inputRef}
         value={value}
         onChange={(e) => setValue(e.target.value)}
+        placeholder={placeholder}
         onBlur={save}
         onKeyDown={(e) => {
           if (e.key === 'Enter') save();
@@ -83,7 +100,9 @@ export function EditableText({
 
   return (
     <Tag className={`group inline-flex items-center gap-2 ${className}`}>
-      <span className={saving ? 'opacity-50' : ''}>{value}</span>
+      <span className={`${saving ? 'opacity-50' : ''} ${!value ? 'text-[var(--soft)]' : ''}`}>
+        {value || placeholder}
+      </span>
       <button
         onClick={() => setEditing(true)}
         title={label}

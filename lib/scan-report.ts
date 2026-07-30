@@ -232,6 +232,10 @@ function tileText(tile: Record<string, unknown>, keys: string[]): string | null 
   return null;
 }
 
+// Magnetismo y Coherencia pesan x2 en la rúbrica baldosas-v3: son las dos
+// dimensiones que valen 20 puntos y no 10.
+const COMPONENT_WEIGHT = /magnet|coheren/i;
+
 function structuredScanReport(result: B3SScanResult): ScanReport {
   // El primer evidence_ref suele ser el mismo para casi todos los componentes
   // (el H1 de la home), así que asignarlo a ciegas repetía la misma frase en
@@ -241,12 +245,15 @@ function structuredScanReport(result: B3SScanResult): ScanReport {
   const raw = result.components.map((component) => {
     const status = `${component.status} ${component.coverage_status}`.toLowerCase();
     const missing = /not.?detected|absent|missing/.test(status);
-    const ratio =
-      component.score != null && component.max_score
-        ? component.score / component.max_score
-        : missing
-          ? 0
-          : null;
+    // El payload manda Magnetismo y Coherencia SIN ponderar (x/10) aunque
+    // valen el doble. Ponderados aquí, los diez componentes suman 100 y su
+    // suma coincide exactamente con el score global del Scanner (verificado
+    // contra los 37 escaneos con contrato v1). Así la ficha enseña la escala
+    // real (Magnetismo y Coherencia sobre 20) y el consolidado es exacto.
+    const weight = COMPONENT_WEIGHT.test(`${component.key} ${component.label}`) ? 2 : 1;
+    const score = component.score != null ? component.score * weight : null;
+    const max = component.max_score != null ? component.max_score * weight : null;
+    const ratio = score != null && max ? score / max : missing ? 0 : null;
 
     const todos: ScanTodo[] = component.tiles.flatMap((tile) => {
       const state = tileText(tile, ['estado', 'state', 'status'])?.toLowerCase() ?? '';
@@ -286,8 +293,8 @@ function structuredScanReport(result: B3SScanResult): ScanReport {
     return {
       dimension: {
         name: component.label || component.key,
-        score: component.score,
-        max: component.max_score,
+        score,
+        max,
         ratio,
         verdict: component.verdict || null,
         // `message` es la lectura estratégica del Scanner. Antes se usaba solo
