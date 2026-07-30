@@ -218,8 +218,14 @@ export function calibrationByDimension(
       // Solo empresas con 2 o más pasadas: con una no hay dispersión que medir.
       if (d.stats.totalRuns < 2) continue;
       const a = acc.get(d.key) ?? { stdevs: [], ranges: [], det: 0, tot: 0, cos: 0 };
-      if (d.stats.stdev != null) a.stdevs.push(d.stats.stdev);
-      if (d.stats.min != null && d.stats.max != null) a.ranges.push(d.stats.max - d.stats.min);
+      // La dispersión se compara entre dimensiones, y no todas puntúan sobre
+      // lo mismo (Atributos vale 5, Coherencia 20). Se lleva todo a base 10 o
+      // Magnetismo y Coherencia parecerían el doble de inestables por escala.
+      const scale = 10 / (d.versions.find((v) => v.max)?.max ?? 10);
+      if (d.stats.stdev != null) a.stdevs.push(d.stats.stdev * scale);
+      if (d.stats.min != null && d.stats.max != null) {
+        a.ranges.push((d.stats.max - d.stats.min) * scale);
+      }
       a.det += d.stats.detectedIn;
       a.tot += d.stats.totalRuns;
       a.cos += 1;

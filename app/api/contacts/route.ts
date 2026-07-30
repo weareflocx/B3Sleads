@@ -3,10 +3,10 @@ import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 
 // Editar el contacto. Notas de seguimiento (ángulo personal) y/o el nombre
 // del founder (edición inline en la ficha, para corregir un alta mal parseada).
-// PATCH { contactId, notes?, full_name?, avatar_url? }
+// PATCH { contactId, notes?, full_name?, role?, avatar_url? }
 export async function PATCH(req: NextRequest) {
   try {
-    const { contactId, notes, full_name, avatar_url } = await req.json();
+    const { contactId, notes, full_name, role, avatar_url } = await req.json();
     if (!contactId) {
       return NextResponse.json({ error: 'contactId requerido' }, { status: 400 });
     }
@@ -21,6 +21,8 @@ export async function PATCH(req: NextRequest) {
     if (typeof full_name === 'string' && full_name.trim()) {
       update.full_name = full_name.trim();
     }
+    // El cargo sí puede vaciarse: cadena vacía lo borra.
+    if (typeof role === 'string') update.role = role.trim() || null;
     // null o cadena vacía quitan la foto y devuelven el monograma.
     if (avatar_url === null) update.avatar_url = null;
     else if (typeof avatar_url === 'string') update.avatar_url = avatar_url.trim() || null;

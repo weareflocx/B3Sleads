@@ -613,8 +613,20 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                             className="text-sm font-medium"
                             label="Editar nombre del founder"
                           />
-                          <div className="mt-0.5 truncate text-xs text-[var(--muted)]">
-                            {[c.role, c.city].filter(Boolean).join(' · ') || 'sin cargo'}
+                          {/* El cargo se edita en el sitio, igual que el
+                              nombre: saber si hablas con el CEO o el CTO
+                              cambia el mensaje, y suele llegar después. */}
+                          <div className="mt-0.5 flex items-center gap-1.5 text-xs text-[var(--muted)]">
+                            <EditableText
+                              initial={c.role ?? ''}
+                              kind="contact"
+                              id={c.id}
+                              field="role"
+                              placeholder="sin cargo"
+                              className="text-xs"
+                              label="Editar cargo"
+                            />
+                            {c.city && <span className="truncate">· {c.city}</span>}
                           </div>
                         </div>
                         {/* Escribirle es abrir su LinkedIn: el icono lo dice sin

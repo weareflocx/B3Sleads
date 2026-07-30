@@ -74,26 +74,25 @@ export function consolidateReport(
 
 // --- score_consolidado ---
 //
-// La agregación exacta 0→100 del Scanner no viaja en el payload y §7 prohíbe
-// inventar una nueva. Lo que sí es reproducible al 100% es base_average (media
-// de las 8 dimensiones base, no detectada = 0) y el peso observado de
-// Magnetismo/Coherencia (×2). Por eso el consolidado se calcula POR DELTA:
+// La agregación del Scanner SÍ es reproducible: el score global es la suma de
+// los puntos de los diez componentes, con Magnetismo y Coherencia pesando x2
+// (los dos que valen 20 y no 10). Comprobado exacto contra los escaneos con
+// contrato v1: suma == score, sin residuo.
 //
-//   consolidado = score_automatico + Σ (peso_d × (sel_d − auto_d))
+// Por eso el consolidado se calcula por delta de puntos, que con esa fórmula
+// es exacto y no una aproximación:
 //
-// Sin selecciones manuales el delta es 0 y el consolidado ES el automático,
-// exacto (criterio #9). Con selecciones, el delta usa los pesos observados
-// (base ×6/8, Magnetismo y Coherencia ×2), que cancelan el término que no
-// sabemos reproducir. Cuando el Scanner exponga su agregación real, este es
-// el único sitio que hay que cambiar.
-const HEAVY = new Set(['magnetism', 'coherence']);
+//   consolidado = score_automatico + Σ (puntos_seleccionados − puntos_automáticos)
+//
+// Sin selecciones manuales el delta es 0 y el consolidado ES el automático
+// (criterio #9). Los puntos ya llegan ponderados desde el informe, así que
+// aquí no se vuelve a pesar nada.
 
-function norm(d: ScanDimension | undefined): number {
-  // No detectada aporta 0, igual que hace el automático en base_average.
-  // score×10/max normaliza a 0-10 tanto los /5 y /10 del contrato v1 como el
-  // 16/20 ya ponderado de los informes markdown.
+// Puntos que aporta una dimensión al score global. No detectada aporta 0,
+// igual que hace el Scanner.
+function points(d: ScanDimension | undefined): number {
   if (!d || d.missing || d.score == null) return 0;
-  return (Number(d.score) * 10) / (d.max && d.max > 0 ? d.max : 10);
+  return Number(d.score);
 }
 
 export function consolidatedScore(
@@ -104,11 +103,7 @@ export function consolidatedScore(
   const autoByKey = new Map(autoDimensions.map((d) => [canonDimension(d.name), d]));
   let delta = 0;
   for (const d of consolidated) {
-    const key = canonDimension(d.name);
-    const auto = autoByKey.get(key);
-    const diff = norm(d) - norm(auto);
-    if (diff === 0) continue;
-    delta += diff * (HEAVY.has(key) ? 2 : 6 / 8);
+    delta += points(d) - points(autoByKey.get(canonDimension(d.name)));
   }
   return Math.max(0, Math.min(100, Math.round(autoScore + delta)));
 }
