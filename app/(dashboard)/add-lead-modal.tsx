@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useAddLead } from './add-lead-form';
 import { BTN_WHITE, BTN_OUTLINE } from './buttons';
@@ -239,7 +240,12 @@ function AddLeadDialog({
     }
   }
 
-  return (
+  // El diálogo se monta en <body>, no donde vive el botón. El menú es
+  // `sticky`, y sticky crea contexto de apilamiento: dentro de él, z-100 solo
+  // compite con los hermanos del menú, así que cualquier elemento posicionado
+  // de la página (el chip + de Sector, el selector de Etapa) se pintaba encima
+  // del pop-up. Portal al body y el z-index vuelve a significar algo.
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -358,6 +364,7 @@ function AddLeadDialog({
         )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import type { SearchHit } from '@/lib/search';
 import { IconSearch, IconBuilding, IconFounders } from './nav-icons';
@@ -120,69 +121,77 @@ export function SearchCommand({ collapsed = false }: { collapsed?: boolean }) {
         </button>
       )}
 
-      {open && (
-        <div
-          className="fixed inset-0 z-[100] flex items-start justify-center bg-black/30 px-4 pt-[12vh]"
-          onClick={() => setOpen(false)}
-        >
+      {/* Igual que el alta de leads: el buscador se monta en <body>. Vive en
+          el menú, que es `sticky`, y sticky crea contexto de apilamiento: ahí
+          dentro su z-100 no compite con la página, así que los elementos
+          posicionados de la ficha se le pintaban encima. */}
+      {open &&
+        createPortal(
+          (
           <div
-            className="w-full max-w-lg overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[100] flex items-start justify-center bg-black/30 px-4 pt-[12vh]"
+            onClick={() => setOpen(false)}
           >
-            <div className="flex items-center gap-2.5 border-b border-[var(--border)] px-3.5">
-              <IconSearch size={17} />
-              <input
-                ref={inputRef}
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                onKeyDown={onInputKey}
-                placeholder="Buscar startups y founders…"
-                className="flex-1 bg-transparent py-3.5 text-sm outline-none placeholder:text-[var(--soft)]"
-              />
-              {loading && <span className="text-xs text-[var(--soft)]">…</span>}
-            </div>
+            <div
+              className="w-full max-w-lg overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-2.5 border-b border-[var(--border)] px-3.5">
+                <IconSearch size={17} />
+                <input
+                  ref={inputRef}
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  onKeyDown={onInputKey}
+                  placeholder="Buscar startups y founders…"
+                  className="flex-1 bg-transparent py-3.5 text-sm outline-none placeholder:text-[var(--soft)]"
+                />
+                {loading && <span className="text-xs text-[var(--soft)]">…</span>}
+              </div>
 
-            <div className="max-h-[52vh] overflow-y-auto p-1.5">
-              {q.trim().length < 2 ? (
-                <p className="px-3 py-6 text-center text-sm text-[var(--soft)]">
-                  Escribe para buscar en el radar.
-                </p>
-              ) : hits.length === 0 && !loading ? (
-                <p className="px-3 py-6 text-center text-sm text-[var(--soft)]">
-                  Nada con “{q.trim()}”.
-                </p>
-              ) : (
-                <>
-                  {companies.length > 0 && (
-                    <Group label="Startups">
-                      {companies.map((h) => (
-                        <Row
-                          key={`c-${h.href}`}
-                          hit={h}
-                          activeHit={hits[active]}
-                          onSelect={go}
-                        />
-                      ))}
-                    </Group>
-                  )}
-                  {founders.length > 0 && (
-                    <Group label="Founders">
-                      {founders.map((h, i) => (
-                        <Row
-                          key={`f-${h.href}-${i}`}
-                          hit={h}
-                          activeHit={hits[active]}
-                          onSelect={go}
-                        />
-                      ))}
-                    </Group>
-                  )}
-                </>
-              )}
+              <div className="max-h-[52vh] overflow-y-auto p-1.5">
+                {q.trim().length < 2 ? (
+                  <p className="px-3 py-6 text-center text-sm text-[var(--soft)]">
+                    Escribe para buscar en el radar.
+                  </p>
+                ) : hits.length === 0 && !loading ? (
+                  <p className="px-3 py-6 text-center text-sm text-[var(--soft)]">
+                    Nada con “{q.trim()}”.
+                  </p>
+                ) : (
+                  <>
+                    {companies.length > 0 && (
+                      <Group label="Startups">
+                        {companies.map((h) => (
+                          <Row
+                            key={`c-${h.href}`}
+                            hit={h}
+                            activeHit={hits[active]}
+                            onSelect={go}
+                          />
+                        ))}
+                      </Group>
+                    )}
+                    {founders.length > 0 && (
+                      <Group label="Founders">
+                        {founders.map((h, i) => (
+                          <Row
+                            key={`f-${h.href}-${i}`}
+                            hit={h}
+                            activeHit={hits[active]}
+                            onSelect={go}
+                          />
+                        ))}
+                      </Group>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+          ),
+          document.body,
+        )}
     </>
   );
 }
