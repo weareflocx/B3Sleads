@@ -13,7 +13,7 @@ export function Footer() {
           <div>
             <p className="text-sm font-semibold">B3S Leads</p>
             <p className="mt-0.5 max-w-xs text-xs text-[var(--muted)]">
-              Generación de leads de valor para FLOC*. El envío es siempre humano, por LinkedIn.
+              Leads de valor a través de la firma humana.
             </p>
           </div>
         </div>
