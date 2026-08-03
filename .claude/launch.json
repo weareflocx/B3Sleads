@@ -6,6 +6,18 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 3000
+    },
+    {
+      "name": "sas-preview",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8899",
+        "--directory",
+        "/private/tmp/claude-501/-Users-esdotge-Claude-Projects-B3S-Leads/1251993d-dfef-4365-bb6d-2b285258b6fc/scratchpad/sas-preview"
+      ],
+      "port": 8899
     }
   ]
 }
