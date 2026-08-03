@@ -167,6 +167,31 @@ export function resumen(counts: {
   return frase.charAt(0).toUpperCase() + frase.slice(1) + '.';
 }
 
+// La frase del banner de la home: personalizada por el estado del pipeline,
+// no un lema fijo. Anima a lo que toca hoy, con las conversaciones por
+// delante: la relación viva siempre vale más que el mensaje nuevo.
+export function fraseAnimo(counts: {
+  conversaciones: number;
+  seguimientos: number;
+  senalViva: number;
+}): string {
+  const { conversaciones: c, seguimientos: sg, senalViva: sv } = counts;
+  if (c > 0) {
+    return c === 1
+      ? 'Tienes una conversación viva. Una buena respuesta hoy vale más que tres mensajes nuevos.'
+      : `Tienes ${c} conversaciones vivas. Una buena respuesta hoy vale más que tres mensajes nuevos.`;
+  }
+  if (sg > 0) {
+    return sg === 1
+      ? 'Un founder espera que reaparezcas. Volver a aparecer es la mitad del oficio.'
+      : `${sg} founders esperan que reaparezcas. Volver a aparecer es la mitad del oficio.`;
+  }
+  if (sv > 0) {
+    return `${sv} ${sv === 1 ? 'marca' : 'marcas'} con el timing a favor. Mejor cinco mensajes con contexto que veinte plantillas.`;
+  }
+  return 'Radar tranquilo. Buen día para cuidar las relaciones que ya tienes.';
+}
+
 // Fecha del briefing en horario de Madrid, que es donde se trabaja.
 export function fechaBriefing(now = new Date()): string {
   return new Intl.DateTimeFormat('es-ES', {

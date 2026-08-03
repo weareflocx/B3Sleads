@@ -2,8 +2,9 @@ import { PAGE } from '@/app/(dashboard)/page-width';
 import Link from 'next/link';
 import { getBriefingLeads, getStartups } from '@/lib/data';
 import { platformStats, rondasRecientes, titularesDelDia } from '@/lib/ecosystem';
-import { diasLabel, fechaBriefing } from '@/lib/briefing';
+import { diasLabel, fraseAnimo, seguimientos } from '@/lib/briefing';
 import { BTN_WHITE } from '../buttons';
+import { Clock } from '../clock';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,6 +52,13 @@ export default async function HomePage() {
     ['conversation', 'call', 'proposal'].includes(l.lead.stage),
   ).length;
   const contacted = leads.filter((l) => l.lead.stage === 'contacted').length;
+  // La línea personalizada del banner: conversaciones por delante, luego
+  // seguimientos, luego la cola. Cambia sola con el estado del pipeline.
+  const animo = fraseAnimo({
+    conversaciones: conversations,
+    seguimientos: seguimientos(leads).length,
+    senalViva: stats.conSenalViva,
+  });
   const won = leads.filter((l) => l.lead.stage === 'won').length;
   const totalEscaneadas = stats.bandas.reduce((a, b) => a + b.count, 0);
 
@@ -83,7 +91,8 @@ export default async function HomePage() {
 
   return (
     <main className={`${PAGE} space-y-8`}>
-      {/* Bienvenida: fecha, estado general y la puerta al trabajo del día. */}
+      {/* Bienvenida: saludo, reloj vivo, el estado en una frase y una línea
+          personalizada que empuja a lo que toca hoy. */}
       <section className="relative overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)] px-6 py-8">
         <div
           aria-hidden="true"
@@ -93,16 +102,17 @@ export default async function HomePage() {
               'repeating-linear-gradient(135deg, var(--border) 0 1px, transparent 1px 8px)',
           }}
         />
-        <p className="font-mono text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
-          {fechaBriefing()}
-        </p>
-        <h1 className="mt-2 max-w-lg text-2xl font-bold leading-snug tracking-tight">
-          {saludo()}. {stats.marcas} marcas en el radar, {stats.conSenalViva} con señal viva.
-        </h1>
-        <p className="mt-2 max-w-md text-xs leading-relaxed text-[var(--muted)]">
-          La app prepara contexto y argumentario; la conversación la abres tú, por LinkedIn.
-        </p>
-        <Link href="/briefing" className={`${BTN_WHITE} mt-5 inline-block`}>
+        <div className="relative flex items-start justify-between gap-6">
+          <div>
+            <h1 className="text-2xl font-bold leading-snug tracking-tight">{saludo()}.</h1>
+            <p className="mt-1 text-base text-[var(--muted)]">
+              {stats.marcas} marcas en el radar, {stats.conSenalViva} con señal viva.
+            </p>
+          </div>
+          <Clock />
+        </div>
+        <p className="relative mt-4 max-w-md text-sm leading-relaxed">{animo}</p>
+        <Link href="/briefing" className={`${BTN_WHITE} relative mt-5 inline-block`}>
           Ir al briefing de hoy
         </Link>
       </section>
