@@ -93,6 +93,17 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
     : null;
   const fundingSignals = signals.filter((s) => s.type === 'funding_round');
   const latestFunding = fundingSignals[0] ?? null;
+  // "Levantando ronda" no es una ronda cerrada, es el estado de AHORA: el
+  // momento en que necesitan narrativa para el deck. Se guardaba y puntuaba en
+  // el radar, pero la ficha solo miraba funding_round y quedaba invisible.
+  const raisingSignals = signals.filter((s) => s.type === 'levantando_ronda');
+  const raising = raisingSignals[0] ?? null;
+  const rd = raising?.detail;
+  const raisingHeadline = raising
+    ? [rd?.round, rd?.target_amount ? `buscan ${rd.target_amount}` : null]
+        .filter(Boolean)
+        .join(' · ') || 'en ronda'
+    : null;
   const report = storedScanReport(scan?.result_raw ?? null);
 
   const tldr =
@@ -270,15 +281,25 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                 deja el hueco vacío: se dice que no se ha detectado, que es una
                 señal en sí misma y un recordatorio de que se puede registrar. */}
             <div className="flex flex-wrap items-center gap-2">
+              {/* En ronda ahora: por delante de la ronda cerrada. Una marca
+                  buscando dinero es el mejor momento para hablarle de marca. */}
+              {raisingHeadline && (
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--accent)]/50 bg-[var(--accent)]/8 px-2.5 py-1 text-xs text-[var(--accent)]">
+                  <span className="font-semibold uppercase tracking-wider">En ronda</span>
+                  <span className="text-[var(--text)]">{raisingHeadline}</span>
+                </span>
+              )}
               {fundingHeadline ? (
                 <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--cta)]/40 bg-[var(--cta)]/8 px-2.5 py-1 text-xs text-[var(--cta)]">
                   <span className="font-semibold uppercase tracking-wider">Ronda</span>
                   <span className="text-[var(--text)]">{fundingHeadline}</span>
                 </span>
               ) : (
-                <span className="inline-flex items-center rounded-md border border-dashed border-[var(--border)] px-2.5 py-1 text-xs text-[var(--soft)]">
-                  Ronda no detectada
-                </span>
+                !raisingHeadline && (
+                  <span className="inline-flex items-center rounded-md border border-dashed border-[var(--border)] px-2.5 py-1 text-xs text-[var(--soft)]">
+                    Ronda no detectada
+                  </span>
+                )
               )}
               {headlineInvestors.map((inv) => (
                 <Link
@@ -716,7 +737,12 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
           </Section>
 
           <Section title="Financiación">
-            <FundingPanel companyId={company.id} leadId={lead.id} fundingSignals={fundingSignals} />
+            <FundingPanel
+              companyId={company.id}
+              leadId={lead.id}
+              fundingSignals={fundingSignals}
+              raisingSignals={raisingSignals}
+            />
           </Section>
         </aside>
       </div>

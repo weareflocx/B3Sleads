@@ -4,6 +4,10 @@ import { priorityScore } from '@/lib/scoring';
 import { parseInvestors } from '@/lib/funding';
 import type { Company, Scan, Signal, SignalDetail } from '@/lib/types';
 
+// Rondas que la ficha gestiona: la cerrada y la que están levantando ahora.
+// Las dos se editan y se borran igual; lo que cambia es cómo se leen.
+const ROUND_TYPES = ['funding_round', 'levantando_ronda'];
+
 // Tras tocar una ronda, la prioridad del lead deja de ser válida: la recencia
 // pesa un 40%. Se recalcula con la ronda más reciente que quede viva.
 async function recalcLead(
@@ -103,7 +107,7 @@ export async function PATCH(req: NextRequest) {
       .from('signals')
       .select('*')
       .eq('id', signalId)
-      .eq('type', 'funding_round')
+      .in('type', ROUND_TYPES)
       .single();
     if (!current) return NextResponse.json({ error: 'Ronda no encontrada' }, { status: 404 });
 
@@ -141,7 +145,7 @@ export async function DELETE(req: NextRequest) {
       .from('signals')
       .select('company_id')
       .eq('id', signalId)
-      .eq('type', 'funding_round')
+      .in('type', ROUND_TYPES)
       .single();
     if (!current) return NextResponse.json({ error: 'Ronda no encontrada' }, { status: 404 });
 

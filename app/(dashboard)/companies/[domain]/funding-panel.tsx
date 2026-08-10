@@ -92,6 +92,59 @@ function InvestorChips({ investors }: { investors: unknown }) {
   );
 }
 
+// Una ronda que están levantando AHORA. Se lee distinto de una cerrada: no es
+// un hecho con inversores, es un estado con un objetivo. Solo se borra (para
+// corregir un duplicado); el importe se cambia registrándola otra vez.
+function RaisingRow({ signal, leadId }: { signal: Signal; leadId: string }) {
+  const router = useRouter();
+  const d = signal.detail ?? {};
+  const [busy, setBusy] = useState(false);
+
+  async function remove() {
+    if (!confirm('¿Quitar esta señal de "en ronda"?')) return;
+    setBusy(true);
+    const res = await fetch('/api/signals', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ signalId: signal.id, leadId }),
+    });
+    setBusy(false);
+    if (res.ok) router.refresh();
+  }
+
+  const evidence = typeof d.evidence === 'string' ? d.evidence : null;
+  return (
+    <div className={`group rounded-md border border-[var(--accent)]/40 bg-[var(--accent)]/5 p-2 ${busy ? 'opacity-50' : ''}`}>
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-sm font-medium">
+          <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--accent)]">
+            En ronda
+          </span>{' '}
+          <span className="capitalize">{(d.round as string) ?? 'ronda'}</span>
+          {d.target_amount ? ` · buscan ${d.target_amount}` : ''}
+        </span>
+        <span className="flex shrink-0 items-center gap-2">
+          <button
+            onClick={remove}
+            disabled={busy}
+            title="Quitar señal"
+            aria-label="Quitar señal de en ronda"
+            className="text-[var(--soft)] opacity-0 transition-opacity hover:text-[var(--danger)] group-hover:opacity-100 focus:opacity-100"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </button>
+          <span className="font-mono text-xs text-[var(--muted)]">{timeAgo(signal.detected_at)}</span>
+        </span>
+      </div>
+      {evidence && (
+        <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">{evidence}</p>
+      )}
+    </div>
+  );
+}
+
 function RoundRow({
   signal,
   leadId,
@@ -310,10 +363,14 @@ export function FundingPanel({
   companyId,
   leadId,
   fundingSignals,
+  raisingSignals = [],
 }: {
   companyId: string;
   leadId: string;
   fundingSignals: Signal[];
+  // Señales de "están levantando ronda ahora". Van arriba: el momento pesa
+  // más que la historia.
+  raisingSignals?: Signal[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -443,6 +500,14 @@ export function FundingPanel({
 
   return (
     <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+      {raisingSignals.length > 0 && (
+        <div className="mb-3 space-y-2">
+          {raisingSignals.map((s) => (
+            <RaisingRow key={s.id} signal={s} leadId={leadId} />
+          ))}
+        </div>
+      )}
+
       {fundingSignals.length ? (
         <div className="space-y-3">
           {fundingSignals.map((s, i) => (
@@ -452,10 +517,12 @@ export function FundingPanel({
           ))}
         </div>
       ) : (
-        <p className="text-sm text-[var(--muted)]">
-          Sin ronda registrada. Si sabes que levantaron, regístralo: la recencia de ronda pesa un
-          40% en la prioridad.
-        </p>
+        !raisingSignals.length && (
+          <p className="text-sm text-[var(--muted)]">
+            Sin ronda registrada. Si sabes que levantaron, regístralo: la recencia de ronda pesa un
+            40% en la prioridad.
+          </p>
+        )
       )}
 
       {open ? (

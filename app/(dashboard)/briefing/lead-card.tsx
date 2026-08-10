@@ -17,6 +17,13 @@ function signalLabel(bl: BriefingLead): string {
   const d = bl.signal?.detail;
   if (!bl.signal) return 'sin señal registrada';
   if (bl.signal.type === 'engagement') return `Engaged · ${timeAgo(bl.signal.detected_at)}`;
+  // Levantando ronda no es una ronda cerrada: el importe vive en
+  // target_amount, y sin este caso se leía como un cierre que no ha pasado.
+  if (bl.signal.type === 'levantando_ronda') {
+    const objetivo = d?.target_amount ? `buscan ${d.target_amount}` : null;
+    return ['En ronda', d?.round, objetivo].filter(Boolean).join(' · ') +
+      ` · ${timeAgo(bl.signal.detected_at)}`;
+  }
   const parts = [d?.round, d?.amount, (d?.investors as string[] | undefined)?.join(', ')]
     .filter(Boolean)
     .join(' · ');
