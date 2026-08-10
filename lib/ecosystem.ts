@@ -89,13 +89,20 @@ export function rondasRecientes(leads: BriefingLead[], days = 14): RondaReciente
   for (const bl of leads) {
     if (!bl.company || seen.has(bl.company.domain)) continue;
     for (const s of bl.signals) {
-      if (s.type !== 'funding_round') continue;
+      // Las cerradas y las que están levantando AHORA. Estas últimas son las
+      // más accionables del ecosistema, así que no pueden faltar.
+      const raising = s.type === 'levantando_ronda';
+      if (s.type !== 'funding_round' && !raising) continue;
       const when = occurredAt(s) ?? s.detected_at;
       if ((now - new Date(when).getTime()) / 86_400_000 > days) continue;
       const d = s.detail as Record<string, unknown> | null;
-      const parts = [d?.round, d?.amount, (d?.investors as string[] | undefined)?.join(', ')]
-        .filter(Boolean)
-        .join(' · ');
+      const parts = raising
+        ? ['En ronda', d?.round, d?.target_amount ? `buscan ${d.target_amount}` : null]
+            .filter(Boolean)
+            .join(' · ')
+        : [d?.round, d?.amount, (d?.investors as string[] | undefined)?.join(', ')]
+            .filter(Boolean)
+            .join(' · ');
       seen.add(bl.company.domain);
       out.push({
         company: companyLabel(bl.company.name, bl.company.domain),
