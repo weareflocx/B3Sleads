@@ -17,6 +17,22 @@ export interface LogRow {
   name?: string;
 }
 
+// La respuesta de error puede llegar como página HTML (timeout del proxy),
+// no como JSON: parsear a ciegas convertía un 502 en un "SyntaxError"
+// críptico. Se lee como texto y se traduce a un mensaje útil.
+async function readJson(res: Response): Promise<Record<string, unknown>> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {
+      error: res.ok
+        ? 'El servidor devolvió una respuesta inesperada. Recarga y comprueba si el lead entró.'
+        : `El servidor no respondió a tiempo (${res.status}). Puede que el lead se haya creado: búscalo antes de reintentar.`,
+    };
+  }
+}
+
 const FIELD =
   'w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm outline-none transition-colors focus:border-[var(--cta)]';
 
@@ -67,9 +83,9 @@ export function useAddLead(onAdded?: (rows: LogRow[]) => void) {
           replied,
         }),
       });
-      const json = await res.json();
+      const json = await readJson(res);
       if (json.error) {
-        setLog([{ input: '—', status: 'error', detail: json.error }]);
+        setLog([{ input: '—', status: 'error', detail: String(json.error) }]);
         return;
       }
       const rows = json.results as LogRow[];

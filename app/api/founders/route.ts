@@ -153,8 +153,14 @@ export async function POST(req: NextRequest) {
       let scanId: string | null = null;
       if (domain && companyId) {
         try {
-          const profile = await getBrandProfile(domain);
-          if (profile.found && profile.scanId) {
+          // Presupuesto duro: el alta responde aunque el Scanner esté frío.
+          // Sin scan, el lead se crea igual y el informe se importa después
+          // desde la ficha.
+          const profile = await Promise.race([
+            getBrandProfile(domain),
+            new Promise<null>((r) => setTimeout(() => r(null), 6_000)),
+          ]);
+          if (profile?.found && profile.scanId) {
             const scanRow = await persistImportedScan(db, companyId, profile);
             scanId = scanRow?.id ?? null;
             // Nombre comercial real del Scanner si la ficha entró solo con dominio

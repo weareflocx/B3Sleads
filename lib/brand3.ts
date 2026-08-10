@@ -219,6 +219,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${apiBase()}${path}`, {
     ...init,
     cache: 'no-store',
+    // Sin timeout, una conexión colgada al Scanner (máquina de Fly fría)
+    // arrastra a quien llama más allá de los 10s de función de Netlify, y el
+    // proxy responde con su página HTML donde se esperaba JSON.
+    signal: init.signal ?? AbortSignal.timeout(8_000),
     headers: {
       Accept: 'application/json',
       Authorization: `Bearer ${apiToken()}`,
