@@ -6,9 +6,10 @@
 // superficies —su propio discurso devuelto ordenado—, no nuestro juicio sobre
 // él. El análisis crítico se queda en la ficha; aquí solo va el espejo.
 //
-// Los huecos tampoco se maquillan: una dimensión sin detectar sale como "sin
-// rastro en su web". Es honesto y, de paso, es justo el motivo de la
-// conversación.
+// Los huecos tampoco se maquillan: una dimensión sin detectar sale marcada.
+// El Scanner no mira solo la web, sino toda la huella digital de la marca,
+// así que eso es lo que se nombra. Es honesto y, de paso, es justo el motivo
+// de la conversación.
 import { enumeratedTerms, type ScanDimension } from './scan-report';
 import { canonDimension } from './scan-versions';
 

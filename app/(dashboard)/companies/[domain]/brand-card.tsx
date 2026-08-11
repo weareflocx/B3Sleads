@@ -15,6 +15,19 @@ const SIZE = 1080;
 // que cambia por fila es cuántas líneas caben antes del recorte.
 const CELL_TEXT = 'text-[18px]';
 
+// El mismo criterio de la parrilla de la ficha: por proporción, para que
+// funcione con cualquier máximo (/5, /10 y el /20 de Magnetismo).
+// <50% rojo · 50-79% azul · >=80% verde. Los colores van fijos y en su valor
+// de tema oscuro: la tarjeta es negra siempre, la genere quien la genere.
+function scoreTone(score: number | null, max: number | null): string {
+  if (score == null || !max) return 'border-white/15 text-white/35';
+  if (score === 0) return 'border-white/20 text-white';
+  const ratio = score / max;
+  if (ratio < 0.5) return 'border-[#ff0000]/60 text-[#ff0000]';
+  if (ratio < 0.8) return 'border-[#4d6bff]/70 text-[#4d6bff]';
+  return 'border-[#00d554]/60 text-[#00d554]';
+}
+
 function Cell({ cell, clamp }: { cell: CardCell; clamp: string }) {
   const empty = !cell.text && !cell.terms;
   return (
@@ -29,13 +42,11 @@ function Cell({ cell, clamp }: { cell: CardCell; clamp: string }) {
         <span className="font-mono text-[12px] uppercase tracking-[0.18em] text-white/40">
           {cell.label}
         </span>
-        {cell.score != null && cell.max ? (
-          <span className="shrink-0 font-mono text-[12px] text-white/45">
-            {cell.score}/{cell.max}
-          </span>
-        ) : (
-          <span className="shrink-0 font-mono text-[12px] text-white/25">—</span>
-        )}
+        <span
+          className={`inline-flex h-[26px] shrink-0 items-center rounded border px-1.5 font-mono text-[13px] ${scoreTone(cell.score, cell.max)}`}
+        >
+          {cell.score != null && cell.max ? `${cell.score}/${cell.max}` : 'sin rastro'}
+        </span>
       </div>
       {cell.terms ? (
         <div className="mt-2.5 flex flex-wrap gap-2 overflow-hidden">
@@ -53,7 +64,7 @@ function Cell({ cell, clamp }: { cell: CardCell; clamp: string }) {
           {cell.text}
         </p>
       ) : (
-        <p className={`mt-2 italic text-white/30 ${CELL_TEXT}`}>Sin rastro en su web</p>
+        <p className={`mt-2 italic text-white/30 ${CELL_TEXT}`}>Sin rastro de huella digital</p>
       )}
     </div>
   );
@@ -228,15 +239,7 @@ export function BrandCard({
                 <span className="mt-2 block font-mono text-[17px] text-white/45">{domain}</span>
               </span>
             </div>
-            <span className="flex items-center gap-3">
-              <LogoMark size={38} />
-              <span>
-                <span className="block text-[30px] font-bold leading-none tracking-tight">B3S</span>
-                <span className="mt-1 block font-mono text-[11px] uppercase tracking-[0.22em] text-white/40">
-                  Brand Seed
-                </span>
-              </span>
-            </span>
+            <LogoMark size={52} />
           </div>
 
           {/* La valoración y la frase: lo primero que se lee. */}
@@ -295,7 +298,7 @@ export function BrandCard({
               paso, el motivo de la conversación. */}
           <div className="mt-auto flex items-center justify-between pt-6 font-mono text-[14px] text-white/35">
             <span>
-              {coverage.detected} de {coverage.total} componentes detectados en su web
+              {coverage.detected} de {coverage.total} componentes detectados
             </span>
             <span>Análisis B3S Scanner by FLOC*</span>
           </div>
