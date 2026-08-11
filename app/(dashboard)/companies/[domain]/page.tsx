@@ -34,6 +34,8 @@ import { BTN_LINKEDIN_OUTLINE, BTN_OUTLINE } from '../../buttons';
 import { AddLeadButton } from '../../add-lead-modal';
 import { CompanyLogo } from '../../company-logo';
 import { CompanyBio } from './company-bio';
+import { BrandCard } from './brand-card';
+import { buildCardCells, cardCoverage, defaultHighlight } from '@/lib/brand-card';
 import { EditableImage } from '../../editable-image';
 import { ScoreRing } from '../../score-ring';
 import { Heat } from '../../heat';
@@ -150,6 +152,12 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
       if (terms.length) termsByKey[key] = { terms, implicit };
     }),
   );
+
+  // La tarjeta compartible bebe del mismo consolidado: lo que se le enseña al
+  // founder es exactamente lo que la ficha da por bueno.
+  const cardCells = buildCardCells(consolidado.dimensions, termsByKey);
+  const cardCoverageStats = cardCoverage(cardCells);
+  const cardHighlight = defaultHighlight(tldr ?? report?.summary ?? null);
 
   // Argumentario y brief beben del CONSOLIDADO: si la curación dice que la
   // misión existe, no pueden seguir diciendo "sin rastro".
@@ -537,6 +545,21 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
               </div>
             
                       </>
+                    ),
+                  },
+                  {
+                    key: 'tarjeta',
+                    label: 'Tarjeta',
+                    content: (
+                      <BrandCard
+                        company={companyLabel(company.name, company.domain)}
+                        domain={company.domain}
+                        logoUrl={company.logo_url}
+                        score={scoreConsolidado ?? autoScore}
+                        cells={cardCells}
+                        initialHighlight={cardHighlight}
+                        coverage={cardCoverageStats}
+                      />
                     ),
                   },
                 ]}

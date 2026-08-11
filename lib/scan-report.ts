@@ -184,6 +184,144 @@ function shortTerms(component: Record<string, unknown>): string[] | null {
     const terms = enumeratedTerms(source);
     if (terms) return terms;
   }
+
+  // Último y mejor recurso: las baldosas. Ahí es donde el Scanner enumera de
+  // verdad los atributos y los valores que ha encontrado, y hasta ahora no lo
+  // miraba nadie. Se recorren en orden (la primera es la del hallazgo).
+  //
+  // Solo para atributos y valores: son las dos dimensiones que SON una lista.
+  // Las demás son una idea, y trocear su lectura en etiquetas la empeora.
+  const key = String(component.key ?? '').toLowerCase();
+  if (!/^(attributes|values)$/.test(key)) return null;
+  const tiles = Array.isArray(component.tiles) ? component.tiles : [];
+  const textos = [
+    ...tiles.map((t) => (t as Record<string, unknown>)?.evidencia),
+    ...tiles.map((t) => (t as Record<string, unknown>)?.motivo),
+    dc,
+    component.summary,
+  ].filter((t): t is string => typeof t === 'string' && t.length > 20);
+  for (const texto of textos) {
+    const terms = termsFromText(texto);
+    if (terms) return terms;
+  }
+  return null;
+}
+
+// ---------- Extracción de términos cortos ----------
+// El Scanner NO devuelve una lista de atributos ni de valores: los enumera
+// dentro de la prosa de sus baldosas. Tres formas reales, vistas en scans:
+//   A1  "destaca atributos clave como VELOCIDAD, MEMORIA, PUNTERÍA y EQUILIBRIO."
+//   A2  "Los atributos listados (Velocidad, Memoria, Concentración) son…"
+//   A1  "Verificación manual de cada propiedad antes de publicarla, soporte
+//        24/7, atención multilingüe en español, y verificación de estudiantes…"
+// El tercero es el caso difícil: cada item de la lista es una frase que
+// empieza por el concepto y sigue con su matiz. Por eso de cada item se
+// conserva la CABEZA (dos o tres palabras) y se tira el resto.
+
+// Palabras que no pueden cerrar un término: si la cabeza acaba en preposición
+// o artículo, es que hemos cortado a mitad de una idea.
+const COLA_VACIA =
+  /^(de|del|la|el|los|las|lo|en|con|para|por|y|e|o|a|al|un|una|unos|unas|que|su|sus|mediante|antes|desde|sobre|entre|como|más|of|the|and|to|for|in|with|on|by)$/i;
+
+// Preposiciones que cortan el término: lo que va detrás es matiz, no concepto.
+// "Empatía para entender al cliente" es "Empatía". Se deja fuera "de", que en
+// español forma términos legítimos ("Control de fluidez").
+const CORTE =
+  /^(para|en|con|por|mediante|sin|sobre|desde|entre|hacia|tras|que|como|a|al|donde|cuando|si|y|e|o|u|es|son|está|están|fue|era|the|for|with|on|by|that|which|when|is|are)$/i;
+
+// La cabeza de un item: el concepto, sin su matiz, en dos o tres palabras.
+function cabezaTermino(raw: string): string | null {
+  const limpio = raw
+    .replace(/^[\s'"«»(\[¡¿-]+|[\s'"«»)\]!?.,;:]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!limpio) return null;
+  let palabras = limpio.split(' ');
+  const corte = palabras.findIndex((w, i) => i > 0 && CORTE.test(w));
+  if (corte > 0) palabras = palabras.slice(0, corte);
+  if (palabras.length > 3) palabras = palabras.slice(0, 3);
+  while (palabras.length && COLA_VACIA.test(palabras[palabras.length - 1])) palabras.pop();
+  if (!palabras.length) return null;
+  const termino = palabras.join(' ');
+  if (termino.length < 3 || termino.length > 28) return null;
+  if (/^[\d\W]+$/.test(termino)) return null;
+  return normalizaTermino(termino);
+}
+
+// Un término no empieza por artículo ni por posesivo: si lo hace, estamos
+// leyendo el análisis del Scanner sobre la marca ("El tono es resolutivo",
+// "La marca define…"), no los atributos de la marca.
+const ARRANQUE_PROSA =
+  /^(el|la|los|las|lo|un|una|unos|unas|este|esta|estos|estas|ese|esa|su|sus|nuestro|nuestra|nuestros|nuestras|cada|todo|toda|todos|todas|sino|no|ni|aunque|pero|porque|mientras|además|también|tampoco|aun|así|cuando|donde|the|their|our|its|this|these|unlike|while|although|though|but|because|however)$/i;
+
+// ¿Este trozo era ya un término, o es una frase que hemos amputado? Un item de
+// más de cuatro palabras es prosa: el Scanner no escribe atributos así.
+function pareceTermino(raw: string): boolean {
+  const palabras = raw.trim().split(/\s+/).filter(Boolean);
+  if (!palabras.length || palabras.length > 4) return false;
+  return !ARRANQUE_PROSA.test(palabras[0]);
+}
+
+// El trozo de texto que contiene la enumeración, de más fiable a menos:
+// entre paréntesis, tras un marcador ("como", "son", ":"), o el texto entero
+// si al menos tiene tres comas.
+function trozoEnumerado(text: string): string[] {
+  const trozos: string[] = [];
+  for (const m of text.matchAll(/\(([^()]{12,180})\)/g)) {
+    if ((m[1].match(/,/g) ?? []).length >= 2) trozos.push(m[1]);
+  }
+  const marcado = text.split(/\b(?:clave como|como|son|incluyen|se define por)\b|:/i);
+  if (marcado.length > 1) trozos.push(marcado[marcado.length - 1]);
+  if ((text.match(/,/g) ?? []).length >= 3) trozos.push(text);
+  return trozos;
+}
+
+// Términos cortos a partir de un texto en prosa.
+//
+// Es deliberadamente estricto: una píldora equivocada en algo que se le manda
+// a un founder es peor que no poner ninguna. Tres filtros, y basta que falle
+// uno para descartar la lista entera:
+//  - el PRIMER item tiene que ser ya un término; si empieza en prosa, todo lo
+//    es (por eso "Tennders provides an integrated platform, streamlining…" no
+//    pasa, y "(Velocidad, Memoria, Concentración)" sí),
+//  - al menos tres items,
+//  - y dos de cada tres items del original tienen que parecer términos.
+export function termsFromText(text: string | null | undefined, min = 3): string[] | null {
+  const base = (text ?? '').replace(/\s+/g, ' ').trim();
+  if (base.length < 20) return null;
+
+  for (const trozo of trozoEnumerado(base)) {
+    const crudos = trozo
+      .replace(/[.;]+\s*$/, '')
+      .split(/\s*[,;]\s*|\s+(?:y|e|and)\s+/i)
+      .map((t) => t.trim())
+      .filter(Boolean);
+    if (crudos.length < min) continue;
+    if (!pareceTermino(crudos[0])) continue;
+    const buenos = crudos.filter(pareceTermino).length;
+    if (buenos < min || buenos / crudos.length < 0.66) continue;
+
+    // Sin duplicados y sin términos contenidos en otro ("Verificación" y
+    // "Verificación manual" son el mismo hallazgo).
+    const vistos = new Map<string, string>();
+    for (const crudo of crudos) {
+      if (!pareceTermino(crudo)) continue;
+      const t = cabezaTermino(crudo);
+      if (!t) continue;
+      const k = t.toLowerCase();
+      const solapado = [...vistos.keys()].find((v) => v.startsWith(k) || k.startsWith(v));
+      if (solapado) {
+        if (k.length > solapado.length) {
+          vistos.delete(solapado);
+          vistos.set(k, t);
+        }
+        continue;
+      }
+      vistos.set(k, t);
+    }
+    const salida = [...vistos.values()];
+    if (salida.length >= min) return salida.slice(0, 4);
+  }
   return null;
 }
 
@@ -211,6 +349,48 @@ export function enumeratedTerms(text: string | null | undefined): string[] | nul
   if (parts.some((p) => /^(el|la|los|las|un|una|de|del|que|con|para|en)$/i.test(p))) return null;
 
   return parts.slice(0, 6).map(titleCase);
+}
+
+// Una palabra escrita entera en caja alta.
+const CAJA_ALTA = /^[^a-záéíóúñü]*[A-ZÁÉÍÓÚÑÜ][^a-záéíóúñü]*$/;
+
+// El texto capturado de una web viene con los titulares en caja alta, y en
+// algo que se comparte eso es gritar. Se rebajan las TIRADAS de cuatro o más
+// palabras en mayúsculas —una sigla suelta no es un grito—, y se exige que
+// alguna pase de cuatro letras, para no tocar "NFT SDK CLI API".
+export function sinGritos(text: string): string {
+  const palabras = text.split(' ');
+  const salida = [...palabras];
+  let i = 0;
+  while (i < palabras.length) {
+    if (!CAJA_ALTA.test(palabras[i]) || !/[A-ZÁÉÍÓÚÑÜ]/.test(palabras[i])) {
+      i += 1;
+      continue;
+    }
+    let j = i;
+    while (j < palabras.length && CAJA_ALTA.test(palabras[j]) && /[A-ZÁÉÍÓÚÑÜ]/.test(palabras[j])) j += 1;
+    const tirada = palabras.slice(i, j);
+    const larga = tirada.some((w) => w.replace(/[^A-ZÁÉÍÓÚÑÜ]/g, '').length >= 5);
+    if (tirada.length >= 4 && larga) {
+      for (let k = i; k < j; k++) salida[k] = palabras[k].toLowerCase();
+    }
+    i = j;
+  }
+  const frase = salida.join(' ');
+  // Mayúscula solo al principio de cada frase.
+  return frase.replace(/(^\s*|[.!?…]\s+)([a-záéíóúñü])/g, (_m, p, c) => p + c.toUpperCase());
+}
+
+// Un término se enseña con mayúscula solo en la primera letra. Las siglas
+// cortas se respetan (GPS, ITDR, SDK): ahí la caja alta es el nombre.
+function normalizaTermino(s: string): string {
+  const palabras = s.split(/\s+/).map((w) => {
+    const letras = w.replace(/[^A-Za-zÁÉÍÓÚÑÜáéíóúñü]/g, '');
+    if (CAJA_ALTA.test(w) && letras.length > 5) return w.toLowerCase();
+    return w;
+  });
+  const t = palabras.join(' ');
+  return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
 // VELOCIDAD → Velocidad, pero se respetan las siglas (ITDR, SaaS B2B).
