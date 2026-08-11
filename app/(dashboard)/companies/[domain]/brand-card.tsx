@@ -48,7 +48,7 @@ function Cell({ cell, clamp }: { cell: CardCell; clamp: string }) {
           {cell.score != null && cell.max ? `${cell.score}/${cell.max}` : 'sin rastro'}
         </span>
       </div>
-      {cell.terms ? (
+      {cell.terms && cell.soloTerminos ? (
         <div className="mt-2.5 flex flex-wrap gap-2 overflow-hidden">
           {cell.terms.map((t) => (
             <span
@@ -59,6 +59,14 @@ function Cell({ cell, clamp }: { cell: CardCell; clamp: string }) {
             </span>
           ))}
         </div>
+      ) : cell.soloTerminos ? (
+        // Atributos y valores se enseñan como etiquetas o no se enseñan. Un
+        // párrafo aquí delataría que el Scanner no encontró términos propios
+        // y encima ocuparía el sitio de un hallazgo. Decirlo es más útil: es
+        // exactamente de lo que se puede hablar con el founder.
+        <p className={`mt-2 italic text-white/30 ${CELL_TEXT}`}>
+          {cell.score != null ? 'Detectados, pero sin términos propios' : 'Sin rastro de huella digital'}
+        </p>
       ) : cell.text ? (
         <p className={`mt-2 font-semibold leading-[1.3] text-white ${CELL_TEXT} ${clamp}`}>
           {cell.text}

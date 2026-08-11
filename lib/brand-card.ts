@@ -22,6 +22,8 @@ export interface CardCell {
   // que convierte la tarjeta en un análisis y no en un moodboard.
   score: number | null;
   max: number | null;
+  // Atributos y valores: o son etiquetas cortas, o no son. Nunca un párrafo.
+  soloTerminos: boolean;
 }
 
 // El orden de la tarjeta, calcado del Brand Seed: propósito y magnetismo
@@ -124,6 +126,7 @@ export function buildCardCells(
       terms: terms?.length ? terms.slice(0, 4) : null,
       score: d && !d.missing && d.score != null ? Number(d.score) : null,
       max: d?.max ?? null,
+      soloTerminos: TERM_KEYS.has(key),
     };
   }
   return cells;
@@ -153,7 +156,7 @@ export function cardCoverage(cells: Record<string, CardCell>): {
 } {
   const all = Object.values(cells);
   return {
-    detected: all.filter((c) => c.text || c.terms).length,
+    detected: all.filter((c) => c.terms || (!c.soloTerminos && c.text)).length,
     total: all.length,
   };
 }
