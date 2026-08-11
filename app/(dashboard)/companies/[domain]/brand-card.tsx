@@ -529,7 +529,7 @@ export function BrandCard({
           </div>
 
           {/* La valoración y la frase: lo primero que se lee. */}
-          <div className="mt-7 flex h-[106px] items-start gap-5 overflow-hidden">
+          <div className="mt-6 flex h-[116px] items-start gap-5 overflow-hidden">
             {showScore && score != null && (
               // Mismo cuadrado que el logo de la marca, para que la columna de
               // la izquierda quede aplomada de arriba abajo.
@@ -556,7 +556,7 @@ export function BrandCard({
               )}
               <span
                 className={`block font-semibold leading-[1.25] ${
-                  highlight.length > 120 ? 'text-[24px] line-clamp-3' : 'text-[29px] line-clamp-2'
+                  highlight.length > 120 ? 'text-[23px] line-clamp-3' : 'text-[29px] line-clamp-2'
                 } ${band && showScore ? 'mt-2' : ''}`}
               >
                 {highlight}
@@ -565,7 +565,7 @@ export function BrandCard({
           </div>
 
           {/* El Brand Seed, en el mismo orden que la pestaña B3S Seed. */}
-          <div className="mt-8 flex flex-col gap-4">
+          <div className="mt-6 flex flex-col gap-4">
             <div className="grid h-[172px] grid-cols-2 gap-4">
               {CARD_LAYOUT.top.map((k) => (
                 <Cell key={k} cell={cells[k]} clamp="line-clamp-5" t={t} />
