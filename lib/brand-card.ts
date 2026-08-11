@@ -10,7 +10,7 @@
 // El Scanner no mira solo la web, sino toda la huella digital de la marca,
 // así que eso es lo que se nombra. Es honesto y, de paso, es justo el motivo
 // de la conversación.
-import { enumeratedTerms, type ScanDimension } from './scan-report';
+import { enumeratedTerms, sinGritos, type ScanDimension } from './scan-report';
 import { canonDimension } from './scan-versions';
 
 export interface CardCell {
@@ -52,7 +52,9 @@ const CARD_LABELS: Record<string, string> = {
 // frase completa y, si aun así no cabe, con elipsis: mejor una idea entera
 // que tres a medias.
 export function cardSentence(raw: string | null | undefined, max = 165): string | null {
-  const clean = (raw ?? '').replace(/\s+/g, ' ').trim();
+  // Sin gritos: los titulares de las webs vienen en caja alta y la tarjeta se
+  // comparte. Mayúscula solo al principio de cada frase.
+  const clean = sinGritos((raw ?? '').replace(/\s+/g, ' ').trim());
   if (clean.length < 12) return null;
   const stop = clean.search(/[.!?](\s|$)/);
   const first = stop > 30 ? clean.slice(0, stop + 1) : clean;

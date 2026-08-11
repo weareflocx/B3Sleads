@@ -50,14 +50,23 @@ function Cell({ cell, clamp }: { cell: CardCell; clamp: string }) {
       </div>
       {cell.terms && cell.soloTerminos ? (
         <div className="mt-2.5 flex flex-wrap gap-2 overflow-hidden">
-          {cell.terms.map((t) => (
-            <span
-              key={t}
-              className="rounded-full border border-white/20 px-3.5 py-1 text-[17px] font-medium text-white"
-            >
-              {t}
-            </span>
-          ))}
+          {(() => {
+            // La casilla manda: con términos largos se baja el cuerpo y, si
+            // aun así no caben, se enseña uno menos. Cuatro etiquetas cortas
+            // y tres largas ocupan lo mismo.
+            const largo = cell.terms!.reduce((a, t) => a + t.length, 0);
+            const visibles = largo > 74 ? cell.terms!.slice(0, 3) : cell.terms!;
+            const tam =
+              largo > 46 ? 'px-3 py-0.5 text-[15px]' : 'px-3.5 py-1 text-[17px]';
+            return visibles.map((t) => (
+              <span
+                key={t}
+                className={`rounded-full border border-white/20 font-medium text-white ${tam}`}
+              >
+                {t}
+              </span>
+            ));
+          })()}
         </div>
       ) : cell.soloTerminos ? (
         // Atributos y valores se enseñan como etiquetas o no se enseñan. Un
@@ -333,7 +342,7 @@ export function BrandCard({
 
           {/* El Brand Seed, en el mismo orden que la pestaña B3S Seed. */}
           <div className="mt-8 flex flex-col gap-4">
-            <div className="grid h-[184px] grid-cols-2 gap-4">
+            <div className="grid h-[174px] grid-cols-2 gap-4">
               {CARD_LAYOUT.top.map((k) => (
                 <Cell key={k} cell={cells[k]} clamp="line-clamp-5" />
               ))}
@@ -343,12 +352,12 @@ export function BrandCard({
                 <Cell key={k} cell={cells[k]} clamp="line-clamp-4" />
               ))}
             </div>
-            <div className="grid h-[108px] grid-cols-2 gap-4">
+            <div className="grid h-[128px] grid-cols-2 gap-4">
               {CARD_LAYOUT.terms.map((k) => (
                 <Cell key={k} cell={cells[k]} clamp="line-clamp-2" />
               ))}
             </div>
-            <div className="grid h-[156px] grid-cols-2 gap-4">
+            <div className="grid h-[146px] grid-cols-2 gap-4">
               {CARD_LAYOUT.bottom.map((k) => (
                 <Cell key={k} cell={cells[k]} clamp="line-clamp-4" />
               ))}

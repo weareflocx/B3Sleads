@@ -245,14 +245,14 @@ function cabezaTermino(raw: string): string | null {
   const termino = palabras.join(' ');
   if (termino.length < 3 || termino.length > 28) return null;
   if (/^[\d\W]+$/.test(termino)) return null;
-  return titleCase(termino);
+  return normalizaTermino(termino);
 }
 
 // Un término no empieza por artículo ni por posesivo: si lo hace, estamos
 // leyendo el análisis del Scanner sobre la marca ("El tono es resolutivo",
 // "La marca define…"), no los atributos de la marca.
 const ARRANQUE_PROSA =
-  /^(el|la|los|las|lo|un|una|unos|unas|este|esta|estos|estas|ese|esa|su|sus|nuestro|nuestra|nuestros|nuestras|cada|todo|toda|todos|todas|sino|the|their|our|its|this|these|unlike|while|although)$/i;
+  /^(el|la|los|las|lo|un|una|unos|unas|este|esta|estos|estas|ese|esa|su|sus|nuestro|nuestra|nuestros|nuestras|cada|todo|toda|todos|todas|sino|no|ni|aunque|pero|porque|mientras|además|también|tampoco|aun|así|cuando|donde|the|their|our|its|this|these|unlike|while|although|though|but|because|however)$/i;
 
 // ¿Este trozo era ya un término, o es una frase que hemos amputado? Un item de
 // más de cuatro palabras es prosa: el Scanner no escribe atributos así.
@@ -349,6 +349,48 @@ export function enumeratedTerms(text: string | null | undefined): string[] | nul
   if (parts.some((p) => /^(el|la|los|las|un|una|de|del|que|con|para|en)$/i.test(p))) return null;
 
   return parts.slice(0, 6).map(titleCase);
+}
+
+// Una palabra escrita entera en caja alta.
+const CAJA_ALTA = /^[^a-záéíóúñü]*[A-ZÁÉÍÓÚÑÜ][^a-záéíóúñü]*$/;
+
+// El texto capturado de una web viene con los titulares en caja alta, y en
+// algo que se comparte eso es gritar. Se rebajan las TIRADAS de cuatro o más
+// palabras en mayúsculas —una sigla suelta no es un grito—, y se exige que
+// alguna pase de cuatro letras, para no tocar "NFT SDK CLI API".
+export function sinGritos(text: string): string {
+  const palabras = text.split(' ');
+  const salida = [...palabras];
+  let i = 0;
+  while (i < palabras.length) {
+    if (!CAJA_ALTA.test(palabras[i]) || !/[A-ZÁÉÍÓÚÑÜ]/.test(palabras[i])) {
+      i += 1;
+      continue;
+    }
+    let j = i;
+    while (j < palabras.length && CAJA_ALTA.test(palabras[j]) && /[A-ZÁÉÍÓÚÑÜ]/.test(palabras[j])) j += 1;
+    const tirada = palabras.slice(i, j);
+    const larga = tirada.some((w) => w.replace(/[^A-ZÁÉÍÓÚÑÜ]/g, '').length >= 5);
+    if (tirada.length >= 4 && larga) {
+      for (let k = i; k < j; k++) salida[k] = palabras[k].toLowerCase();
+    }
+    i = j;
+  }
+  const frase = salida.join(' ');
+  // Mayúscula solo al principio de cada frase.
+  return frase.replace(/(^\s*|[.!?…]\s+)([a-záéíóúñü])/g, (_m, p, c) => p + c.toUpperCase());
+}
+
+// Un término se enseña con mayúscula solo en la primera letra. Las siglas
+// cortas se respetan (GPS, ITDR, SDK): ahí la caja alta es el nombre.
+function normalizaTermino(s: string): string {
+  const palabras = s.split(/\s+/).map((w) => {
+    const letras = w.replace(/[^A-Za-zÁÉÍÓÚÑÜáéíóúñü]/g, '');
+    if (CAJA_ALTA.test(w) && letras.length > 5) return w.toLowerCase();
+    return w;
+  });
+  const t = palabras.join(' ');
+  return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
 // VELOCIDAD → Velocidad, pero se respetan las siglas (ITDR, SaaS B2B).
