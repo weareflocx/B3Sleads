@@ -335,12 +335,12 @@ export function BrandCard({
                 <Cell key={k} cell={cells[k]} clamp="line-clamp-4" />
               ))}
             </div>
-            <div className="grid h-[116px] grid-cols-2 gap-4">
+            <div className="grid h-[108px] grid-cols-2 gap-4">
               {CARD_LAYOUT.terms.map((k) => (
                 <Cell key={k} cell={cells[k]} clamp="line-clamp-2" />
               ))}
             </div>
-            <div className="grid h-[166px] grid-cols-2 gap-4">
+            <div className="grid h-[156px] grid-cols-2 gap-4">
               {CARD_LAYOUT.bottom.map((k) => (
                 <Cell key={k} cell={cells[k]} clamp="line-clamp-4" />
               ))}
@@ -349,7 +349,7 @@ export function BrandCard({
 
           {/* Pie: de dónde sale esto. La cobertura es el dato honesto y, de
               paso, el motivo de la conversación. */}
-          <div className="mt-auto flex items-center justify-between pt-6 font-mono text-[14px] text-white/35">
+          <div className="mt-auto flex items-center justify-between pt-[42px] font-mono text-[14px] text-white/35">
             <span>
               {coverage.detected} de {coverage.total} componentes detectados
             </span>
