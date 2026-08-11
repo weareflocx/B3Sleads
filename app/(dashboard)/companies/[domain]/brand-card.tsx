@@ -3,42 +3,40 @@
 import { useEffect, useRef, useState } from 'react';
 import { BTN_OUTLINE, BTN_WHITE } from '../../buttons';
 import { CARD_LAYOUT, cardBand, type CardCell } from '@/lib/brand-card';
+import { LogoMark } from '../../logo-mark';
 
 // La tarjeta se compone SIEMPRE a 1080×1080 y se escala para verse. Así lo
 // que se descarga es idéntico a lo que se ve y no depende del ancho de la
 // ventana: exportar a ojo es la forma segura de que un día salga cortada.
 const SIZE = 1080;
 
-// Tamaños por zona. La tarjeta mide 1080 fijos, así que cada fila tiene su
-// alto y el texto se recorta por líneas: el maquetado nunca depende de lo
-// larga que salga una frase del Scanner.
-const CELL_SIZES = {
-  lg: { text: 'text-[25px]', clamp: 'line-clamp-4' },
-  md: { text: 'text-[18px]', clamp: 'line-clamp-5' },
-  sm: { text: 'text-[20px]', clamp: 'line-clamp-4' },
-  // Atributos y valores: si no hay términos que enseñar, el texto entra en
-  // pequeño y en tres líneas, para que se lea como resumen y no como corte.
-  xs: { text: 'text-[16px]', clamp: 'line-clamp-3' },
-} as const;
+// Un solo tamaño de letra en todas las celdas: la tarjeta se lee homogénea y,
+// de paso, entra más información que cuando cada zona tenía el suyo. Lo único
+// que cambia por fila es cuántas líneas caben antes del recorte.
+const CELL_TEXT = 'text-[18px]';
 
-function Cell({
-  cell,
-  size = 'md',
-}: {
-  cell: CardCell;
-  size?: keyof typeof CELL_SIZES;
-}) {
+function Cell({ cell, clamp }: { cell: CardCell; clamp: string }) {
   const empty = !cell.text && !cell.terms;
-  const s = CELL_SIZES[size];
   return (
     <div
       className={`flex min-h-0 flex-col overflow-hidden rounded-[18px] border px-6 py-4 ${
         empty ? 'border-dashed border-white/15' : 'border-white/12 bg-white/[0.045]'
       }`}
     >
-      <span className="font-mono text-[12px] uppercase tracking-[0.18em] text-white/40">
-        {cell.label}
-      </span>
+      {/* Etiqueta a la izquierda y la nota del componente en su esquina: el
+          detalle que convierte la tarjeta en un análisis. */}
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="font-mono text-[12px] uppercase tracking-[0.18em] text-white/40">
+          {cell.label}
+        </span>
+        {cell.score != null && cell.max ? (
+          <span className="shrink-0 font-mono text-[12px] text-white/45">
+            {cell.score}/{cell.max}
+          </span>
+        ) : (
+          <span className="shrink-0 font-mono text-[12px] text-white/25">—</span>
+        )}
+      </div>
       {cell.terms ? (
         <div className="mt-2.5 flex flex-wrap gap-2 overflow-hidden">
           {cell.terms.map((t) => (
@@ -51,11 +49,11 @@ function Cell({
           ))}
         </div>
       ) : cell.text ? (
-        <p className={`mt-2 font-semibold leading-[1.3] text-white ${s.text} ${s.clamp}`}>
+        <p className={`mt-2 font-semibold leading-[1.3] text-white ${CELL_TEXT} ${clamp}`}>
           {cell.text}
         </p>
       ) : (
-        <p className="mt-2 text-[18px] italic text-white/30">Sin rastro en su web</p>
+        <p className={`mt-2 italic text-white/30 ${CELL_TEXT}`}>Sin rastro en su web</p>
       )}
     </div>
   );
@@ -230,24 +228,27 @@ export function BrandCard({
                 <span className="mt-2 block font-mono text-[17px] text-white/45">{domain}</span>
               </span>
             </div>
-            <span className="text-right">
-              <span className="block font-mono text-[11px] uppercase tracking-[0.22em] text-white/40">
-                Brand Seed
-              </span>
-              <span className="mt-1.5 block text-[30px] font-bold leading-none tracking-tight">
-                B3S
+            <span className="flex items-center gap-3">
+              <LogoMark size={38} />
+              <span>
+                <span className="block text-[30px] font-bold leading-none tracking-tight">B3S</span>
+                <span className="mt-1 block font-mono text-[11px] uppercase tracking-[0.22em] text-white/40">
+                  Brand Seed
+                </span>
               </span>
             </span>
           </div>
 
           {/* La valoración y la frase: lo primero que se lee. */}
-          <div className="mt-7 flex h-[112px] items-start gap-7 overflow-hidden">
+          <div className="mt-7 flex h-[106px] items-start gap-5 overflow-hidden">
             {showScore && score != null && (
-              <span className="shrink-0 rounded-[18px] border border-white/15 px-6 py-4 text-center">
-                <span className="block font-mono text-[52px] font-medium leading-none">
+              // Mismo cuadrado que el logo de la marca, para que la columna de
+              // la izquierda quede aplomada de arriba abajo.
+              <span className="flex h-[76px] w-[76px] shrink-0 flex-col items-center justify-center rounded-[14px] border border-white/15">
+                <span className="font-mono text-[34px] font-medium leading-none">
                   {Math.round(score)}
                 </span>
-                <span className="mt-1.5 block font-mono text-[13px] text-white/40">/100</span>
+                <span className="mt-1 font-mono text-[11px] text-white/40">/100</span>
               </span>
             )}
             <span className="min-w-0 flex-1">
@@ -268,24 +269,24 @@ export function BrandCard({
 
           {/* El Brand Seed, en el mismo orden que la pestaña B3S Seed. */}
           <div className="mt-8 flex flex-col gap-4">
-            <div className="grid h-[188px] grid-cols-2 gap-4">
+            <div className="grid h-[184px] grid-cols-2 gap-4">
               {CARD_LAYOUT.top.map((k) => (
-                <Cell key={k} cell={cells[k]} size="lg" />
+                <Cell key={k} cell={cells[k]} clamp="line-clamp-5" />
               ))}
             </div>
-            <div className="grid h-[160px] grid-cols-3 gap-4">
+            <div className="grid h-[170px] grid-cols-3 gap-4">
               {CARD_LAYOUT.middle.map((k) => (
-                <Cell key={k} cell={cells[k]} />
+                <Cell key={k} cell={cells[k]} clamp="line-clamp-4" />
               ))}
             </div>
-            <div className="grid h-[118px] grid-cols-2 gap-4">
+            <div className="grid h-[116px] grid-cols-2 gap-4">
               {CARD_LAYOUT.terms.map((k) => (
-                <Cell key={k} cell={cells[k]} size="xs" />
+                <Cell key={k} cell={cells[k]} clamp="line-clamp-2" />
               ))}
             </div>
-            <div className="grid h-[138px] grid-cols-2 gap-4">
+            <div className="grid h-[166px] grid-cols-2 gap-4">
               {CARD_LAYOUT.bottom.map((k) => (
-                <Cell key={k} cell={cells[k]} size="sm" />
+                <Cell key={k} cell={cells[k]} clamp="line-clamp-4" />
               ))}
             </div>
           </div>
@@ -296,7 +297,7 @@ export function BrandCard({
             <span>
               {coverage.detected} de {coverage.total} componentes detectados en su web
             </span>
-            <span>Análisis B3S Scanner · FLOC*</span>
+            <span>Análisis B3S Scanner by FLOC*</span>
           </div>
         </div>
       </div>

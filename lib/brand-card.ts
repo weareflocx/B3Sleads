@@ -17,6 +17,10 @@ export interface CardCell {
   label: string;
   text: string | null; // null = no detectado
   terms: string[] | null; // atributos y valores van como píldoras
+  // La nota del componente, para enseñarla pequeña en su esquina: el detalle
+  // que convierte la tarjeta en un análisis y no en un moodboard.
+  score: number | null;
+  max: number | null;
 }
 
 // El orden de la tarjeta, calcado del Brand Seed: propósito y magnetismo
@@ -74,16 +78,21 @@ function cellText(d: ScanDimension | undefined, max: number): string | null {
 // x líneas visibles. Si el recorte por líneas llega antes que este, la frase
 // muere a media palabra, que es justo lo que no puede pasar en algo que se
 // manda a un desconocido.
+//
+// Con un solo tamaño de letra en todas las celdas (18px) cabe bastante más
+// texto que cuando cada zona tenía el suyo, así que los topes suben.
 const CELL_MAX: Record<string, number> = {
-  purpose: 108, // 4 líneas a 25px en columna de ~248px
-  magnetism: 108,
-  'value-prop': 92, // 5 líneas a 18px en columna de ~145px
-  personality: 92,
-  'brand-idea': 92,
-  attributes: 105, // 3 líneas a 16px, columna ancha
-  values: 105,
-  mission: 112, // 4 líneas a 20px en columna de ~248px
-  vision: 112,
+  purpose: 200, // 5 líneas x ~50 caracteres (columna ancha)
+  magnetism: 200,
+  // En columna estrecha el ajuste de palabra desperdicia ~20% de cada línea,
+  // así que el tope real es menor que ancho/carácter x líneas.
+  'value-prop': 96, // 4 líneas en columna de ~264px
+  personality: 96,
+  'brand-idea': 96,
+  attributes: 95, // 2 líneas, columna ancha
+  values: 95,
+  mission: 180, // 4 líneas x ~50
+  vision: 180,
 };
 
 // Las dos dimensiones que se enseñan como etiquetas y no como prosa.
@@ -112,6 +121,8 @@ export function buildCardCells(
       label: CARD_LABELS[key],
       text: cellText(d, CELL_MAX[key] ?? 130),
       terms: terms?.length ? terms.slice(0, 4) : null,
+      score: d && !d.missing && d.score != null ? Number(d.score) : null,
+      max: d?.max ?? null,
     };
   }
   return cells;
