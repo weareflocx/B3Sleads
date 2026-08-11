@@ -9,41 +9,98 @@ import { LogoMark } from '../../logo-mark';
 // que se descarga es idéntico a lo que se ve y no depende del ancho de la
 // ventana: exportar a ojo es la forma segura de que un día salga cortada.
 const SIZE = 1080;
+// Y se rasteriza a 1500: el maquetado no cambia, solo se dibuja con más
+// pixeles. Subir el lienzo en vez de rehacer las medidas evita reabrir todo
+// el ajuste de líneas que ya está comprobado.
+const EXPORT = 1500;
 
 // Un solo tamaño de letra en todas las celdas: la tarjeta se lee homogénea y,
 // de paso, entra más información que cuando cada zona tenía el suyo. Lo único
 // que cambia por fila es cuántas líneas caben antes del recorte.
 const CELL_TEXT = 'text-[16px]';
 
-// El mismo criterio de la parrilla de la ficha: por proporción, para que
-// funcione con cualquier máximo (/5, /10 y el /20 de Magnetismo).
-// <50% rojo · 50-79% azul · >=80% verde. Los colores van fijos y en su valor
-// de tema oscuro: la tarjeta es negra siempre, la genere quien la genere.
-function scoreTone(score: number | null, max: number | null): string {
-  if (score == null || !max) return 'border-white/15 text-white/35';
-  if (score === 0) return 'border-white/20 text-white';
-  const ratio = score / max;
-  if (ratio < 0.5) return 'border-[#ff0000]/60 text-[#ff0000]';
-  if (ratio < 0.8) return 'border-[#4d6bff]/70 text-[#4d6bff]';
-  return 'border-[#00d554]/60 text-[#00d554]';
+// Los dos temas de la tarjeta. Van en estilos en línea y no en variables del
+// producto porque la tarjeta la puede generar alguien con la app en claro y
+// mandarla en oscuro: su color no puede depender del tema de quien exporta.
+interface Tema {
+  fondo: string;
+  velo: string; // sobre una imagen de fondo, para que el texto siga legible
+  texto: string;
+  suave: string;
+  tenue: string;
+  borde: string;
+  bordeSuave: string;
+  caja: string;
+  marca: string; // el cuadro del logo cuando la marca no tiene uno propio
+  marcaTexto: string;
+  notas: { bajo: string; medio: string; alto: string; nulo: string };
 }
 
-function Cell({ cell, clamp }: { cell: CardCell; clamp: string }) {
+const TEMAS: Record<'oscuro' | 'claro', Tema> = {
+  oscuro: {
+    fondo: '#000000',
+    velo: 'rgba(0,0,0,0.72)',
+    texto: '#ffffff',
+    suave: 'rgba(255,255,255,0.45)',
+    tenue: 'rgba(255,255,255,0.3)',
+    borde: 'rgba(255,255,255,0.12)',
+    bordeSuave: 'rgba(255,255,255,0.15)',
+    caja: 'rgba(255,255,255,0.045)',
+    marca: '#ffffff',
+    marcaTexto: '#000000',
+    notas: { bajo: '#ff0000', medio: '#4d6bff', alto: '#00d554', nulo: 'rgba(255,255,255,0.35)' },
+  },
+  claro: {
+    fondo: '#ffffff',
+    velo: 'rgba(255,255,255,0.82)',
+    texto: '#0b0d0e',
+    suave: 'rgba(11,13,14,0.5)',
+    tenue: 'rgba(11,13,14,0.35)',
+    borde: 'rgba(11,13,14,0.14)',
+    bordeSuave: 'rgba(11,13,14,0.18)',
+    caja: 'rgba(11,13,14,0.035)',
+    marca: '#0b0d0e',
+    marcaTexto: '#ffffff',
+    notas: { bajo: '#d40000', medio: '#2440d0', alto: '#1a7f37', nulo: 'rgba(11,13,14,0.4)' },
+  },
+};
+
+// El mismo criterio de la parrilla de la ficha: por proporción, para que
+// funcione con cualquier máximo (/5, /10 y el /20 de Magnetismo).
+// <50% rojo · 50-79% azul · >=80% verde.
+function colorNota(score: number | null, max: number | null, t: Tema): string {
+  if (score == null || !max) return t.notas.nulo;
+  if (score === 0) return t.texto;
+  const ratio = score / max;
+  if (ratio < 0.5) return t.notas.bajo;
+  if (ratio < 0.8) return t.notas.medio;
+  return t.notas.alto;
+}
+
+function Cell({ cell, clamp, t }: { cell: CardCell; clamp: string; t: Tema }) {
   const empty = !cell.text && !cell.terms;
+  const tono = colorNota(cell.score, cell.max, t);
   return (
     <div
-      className={`flex min-h-0 flex-col overflow-hidden rounded-[18px] border px-6 py-4 ${
-        empty ? 'border-dashed border-white/15' : 'border-white/12 bg-white/[0.045]'
-      }`}
+      className="flex min-h-0 flex-col overflow-hidden rounded-[18px] border px-6 py-4"
+      style={{
+        borderColor: empty ? t.bordeSuave : t.borde,
+        borderStyle: empty ? 'dashed' : 'solid',
+        background: empty ? 'transparent' : t.caja,
+      }}
     >
       {/* Etiqueta a la izquierda y la nota del componente en su esquina: el
           detalle que convierte la tarjeta en un análisis. */}
       <div className="flex items-baseline justify-between gap-3">
-        <span className="font-mono text-[12px] uppercase tracking-[0.18em] text-white/40">
+        <span
+          className="font-mono text-[12px] uppercase tracking-[0.18em]"
+          style={{ color: t.suave }}
+        >
           {cell.label}
         </span>
         <span
-          className={`-mr-2 inline-flex h-[26px] shrink-0 items-center rounded border px-1.5 font-mono text-[13px] ${scoreTone(cell.score, cell.max)}`}
+          className="-mr-2 inline-flex h-[26px] shrink-0 items-center rounded border px-1.5 font-mono text-[13px]"
+          style={{ borderColor: tono, color: tono }}
         >
           {cell.score != null && cell.max ? `${cell.score}/${cell.max}` : 'sin rastro'}
         </span>
@@ -54,16 +111,16 @@ function Cell({ cell, clamp }: { cell: CardCell; clamp: string }) {
             // La casilla manda: con términos largos se baja el cuerpo y, si
             // aun así no caben, se enseña uno menos. Cuatro etiquetas cortas
             // y tres largas ocupan lo mismo.
-            const largo = cell.terms!.reduce((a, t) => a + t.length, 0);
+            const largo = cell.terms!.reduce((a, t2) => a + t2.length, 0);
             const visibles = largo > 88 ? cell.terms!.slice(0, 3) : cell.terms!;
-            const tam =
-              largo > 52 ? 'px-2.5 py-1 text-[14px]' : 'px-3 py-1 text-[15px]';
-            return visibles.map((t) => (
+            const tam = largo > 52 ? 'px-2.5 py-1 text-[14px]' : 'px-3 py-1 text-[15px]';
+            return visibles.map((termino) => (
               <span
-                key={t}
-                className={`rounded-full border border-white/20 font-medium text-white ${tam}`}
+                key={termino}
+                className={`rounded-full border font-medium ${tam}`}
+                style={{ borderColor: t.bordeSuave, color: t.texto }}
               >
-                {t}
+                {termino}
               </span>
             ));
           })()}
@@ -73,15 +130,22 @@ function Cell({ cell, clamp }: { cell: CardCell; clamp: string }) {
         // párrafo aquí delataría que el Scanner no encontró términos propios
         // y encima ocuparía el sitio de un hallazgo. Decirlo es más útil: es
         // exactamente de lo que se puede hablar con el founder.
-        <p className={`mt-2 italic text-white/30 ${CELL_TEXT}`}>
-          {cell.score != null ? 'Detectados, pero sin términos propios' : 'Sin rastro de huella digital'}
+        <p className={`mt-2 italic ${CELL_TEXT}`} style={{ color: t.tenue }}>
+          {cell.score != null
+            ? 'Detectados, pero sin términos propios'
+            : 'Sin rastro de huella digital'}
         </p>
       ) : cell.text ? (
-        <p className={`mt-2 font-semibold leading-[1.3] text-white ${CELL_TEXT} ${clamp}`}>
+        <p
+          className={`mt-2 font-semibold leading-[1.3] ${CELL_TEXT} ${clamp}`}
+          style={{ color: t.texto }}
+        >
           {cell.text}
         </p>
       ) : (
-        <p className={`mt-2 italic text-white/30 ${CELL_TEXT}`}>Sin rastro de huella digital</p>
+        <p className={`mt-2 italic ${CELL_TEXT}`} style={{ color: t.tenue }}>
+          Sin rastro de huella digital
+        </p>
       )}
     </div>
   );
@@ -109,11 +173,25 @@ export function BrandCard({
   const [scale, setScale] = useState(0.5);
   const [highlight, setHighlight] = useState(initialHighlight);
   const [showScore, setShowScore] = useState(true);
+  const [tema, setTema] = useState<'oscuro' | 'claro'>('oscuro');
+  // El fondo se puede cambiar: un color plano o una imagen. La imagen se
+  // guarda como data URL en memoria (nunca se sube a ningún sitio) y por eso
+  // viaja al PNG sin depender de la red.
+  const [colorFondo, setColorFondo] = useState<string | null>(null);
+  const [imagenFondo, setImagenFondo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   // El logo vive en el CDN de LinkedIn. Se pasa a data URL al montar para que
   // la exportación no dependa de una petición externa.
   const [logoData, setLogoData] = useState<string | null>(null);
+
+  const t = TEMAS[tema];
+  const base = colorFondo ?? t.fondo;
+  // Con imagen, un velo del color del tema por encima: sin él, el texto de
+  // las celdas deja de leerse en cuanto la foto tiene zonas claras.
+  const fondoCss = imagenFondo
+    ? `linear-gradient(${t.velo}, ${t.velo}), url(${imagenFondo}) center / cover no-repeat`
+    : base;
 
   useEffect(() => {
     if (!logoUrl) return;
@@ -150,10 +228,17 @@ export function BrandCard({
     return () => ro.disconnect();
   }, []);
 
+  function cargarFondo(file: File | undefined) {
+    if (!file) return;
+    const lector = new FileReader();
+    lector.onload = () => setImagenFondo(String(lector.result));
+    lector.readAsDataURL(file);
+  }
+
   // Tope de tiempo: html-to-image espera a que cargue todo lo que la tarjeta
   // referencia y, si algo no resuelve, la promesa se queda colgada para
   // siempre y el botón se queda en "Generando…". Antes de eso, se corta.
-  function conTope<T>(p: Promise<T>, ms = 12_000): Promise<T | null> {
+  function conTope<T>(p: Promise<T>, ms = 15_000): Promise<T | null> {
     return Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))]);
   }
 
@@ -170,9 +255,10 @@ export function BrandCard({
     const opciones = {
       width: SIZE,
       height: SIZE,
-      pixelRatio: 1,
+      // Se compone a 1080 y se dibuja a 1500: mismo maquetado, más resolución.
+      pixelRatio: EXPORT / SIZE,
       cacheBust: true,
-      backgroundColor: '#000000',
+      backgroundColor: base,
       // El nodo se clona CON su transform, así que sin anularlo la tarjeta
       // salía encogida en una esquina del PNG: el scale es de la vista
       // previa, no del entregable.
@@ -182,7 +268,7 @@ export function BrandCard({
     if (bueno) return { blob: bueno, degradado: false };
     const apaño = await conTope(
       toBlob(cardRef.current, { ...opciones, skipFonts: true }),
-      8_000,
+      10_000,
     ).catch(() => null);
     return apaño ? { blob: apaño, degradado: true } : null;
   }
@@ -205,9 +291,9 @@ export function BrandCard({
       setCopied(
         salida.degradado
           ? 'Descargada, pero con tipografía del sistema. Recarga y repite para la buena.'
-          : 'Descargada',
+          : 'Descargada en 1500×1500',
       );
-      setTimeout(() => setCopied(null), salida.degradado ? 6000 : 2000);
+      setTimeout(() => setCopied(null), salida.degradado ? 6000 : 2500);
     } finally {
       setBusy(false);
     }
@@ -232,6 +318,12 @@ export function BrandCard({
   }
 
   const band = score != null ? cardBand(score) : null;
+  const chip = (activo: boolean) =>
+    `rounded-md border px-2.5 py-1 text-xs transition-colors ${
+      activo
+        ? 'border-[var(--cta)] bg-[var(--cta)]/10 text-[var(--cta)]'
+        : 'border-[var(--border)] text-[var(--muted)] hover:border-[var(--muted)] hover:text-[var(--text)]'
+    }`;
 
   return (
     <div className="space-y-3">
@@ -248,6 +340,55 @@ export function BrandCard({
           placeholder="La lectura que quieres que lea primero"
           className="mt-1.5 w-full resize-none rounded-md border border-[var(--border)] bg-[var(--bg)] p-2.5 text-sm leading-relaxed outline-none transition-colors focus:border-[var(--cta)]"
         />
+
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[var(--border)] pt-3">
+          <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">
+            Tema
+          </span>
+          <div className="flex gap-1.5">
+            <button onClick={() => setTema('oscuro')} className={chip(tema === 'oscuro')}>
+              Oscuro
+            </button>
+            <button onClick={() => setTema('claro')} className={chip(tema === 'claro')}>
+              Claro
+            </button>
+          </div>
+
+          <span className="ml-2 font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">
+            Fondo
+          </span>
+          <label className="flex cursor-pointer items-center gap-2 text-xs text-[var(--muted)]">
+            <input
+              type="color"
+              value={colorFondo ?? t.fondo}
+              onChange={(e) => setColorFondo(e.target.value)}
+              aria-label="Color de fondo"
+              className="h-6 w-8 cursor-pointer rounded border border-[var(--border)] bg-transparent"
+            />
+            color
+          </label>
+          <label className={`${chip(false)} cursor-pointer`}>
+            Subir imagen
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => cargarFondo(e.target.files?.[0])}
+              className="hidden"
+            />
+          </label>
+          {(colorFondo || imagenFondo) && (
+            <button
+              onClick={() => {
+                setColorFondo(null);
+                setImagenFondo(null);
+              }}
+              className="text-xs text-[var(--muted)] transition-colors hover:text-[var(--text)]"
+            >
+              quitar fondo
+            </button>
+          )}
+        </div>
+
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--muted)]">
             <input
@@ -283,8 +424,10 @@ export function BrandCard({
             height: SIZE,
             transform: `scale(${scale})`,
             transformOrigin: 'top left',
+            background: fondoCss,
+            color: t.texto,
           }}
-          className="flex flex-col bg-black p-14 font-sans text-white"
+          className="flex flex-col p-14 font-sans"
         >
           {/* Cabecera: su logo a la izquierda, el nuestro a la derecha. */}
           <div className="flex items-start justify-between">
@@ -295,10 +438,14 @@ export function BrandCard({
                   src={logoData ?? logoUrl}
                   alt=""
                   crossOrigin="anonymous"
-                  className="h-[76px] w-[76px] rounded-[14px] bg-white object-contain p-1.5"
+                  className="h-[76px] w-[76px] rounded-[14px] object-contain p-1.5"
+                  style={{ background: '#ffffff' }}
                 />
               ) : (
-                <span className="flex h-[76px] w-[76px] items-center justify-center rounded-[14px] bg-white text-[30px] font-bold text-black">
+                <span
+                  className="flex h-[76px] w-[76px] items-center justify-center rounded-[14px] text-[30px] font-bold"
+                  style={{ background: t.marca, color: t.marcaTexto }}
+                >
                   {company.slice(0, 2).toUpperCase()}
                 </span>
               )}
@@ -306,7 +453,9 @@ export function BrandCard({
                 <span className="block text-[34px] font-bold leading-none tracking-tight">
                   {company}
                 </span>
-                <span className="mt-2 block font-mono text-[17px] text-white/45">{domain}</span>
+                <span className="mt-2 block font-mono text-[17px]" style={{ color: t.suave }}>
+                  {domain}
+                </span>
               </span>
             </div>
             <LogoMark size={52} />
@@ -317,16 +466,24 @@ export function BrandCard({
             {showScore && score != null && (
               // Mismo cuadrado que el logo de la marca, para que la columna de
               // la izquierda quede aplomada de arriba abajo.
-              <span className="flex h-[76px] w-[76px] shrink-0 flex-col items-center justify-center rounded-[14px] border border-white/15">
+              <span
+                className="flex h-[76px] w-[76px] shrink-0 flex-col items-center justify-center rounded-[14px] border"
+                style={{ borderColor: t.bordeSuave }}
+              >
                 <span className="font-mono text-[34px] font-medium leading-none">
                   {Math.round(score)}
                 </span>
-                <span className="mt-1 font-mono text-[11px] text-white/40">/100</span>
+                <span className="mt-1 font-mono text-[11px]" style={{ color: t.suave }}>
+                  /100
+                </span>
               </span>
             )}
             <span className="min-w-0 flex-1">
               {band && showScore && (
-                <span className="block font-mono text-[13px] uppercase tracking-[0.18em] text-white/40">
+                <span
+                  className="block font-mono text-[13px] uppercase tracking-[0.18em]"
+                  style={{ color: t.suave }}
+                >
                   {band}
                 </span>
               )}
@@ -344,29 +501,32 @@ export function BrandCard({
           <div className="mt-8 flex flex-col gap-4">
             <div className="grid h-[172px] grid-cols-2 gap-4">
               {CARD_LAYOUT.top.map((k) => (
-                <Cell key={k} cell={cells[k]} clamp="line-clamp-5" />
+                <Cell key={k} cell={cells[k]} clamp="line-clamp-5" t={t} />
               ))}
             </div>
             <div className="grid h-[152px] grid-cols-3 gap-4">
               {CARD_LAYOUT.middle.map((k) => (
-                <Cell key={k} cell={cells[k]} clamp="line-clamp-4" />
+                <Cell key={k} cell={cells[k]} clamp="line-clamp-4" t={t} />
               ))}
             </div>
             <div className="grid h-[142px] grid-cols-2 gap-4">
               {CARD_LAYOUT.terms.map((k) => (
-                <Cell key={k} cell={cells[k]} clamp="line-clamp-2" />
+                <Cell key={k} cell={cells[k]} clamp="line-clamp-2" t={t} />
               ))}
             </div>
             <div className="grid h-[152px] grid-cols-2 gap-4">
               {CARD_LAYOUT.bottom.map((k) => (
-                <Cell key={k} cell={cells[k]} clamp="line-clamp-4" />
+                <Cell key={k} cell={cells[k]} clamp="line-clamp-4" t={t} />
               ))}
             </div>
           </div>
 
           {/* Pie: de dónde sale esto. La cobertura es el dato honesto y, de
               paso, el motivo de la conversación. */}
-          <div className="mt-auto flex items-center justify-between pt-[42px] font-mono text-[14px] text-white/35">
+          <div
+            className="mt-auto flex items-center justify-between pt-[42px] font-mono text-[14px]"
+            style={{ color: t.tenue }}
+          >
             <span>
               {coverage.detected} de {coverage.total} componentes detectados
             </span>
