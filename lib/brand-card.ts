@@ -64,15 +64,52 @@ export function cardSentence(raw: string | null | undefined, max = 165): string 
   return (space > 60 ? cut.slice(0, space) : cut).trimEnd() + '…';
 }
 
+// La cita de un componente es texto capturado en crudo de sus superficies, y
+// a veces lo capturado es el formulario de contacto: "HURUS.io - Recaba
+// HURUS.io - Nombre y apellidos: … - E-mail: david.a@hurus.io". En la ficha
+// eso es evidencia legítima; en algo que se le manda al founder es un
+// bochorno, y además saca un correo personal a pasear.
+const CAPTURA_SUCIA = [
+  /[\w.+-]+@[\w-]+\.[a-z]{2,}/i, // un correo nunca es discurso de marca
+  /\b(?:\+?\d[\d ().-]{7,})\b/, // ni un teléfono
+  /nombre y apellidos|e-?mail\s*:|tel[eé]fono\s*:|p[áa]gina web\s*:|direcci[óo]n\s*:/i,
+  /pol[íi]tica de privacidad|aviso legal|todos los derechos reservados|acepta(?:r)? cookies/i,
+];
+
+// Un trozo repetido delata la captura de un menú o un formulario, no una
+// frase: "HURUS.io - Recaba HURUS.io - Recaba HURUS.io".
+function tieneRepeticion(text: string): boolean {
+  const palabras = text.toLowerCase().split(/\s+/).filter(Boolean);
+  const vistos = new Set<string>();
+  for (let i = 0; i + 2 < palabras.length; i++) {
+    const trio = palabras.slice(i, i + 3).join(' ');
+    if (trio.length < 10) continue;
+    if (vistos.has(trio)) return true;
+    vistos.add(trio);
+  }
+  return false;
+}
+
+export function pareceCaptura(text: string | null | undefined): boolean {
+  const t = (text ?? '').trim();
+  if (!t) return false;
+  if (CAPTURA_SUCIA.some((re) => re.test(t))) return true;
+  // Muchos guiones separadores es el patrón de una lista raspada.
+  if ((t.match(/\s[-|·]\s/g) ?? []).length >= 3) return true;
+  return tieneRepeticion(t);
+}
+
 // El texto de cada celda sale de lo que el Scanner detectó en sus superficies
-// (detected_content, que en el informe viaja como `quote`). Si esa dimensión
-// no dejó rastro propio, se cae al veredicto antes que dejar el hueco: sigue
-// siendo una lectura de su marca, no del sector.
+// (que en el informe viaja como `quote`), pero solo si eso es una frase y no
+// un raspado. Si no, se cae a la lectura que el propio Scanner escribió: es
+// menos literal, pero sigue hablando de su marca y siempre está limpia.
 function cellText(d: ScanDimension | undefined, max: number): string | null {
   if (!d || d.missing) return null;
-  return (
-    cardSentence(d.quote, max) ?? cardSentence(d.analysis, max) ?? cardSentence(d.verdict, max)
-  );
+  // Un componente puntuado a cero no se encontró: enseñar texto al lado de un
+  // 0/10 se contradice con su propia nota.
+  if (d.score === 0 && d.max) return null;
+  const cita = pareceCaptura(d.quote) ? null : cardSentence(d.quote, max);
+  return cita ?? cardSentence(d.analysis, max) ?? cardSentence(d.verdict, max);
 }
 
 // Cuánto texto cabe en cada zona de la tarjeta. La caja es fija (1080×1080),
