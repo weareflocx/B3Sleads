@@ -168,7 +168,45 @@ export function buildCardCells(
       soloTerminos: TERM_KEYS.has(key),
     };
   }
+  // Misión y visión repetidas: se conserva la misión, que es la que la marca
+  // declara de verdad, y la visión pasa a hueco. Al revés sería premiar la
+  // paráfrasis.
+  if (seRepiten(cells.mission?.text ?? null, cells.vision?.text ?? null)) {
+    cells.vision = { ...cells.vision, text: null, terms: null };
+  }
   return cells;
+}
+
+// Dos celdas no pueden decir lo mismo. Pasa cuando la marca declara una
+// misión pero no una visión: el Scanner parafrasea la primera y puntúa las
+// dos, así que la tarjeta repetiría la frase. La lectura honesta es que no
+// tienen visión propia, y eso es justo el hueco del que se habla.
+const PALABRAS_VACIAS = new Set(
+  'de la el los las lo un una unos unas que y a en con por para su sus del al es son se como más o u the of and to for in with that'.split(
+    ' ',
+  ),
+);
+
+function fondoLexico(text: string): Set<string> {
+  return new Set(
+    text
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9ñ ]/g, ' ')
+      .split(/\s+/)
+      .filter((w) => w.length > 3 && !PALABRAS_VACIAS.has(w)),
+  );
+}
+
+export function seRepiten(a: string | null, b: string | null, umbral = 0.45): boolean {
+  if (!a || !b) return false;
+  const A = fondoLexico(a);
+  const B = fondoLexico(b);
+  if (A.size < 3 || B.size < 3) return false;
+  let comunes = 0;
+  for (const w of A) if (B.has(w)) comunes += 1;
+  return comunes / (A.size + B.size - comunes) >= umbral;
 }
 
 // La banda del score, en el lenguaje con el que se le puede enseñar a su
