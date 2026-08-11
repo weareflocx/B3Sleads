@@ -25,6 +25,11 @@ const CELL_TEXT = 'text-[16px]';
 interface Tema {
   fondo: string;
   velo: string; // sobre una imagen de fondo, para que el texto siga legible
+  // A qué banda de grises se lleva la imagen de fondo. En claro, blancos y
+  // grises muy claros; en oscuro, negros y grises oscuros. Se aplica sobre
+  // los pixeles, no con un filtro CSS: así el rango es exacto y no depende
+  // de que el rasterizador respete el filtro.
+  banda: [number, number];
   texto: string;
   suave: string;
   tenue: string;
@@ -39,7 +44,8 @@ interface Tema {
 const TEMAS: Record<'oscuro' | 'claro', Tema> = {
   oscuro: {
     fondo: '#000000',
-    velo: 'rgba(0,0,0,0.72)',
+    velo: 'rgba(0,0,0,0.28)',
+    banda: [6, 64],
     texto: '#ffffff',
     suave: 'rgba(255,255,255,0.45)',
     tenue: 'rgba(255,255,255,0.3)',
@@ -52,7 +58,8 @@ const TEMAS: Record<'oscuro' | 'claro', Tema> = {
   },
   claro: {
     fondo: '#ffffff',
-    velo: 'rgba(255,255,255,0.82)',
+    velo: 'rgba(255,255,255,0.3)',
+    banda: [212, 252],
     texto: '#0b0d0e',
     suave: 'rgba(11,13,14,0.5)',
     tenue: 'rgba(11,13,14,0.35)',
@@ -75,6 +82,48 @@ function colorNota(score: number | null, max: number | null, t: Tema): string {
   if (ratio < 0.5) return t.notas.bajo;
   if (ratio < 0.8) return t.notas.medio;
   return t.notas.alto;
+}
+
+// El fondo, a escala de grises y comprimido a la banda del tema. Una foto a
+// todo color detrás de la tarjeta se come el análisis; en grises y dentro de
+// su banda se lee como textura y el contenido sigue mandando.
+function aBandaDeGrises(src: string, banda: [number, number]): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        // Se reescala a 1400: da de sobra para 1500 de export y evita
+        // arrastrar una foto de 4000px dentro del PNG.
+        const lado = Math.min(1400, Math.max(img.width, img.height)) || 1400;
+        const escala = lado / Math.max(img.width, img.height);
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * escala);
+        c.height = Math.round(img.height * escala);
+        const ctx = c.getContext('2d');
+        if (!ctx) return resolve(src);
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        const datos = ctx.getImageData(0, 0, c.width, c.height);
+        const [min, max] = banda;
+        const rango = max - min;
+        for (let i = 0; i < datos.data.length; i += 4) {
+          // Luma perceptual: un rojo saturado y un azul saturado no pueden
+          // acabar en el mismo gris.
+          const gris =
+            0.299 * datos.data[i] + 0.587 * datos.data[i + 1] + 0.114 * datos.data[i + 2];
+          const v = min + (gris / 255) * rango;
+          datos.data[i] = v;
+          datos.data[i + 1] = v;
+          datos.data[i + 2] = v;
+        }
+        ctx.putImageData(datos, 0, 0);
+        resolve(c.toDataURL('image/jpeg', 0.92));
+      } catch {
+        resolve(src);
+      }
+    };
+    img.onerror = () => resolve(src);
+    img.src = src;
+  });
 }
 
 function Cell({ cell, clamp, t }: { cell: CardCell; clamp: string; t: Tema }) {
@@ -178,6 +227,9 @@ export function BrandCard({
   // guarda como data URL en memoria (nunca se sube a ningún sitio) y por eso
   // viaja al PNG sin depender de la red.
   const [colorFondo, setColorFondo] = useState<string | null>(null);
+  // La original se guarda tal cual para poder reconvertirla al cambiar de
+  // tema: el gris de la banda clara no sirve para la oscura.
+  const [imagenOriginal, setImagenOriginal] = useState<string | null>(null);
   const [imagenFondo, setImagenFondo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
@@ -231,9 +283,24 @@ export function BrandCard({
   function cargarFondo(file: File | undefined) {
     if (!file) return;
     const lector = new FileReader();
-    lector.onload = () => setImagenFondo(String(lector.result));
+    lector.onload = () => setImagenOriginal(String(lector.result));
     lector.readAsDataURL(file);
   }
+
+  // Cada vez que cambia la imagen o el tema, se vuelve a llevar a su banda.
+  useEffect(() => {
+    if (!imagenOriginal) {
+      setImagenFondo(null);
+      return;
+    }
+    let vivo = true;
+    aBandaDeGrises(imagenOriginal, t.banda).then((d) => {
+      if (vivo) setImagenFondo(d);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [imagenOriginal, t.banda]);
 
   // Tope de tiempo: html-to-image espera a que cargue todo lo que la tarjeta
   // referencia y, si algo no resuelve, la promesa se queda colgada para
@@ -376,11 +443,11 @@ export function BrandCard({
               className="hidden"
             />
           </label>
-          {(colorFondo || imagenFondo) && (
+          {(colorFondo || imagenOriginal) && (
             <button
               onClick={() => {
                 setColorFondo(null);
-                setImagenFondo(null);
+                setImagenOriginal(null);
               }}
               className="text-xs text-[var(--muted)] transition-colors hover:text-[var(--text)]"
             >
