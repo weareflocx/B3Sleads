@@ -13,7 +13,7 @@ const SIZE = 1080;
 // Un solo tamaño de letra en todas las celdas: la tarjeta se lee homogénea y,
 // de paso, entra más información que cuando cada zona tenía el suyo. Lo único
 // que cambia por fila es cuántas líneas caben antes del recorte.
-const CELL_TEXT = 'text-[17px]';
+const CELL_TEXT = 'text-[16px]';
 
 // El mismo criterio de la parrilla de la ficha: por proporción, para que
 // funcione con cualquier máximo (/5, /10 y el /20 de Magnetismo).
@@ -55,9 +55,9 @@ function Cell({ cell, clamp }: { cell: CardCell; clamp: string }) {
             // aun así no caben, se enseña uno menos. Cuatro etiquetas cortas
             // y tres largas ocupan lo mismo.
             const largo = cell.terms!.reduce((a, t) => a + t.length, 0);
-            const visibles = largo > 74 ? cell.terms!.slice(0, 3) : cell.terms!;
+            const visibles = largo > 88 ? cell.terms!.slice(0, 3) : cell.terms!;
             const tam =
-              largo > 46 ? 'px-3 py-0.5 text-[15px]' : 'px-3.5 py-1 text-[17px]';
+              largo > 52 ? 'px-2.5 py-1 text-[14px]' : 'px-3 py-1 text-[15px]';
             return visibles.map((t) => (
               <span
                 key={t}
@@ -342,22 +342,22 @@ export function BrandCard({
 
           {/* El Brand Seed, en el mismo orden que la pestaña B3S Seed. */}
           <div className="mt-8 flex flex-col gap-4">
-            <div className="grid h-[174px] grid-cols-2 gap-4">
+            <div className="grid h-[172px] grid-cols-2 gap-4">
               {CARD_LAYOUT.top.map((k) => (
                 <Cell key={k} cell={cells[k]} clamp="line-clamp-5" />
               ))}
             </div>
-            <div className="grid h-[170px] grid-cols-3 gap-4">
+            <div className="grid h-[152px] grid-cols-3 gap-4">
               {CARD_LAYOUT.middle.map((k) => (
                 <Cell key={k} cell={cells[k]} clamp="line-clamp-4" />
               ))}
             </div>
-            <div className="grid h-[128px] grid-cols-2 gap-4">
+            <div className="grid h-[142px] grid-cols-2 gap-4">
               {CARD_LAYOUT.terms.map((k) => (
                 <Cell key={k} cell={cells[k]} clamp="line-clamp-2" />
               ))}
             </div>
-            <div className="grid h-[146px] grid-cols-2 gap-4">
+            <div className="grid h-[152px] grid-cols-2 gap-4">
               {CARD_LAYOUT.bottom.map((k) => (
                 <Cell key={k} cell={cells[k]} clamp="line-clamp-4" />
               ))}

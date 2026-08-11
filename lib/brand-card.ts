@@ -96,8 +96,8 @@ const CELL_MAX: Record<string, number> = {
   'brand-idea': 104,
   attributes: 92, // 2 líneas, columna ancha
   values: 92,
-  mission: 192, // 4 líneas x ~53
-  vision: 192,
+  mission: 168, // 4 líneas x ~53, menos lo que se come el ajuste de palabra
+  vision: 168,
 };
 
 // Las dos dimensiones que se enseñan como etiquetas y no como prosa.
