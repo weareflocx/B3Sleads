@@ -83,17 +83,17 @@ function cellText(d: ScanDimension | undefined, max: number): string | null {
 // Con un solo tamaño de letra en todas las celdas (18px) cabe bastante más
 // texto que cuando cada zona tenía el suyo, así que los topes suben.
 const CELL_MAX: Record<string, number> = {
-  purpose: 200, // 5 líneas x ~50 caracteres (columna ancha)
-  magnetism: 200,
+  purpose: 215, // 5 líneas x ~53 caracteres (columna ancha, 17px)
+  magnetism: 215,
   // En columna estrecha el ajuste de palabra desperdicia ~20% de cada línea,
   // así que el tope real es menor que ancho/carácter x líneas.
-  'value-prop': 96, // 4 líneas en columna de ~264px
-  personality: 96,
-  'brand-idea': 96,
-  attributes: 95, // 2 líneas, columna ancha
-  values: 95,
-  mission: 180, // 4 líneas x ~50
-  vision: 180,
+  'value-prop': 104, // 4 líneas en columna de ~264px
+  personality: 104,
+  'brand-idea': 104,
+  attributes: 92, // 2 líneas, columna ancha
+  values: 92,
+  mission: 192, // 4 líneas x ~53
+  vision: 192,
 };
 
 // Las dos dimensiones que se enseñan como etiquetas y no como prosa.

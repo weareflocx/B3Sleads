@@ -13,7 +13,7 @@ const SIZE = 1080;
 // Un solo tamaño de letra en todas las celdas: la tarjeta se lee homogénea y,
 // de paso, entra más información que cuando cada zona tenía el suyo. Lo único
 // que cambia por fila es cuántas líneas caben antes del recorte.
-const CELL_TEXT = 'text-[18px]';
+const CELL_TEXT = 'text-[17px]';
 
 // El mismo criterio de la parrilla de la ficha: por proporción, para que
 // funcione con cualquier máximo (/5, /10 y el /20 de Magnetismo).
@@ -43,7 +43,7 @@ function Cell({ cell, clamp }: { cell: CardCell; clamp: string }) {
           {cell.label}
         </span>
         <span
-          className={`inline-flex h-[26px] shrink-0 items-center rounded border px-1.5 font-mono text-[13px] ${scoreTone(cell.score, cell.max)}`}
+          className={`-mr-2 inline-flex h-[26px] shrink-0 items-center rounded border px-1.5 font-mono text-[13px] ${scoreTone(cell.score, cell.max)}`}
         >
           {cell.score != null && cell.max ? `${cell.score}/${cell.max}` : 'sin rastro'}
         </span>
@@ -94,6 +94,32 @@ export function BrandCard({
   const [showScore, setShowScore] = useState(true);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  // El logo vive en el CDN de LinkedIn. Se pasa a data URL al montar para que
+  // la exportación no dependa de una petición externa.
+  const [logoData, setLogoData] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!logoUrl) return;
+    let vivo = true;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      if (!vivo) return;
+      try {
+        const c = document.createElement('canvas');
+        c.width = 256;
+        c.height = 256;
+        c.getContext('2d')?.drawImage(img, 0, 0, 256, 256);
+        setLogoData(c.toDataURL('image/png'));
+      } catch {
+        // Si el CDN no deja leerlo se enseña igual: solo se pierde en el PNG.
+      }
+    };
+    img.src = logoUrl;
+    return () => {
+      vivo = false;
+    };
+  }, [logoUrl]);
 
   // La escala se calcula del ancho real disponible: la tarjeta se ve entera
   // en cualquier columna sin dejar de medir 1080 por dentro.
@@ -107,12 +133,24 @@ export function BrandCard({
     return () => ro.disconnect();
   }, []);
 
-  async function render(): Promise<Blob | null> {
+  // Tope de tiempo: html-to-image espera a que cargue todo lo que la tarjeta
+  // referencia y, si algo no resuelve, la promesa se queda colgada para
+  // siempre y el botón se queda en "Generando…". Antes de eso, se corta.
+  function conTope<T>(p: Promise<T>, ms = 12_000): Promise<T | null> {
+    return Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))]);
+  }
+
+  // La exportación rasteriza el nodo dentro de un SVG. Con las fuentes
+  // embebidas en base64 ese SVG pesa varios MB, y a partir de cierto tamaño
+  // Chrome se queda cargándolo sin resolver ni fallar: de ahí el tope de
+  // tiempo y un segundo intento sin fuentes, que genera un SVG mucho menor.
+  // Con tipografía del sistema la tarjeta no queda igual, pero es mejor que
+  // quedarse sin entregable.
+  async function render(): Promise<{ blob: Blob; degradado: boolean } | null> {
     if (!cardRef.current) return null;
-    // Import diferido: la librería de exportación solo se descarga cuando de
-    // verdad se exporta, no al abrir la pestaña.
+    // Import diferido: la librería solo se descarga al exportar de verdad.
     const { toBlob } = await import('html-to-image');
-    return toBlob(cardRef.current, {
+    const opciones = {
       width: SIZE,
       height: SIZE,
       pixelRatio: 1,
@@ -122,22 +160,37 @@ export function BrandCard({
       // salía encogida en una esquina del PNG: el scale es de la vista
       // previa, no del entregable.
       style: { transform: 'none', transformOrigin: 'top left' },
-    });
+    };
+    const bueno = await conTope(toBlob(cardRef.current, opciones)).catch(() => null);
+    if (bueno) return { blob: bueno, degradado: false };
+    const apaño = await conTope(
+      toBlob(cardRef.current, { ...opciones, skipFonts: true }),
+      8_000,
+    ).catch(() => null);
+    return apaño ? { blob: apaño, degradado: true } : null;
   }
 
   async function download() {
     setBusy(true);
     try {
-      const blob = await render();
-      if (!blob) return;
-      const url = URL.createObjectURL(blob);
+      const salida = await render();
+      if (!salida) {
+        setCopied('No se pudo generar la imagen. Recarga la página y prueba otra vez.');
+        setTimeout(() => setCopied(null), 5000);
+        return;
+      }
+      const url = URL.createObjectURL(salida.blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = `${domain.replace(/\./g, '-')}-brand-seed.png`;
       a.click();
       URL.revokeObjectURL(url);
-      setCopied('Descargada');
-      setTimeout(() => setCopied(null), 2000);
+      setCopied(
+        salida.degradado
+          ? 'Descargada, pero con tipografía del sistema. Recarga y repite para la buena.'
+          : 'Descargada',
+      );
+      setTimeout(() => setCopied(null), salida.degradado ? 6000 : 2000);
     } finally {
       setBusy(false);
     }
@@ -148,11 +201,11 @@ export function BrandCard({
   async function copyImage() {
     setBusy(true);
     try {
-      const blob = await render();
-      if (!blob) return;
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-      setCopied('Copiada');
-      setTimeout(() => setCopied(null), 2000);
+      const salida = await render();
+      if (!salida) throw new Error('sin imagen');
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': salida.blob })]);
+      setCopied(salida.degradado ? 'Copiada, con tipografía del sistema' : 'Copiada');
+      setTimeout(() => setCopied(null), salida.degradado ? 6000 : 2000);
     } catch {
       setCopied('Tu navegador no deja copiar imágenes: descárgala');
       setTimeout(() => setCopied(null), 4000);
@@ -222,7 +275,7 @@ export function BrandCard({
               {logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={logoUrl}
+                  src={logoData ?? logoUrl}
                   alt=""
                   crossOrigin="anonymous"
                   className="h-[76px] w-[76px] rounded-[14px] bg-white object-contain p-1.5"
