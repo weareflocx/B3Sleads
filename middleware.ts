@@ -4,15 +4,41 @@ import { NextResponse, type NextRequest } from 'next/server';
 // Protege el dashboard: sin sesión → /login. Público: la landing (/), el
 // login y el callback de auth. Si Supabase no está configurado (modo demo),
 // no hay auth que aplicar y se deja pasar todo.
-const PUBLIC_PATHS = ['/', '/login', '/api/health', '/eclipse'];
+const PUBLIC_PATHS = ['/', '/login', '/api/health'];
 
 // La Agent API (/api/v1) no usa la sesión del navegador: cada ruta valida su
 // propia clave Bearer con scopes (lib/agent-api/auth).
 const API_V1_PREFIX = '/api/v1';
 
+// Modo microsite de campaña. El mismo repo alimenta DOS sitios de Netlify:
+//   - B3S Leads (sin la variable): se comporta exactamente igual que siempre,
+//     y el Eclipse Scan queda detrás del login como cualquier otra ruta.
+//   - El sitio del eclipse (ECLIPSE_ONLY=1): solo existe /eclipse. Todo lo
+//     demás (dashboard, login, Agent API) cae ahí mismo. Un lead que aterriza
+//     en la campaña no tiene por dónde irse a otro sitio.
+// La puerta va la PRIMERA, antes incluso del bypass de /api/v1: en el dominio
+// de campaña no se abre nada más que el eclipse.
+const SOLO_ECLIPSE = process.env.ECLIPSE_ONLY === '1';
+
+function esDelEclipse(path: string): boolean {
+  return path === '/eclipse' || path.startsWith('/eclipse/') || path.startsWith('/api/eclipse');
+}
+
 export async function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+
+  if (SOLO_ECLIPSE) {
+    if (esDelEclipse(pathname) || pathname.startsWith('/_next')) {
+      return NextResponse.next();
+    }
+    const destino = request.nextUrl.clone();
+    destino.pathname = '/eclipse';
+    destino.search = '';
+    return NextResponse.redirect(destino);
+  }
+
   // Evita convertir un error de autenticación de la API en un redirect HTML.
-  if (request.nextUrl.pathname.startsWith(API_V1_PREFIX)) {
+  if (pathname.startsWith(API_V1_PREFIX)) {
     return NextResponse.next();
   }
 
@@ -45,10 +71,10 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  // /api/eclipse por prefijo: cuelga la imagen OG (/api/eclipse/og) y el
-  // polling, y las tarjetas de LinkedIn y X las rastrea un bot sin sesión.
-  const isPublic =
-    PUBLIC_PATHS.includes(path) || path.startsWith('/auth') || path.startsWith('/api/eclipse');
+  // El Eclipse Scan NO es público aquí: vive en su propio sitio (ECLIPSE_ONLY).
+  // En B3S Leads queda detrás del login como cualquier otra ruta, para que la
+  // campaña tenga una sola URL y una sola tarjeta Open Graph.
+  const isPublic = PUBLIC_PATHS.includes(path) || path.startsWith('/auth');
 
   if (!user && !isPublic) {
     const redirectUrl = request.nextUrl.clone();
