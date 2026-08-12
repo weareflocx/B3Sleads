@@ -77,6 +77,7 @@ function Eclipse({
   avance,
   size = '100%',
   quieto = false,
+  teleport = false,
 }: {
   avance: number;
   // Acepta pixeles o el 100% del contenedor: el escenario grande manda su
@@ -86,6 +87,8 @@ function Eclipse({
   // para el final del scan, cuando significa algo) y con la luz de la corona
   // escapando en un loop lento.
   quieto?: boolean;
+  // Recolocar la luna sin animar: se usa bajo el fundido a negro.
+  teleport?: boolean;
 }) {
   const total = avance >= 1;
   // El halo solo existe cerca de la totalidad: antes ensuciaba el limbo con
@@ -105,14 +108,14 @@ function Eclipse({
           inset: '-45%',
           opacity: halo,
           transition: 'opacity 1400ms ease-out',
-          animation: total ? 'ecl-respirar 6s ease-in-out infinite' : undefined,
+          animation: total ? 'ecl-respirar 11s ease-in-out infinite' : undefined,
         }}
       >
         <div
           className="absolute inset-0 rounded-full"
           style={{
-            background: `radial-gradient(circle at 50% 42%, rgba(${GRIS},0.30) 24%, rgba(${GRIS},0.10) 40%, rgba(${GRIS},0.03) 52%, transparent 66%)`,
-            filter: 'blur(6px)',
+            background: `radial-gradient(circle at 50% 44%, rgba(${GRIS},0.32) 25%, rgba(${GRIS},0.11) 40%, rgba(${GRIS},0.03) 53%, transparent 67%)`,
+            filter: 'blur(7px)',
           }}
         />
       </div>
@@ -129,29 +132,17 @@ function Eclipse({
         }}
       />
 
-      <div
-        className="pointer-events-none absolute"
-        style={{
-          top: '-9%',
-          left: '12%',
-          width: '76%',
-          height: '42%',
-          opacity: total ? 1 : 0,
-          transition: 'opacity 1300ms ease-out 350ms',
-          background: `radial-gradient(ellipse at 50% 70%, rgba(${BLANCO},0.42) 0%, rgba(${GRIS},0.14) 45%, transparent 72%)`,
-          filter: 'blur(10px)',
-        }}
-      />
       {/* La luna: gemela del sol, negra de verdad, borde nítido. Entra en
           diagonal desde arriba a la izquierda, como un cuerpo celeste y no
-          como un slider. */}
+          como un slider. En modo teleport aparece ya colocada: es el fundido
+          a negro del arranque del scan. */}
       <div
         className="absolute rounded-full"
         style={{
           inset: '-0.5%',
           background: '#000',
           transform: `translate(${(avance - 1) * 102}%, ${(1 - avance) * -16}%)`,
-          transition: 'transform 1100ms cubic-bezier(0.34, 0.88, 0.4, 1)',
+          transition: teleport ? 'none' : 'transform 1400ms cubic-bezier(0.34, 0.88, 0.4, 1)',
         }}
       />
 
@@ -162,8 +153,8 @@ function Eclipse({
         style={{
           inset: '-0.5%',
           opacity: total ? 1 : 0,
-          transition: 'opacity 1100ms ease-out 200ms',
-          boxShadow: `0 0 14px 3px rgba(${BLANCO},0.8), 0 0 44px 12px rgba(${GRIS},0.38), 0 0 110px 34px rgba(${GRIS},0.12)`,
+          transition: 'opacity 2000ms ease-out 300ms',
+          boxShadow: `0 0 14px 3px rgba(${BLANCO},0.75), 0 0 44px 12px rgba(${GRIS},0.34), 0 0 120px 38px rgba(${GRIS},0.1)`,
         }}
       />
 
@@ -174,13 +165,13 @@ function Eclipse({
           style={{
             inset: '-20%',
             background:
-              'conic-gradient(from 0deg, rgba(255,255,255,0) 0deg, rgba(226,232,244,0.16) 42deg, rgba(255,255,255,0) 96deg, rgba(226,232,244,0.10) 168deg, rgba(255,255,255,0) 226deg, rgba(226,232,244,0.14) 305deg, rgba(255,255,255,0) 360deg)',
-            filter: 'blur(9px)',
+              'conic-gradient(from 0deg, rgba(255,255,255,0) 0deg, rgba(226,232,244,0.11) 42deg, rgba(255,255,255,0) 96deg, rgba(226,232,244,0.07) 168deg, rgba(255,255,255,0) 226deg, rgba(226,232,244,0.09) 305deg, rgba(255,255,255,0) 360deg)',
+            filter: 'blur(12px)',
             WebkitMaskImage:
               'radial-gradient(circle, transparent 44%, black 51%, rgba(0,0,0,0.7) 60%, transparent 72%)',
             maskImage:
               'radial-gradient(circle, transparent 44%, black 51%, rgba(0,0,0,0.7) 60%, transparent 72%)',
-            animation: 'ecl-rotar 46s linear infinite',
+            animation: 'ecl-rotar 80s linear infinite',
           }}
         />
       )}
@@ -190,13 +181,14 @@ function Eclipse({
         <div
           className="pointer-events-none absolute rounded-full"
           style={{
-            top: '3%',
-            right: '14%',
-            width: '10%',
-            height: '10%',
-            background: `radial-gradient(circle, #fff 0%, rgba(${BLANCO},0.92) 34%, transparent 68%)`,
-            boxShadow: `0 0 44px 16px rgba(255,255,255,0.9), 0 0 120px 48px rgba(${GRIS},0.4)`,
-            animation: 'ecl-diamante 1600ms cubic-bezier(0.23, 1, 0.32, 1) forwards',
+            top: '4.5%',
+            right: '18%',
+            width: '6.5%',
+            height: '6.5%',
+            background: `radial-gradient(circle, #fff 0%, rgba(${BLANCO},0.85) 32%, transparent 64%)`,
+            boxShadow: `0 0 30px 10px rgba(255,255,255,0.75), 0 0 90px 34px rgba(${GRIS},0.28)`,
+            filter: 'blur(0.6px)',
+            animation: 'ecl-diamante 2600ms cubic-bezier(0.23, 1, 0.32, 1) forwards',
           }}
         />
       )}
@@ -205,7 +197,7 @@ function Eclipse({
 }
 
 const FIELD =
-  'w-full border-0 border-b border-white/20 bg-transparent px-0 py-2.5 text-lg text-white outline-none transition-colors placeholder:text-white/25 focus:border-white/70';
+  'ecl-campo w-full border-0 border-b border-white/15 bg-transparent px-0 py-2.5 text-lg text-white outline-none transition-colors placeholder:text-white/25 focus:border-white/60';
 
 export function EclipseClient() {
   const [fase, setFase] = useState<Fase>('intro');
@@ -215,15 +207,25 @@ export function EclipseClient() {
   const [avance, setAvance] = useState(0.82); // el hero enseña un eclipse a medias
   const [result, setResult] = useState<EclipseResult | null>(null);
   const [copiado, setCopiado] = useState<string | null>(null);
+  // El telón: un negro que cubre la pantalla mientras la luna se recoloca al
+  // otro lado. Sin él se veía rebobinar el disco, que es justo lo contrario
+  // de un eclipse.
+  const [telon, setTelon] = useState(false);
+  const [teleport, setTeleport] = useState(false);
   const timers = useRef<ReturnType<typeof setInterval>[]>([]);
   const inicio = useRef(0);
+  // El resultado puede llegar mientras el telón sigue bajado. Si eso pasa, el
+  // aterrizaje ya está en marcha y el animador lento del scan no debe
+  // arrancar: dos animadores sobre el mismo avance se pisan y gana el que
+  // corre después, que congelaba la luna en el punto de partida.
+  const aterrizando = useRef(false);
 
   useEffect(() => () => timers.current.forEach(clearInterval), []);
 
   // El avance durante el scan: rápido al principio, asintótico al 96% hasta
   // que el resultado llega de verdad. La totalidad solo ocurre con dato.
   function animarProgreso(esperadoMs: number) {
-    inicio.current = Date.now();
+    if (aterrizando.current) return;
     const t = setInterval(() => {
       const x = (Date.now() - inicio.current) / esperadoMs;
       setAvance(Math.min(0.96, 1 - Math.exp(-2.2 * x)));
@@ -236,26 +238,38 @@ export function EclipseClient() {
   // la línea temporal para que el viaje entero se vea igual, rojo, azul,
   // verde, diamante, corona. Si el scan tardó lo suyo, la totalidad es ya.
   function aterrizar(fin: () => void) {
+    if (aterrizando.current) return;
+    aterrizando.current = true;
     timers.current.forEach(clearInterval);
     const transcurrido = Date.now() - inicio.current;
-    const restante = transcurrido < 5_000 ? 5_600 : 0;
+    // El fundido ocupa el primer segundo y medio: si el resultado llega
+    // dentro de esa ventana, el eclipse aún no ha empezado y hay que
+    // recorrerlo entero igual.
+    const restante = transcurrido < 6_500 ? 7_000 - Math.max(0, transcurrido - 1_600) : 0;
     if (restante) {
-      const t0 = Date.now();
+      // Nunca se mueve la luna bajo el telón: el fundido dura 1,55s y lo que
+      // pasa debajo no se ve, así que sería tiempo de eclipse regalado.
+      const t0 = Date.now() + Math.max(0, 1_650 - (Date.now() - inicio.current));
       const t = setInterval(() => {
         const x = (Date.now() - t0) / restante;
+        if (x < 0) return;
         if (x >= 1) {
           clearInterval(t);
           setAvance(1);
-          setTimeout(fin, 2300);
+          // La totalidad se saborea: la corona tarda 2s en abrirse.
+          setTimeout(fin, 3200);
         } else {
-          setAvance(0.06 + x * 0.9);
+          // Velocidad constante, que es como se mueve la luna de verdad. Con
+          // una curva suavizada el tramo medio pasaba volando y la fase azul
+          // no llegaba a verse.
+          setAvance(0.04 + x * 0.94);
         }
-      }, 120);
+      }, 90);
       timers.current.push(t);
     } else {
       setAvance(1);
       // La totalidad se saborea: diamante, corona, y entonces el después.
-      setTimeout(fin, 2300);
+      setTimeout(fin, 3200);
     }
   }
 
@@ -274,9 +288,22 @@ export function EclipseClient() {
     setError(null);
     if (!/\./.test(domain)) return setError('Escribe el dominio de tu marca, tipo tumarca.com');
     if (!/@/.test(email)) return setError('El análisis completo llega por email: necesitamos uno de verdad.');
-    setFase('escaneando');
-    setAvance(0.05);
-    animarProgreso(90_000);
+    // Fundido a negro: bajo el telón se recoloca la luna al inicio de su
+    // trayecto (sin animar) y se levanta con las estrellas y el disco ya en
+    // su sitio. Lo que se ve después es solo eclipse, nunca un rebobinado.
+    inicio.current = Date.now();
+    aterrizando.current = false;
+    setTelon(true);
+    setTimeout(() => {
+      setTeleport(true);
+      setFase('escaneando');
+      setAvance(0.04);
+      setTimeout(() => {
+        setTelon(false);
+        setTeleport(false);
+        animarProgreso(90_000);
+      }, 700);
+    }, 850);
     try {
       const res = await fetch('/api/eclipse', {
         method: 'POST',
@@ -382,9 +409,28 @@ export function EclipseClient() {
           50% { transform: scale(1.045); opacity: 1 }
         }
         @keyframes ecl-diamante {
-          0% { opacity: 0; transform: scale(0.3) }
-          16% { opacity: 1; transform: scale(1.1) }
-          100% { opacity: 0; transform: scale(2.6) }
+          0% { opacity: 0; transform: scale(0.4) }
+          22% { opacity: 0.9; transform: scale(1) }
+          100% { opacity: 0; transform: scale(2.2) }
+        }
+        /* Chrome pinta los campos autocompletados de azul y se carga la
+           escena. No hay propiedad para desactivarlo: se tapa con una sombra
+           interior enorme del color del fondo y se fuerza el color del texto. */
+        .ecl-campo:-webkit-autofill,
+        .ecl-campo:-webkit-autofill:hover,
+        .ecl-campo:-webkit-autofill:focus {
+          -webkit-box-shadow: 0 0 0 1000px #000 inset !important;
+          box-shadow: 0 0 0 1000px #000 inset !important;
+          -webkit-text-fill-color: #fff !important;
+          caret-color: #fff;
+          transition: background-color 9999s ease-in-out 0s;
+        }
+        .ecl-campo::selection { background: rgba(255,255,255,0.2) }
+        @keyframes ecl-grano {
+          0% { transform: translate(0, 0) }
+          33% { transform: translate(-2%, 1.5%) }
+          66% { transform: translate(1.5%, -2%) }
+          100% { transform: translate(0, 0) }
         }
         @keyframes ecl-bandas {
           from { opacity: 0.35; transform: translateX(-1.5%) }
@@ -400,7 +446,9 @@ export function EclipseClient() {
         }
       `}</style>
 
-      <Estrellas intensidad={intensidadEstrellas} />
+      <div className="relative z-[25]">
+        <Estrellas intensidad={intensidadEstrellas} />
+      </div>
 
       {/* La luz del horizonte: cálida al principio, muere con el avance y
           VUELVE tenue en la totalidad. Es el atardecer de 360 grados, el
@@ -441,6 +489,29 @@ export function EclipseClient() {
         />
       )}
 
+      {/* El telón del fundido. Va por encima del disco pero por debajo de
+          las estrellas, así el cielo nunca se apaga del todo. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 z-20 bg-black"
+        style={{
+          opacity: telon ? 1 : 0,
+          transition: telon ? 'opacity 800ms ease-in' : 'opacity 1500ms ease-out',
+        }}
+      />
+
+      {/* Grano de película: rompe los degradados y quita el plástico. Es la
+          diferencia entre un render y una fotografía. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 z-30 opacity-[0.055] mix-blend-overlay"
+        style={{
+          backgroundImage:
+            "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E\")",
+          animation: 'ecl-grano 1.1s steps(3) infinite',
+        }}
+      />
+
       {/* Header: solo el símbolo, como en B3S Leads. */}
       <header className="z-10 flex w-full max-w-3xl items-center justify-between pt-6">
         <LogoMark size={26} />
@@ -461,7 +532,11 @@ export function EclipseClient() {
             className="relative flex items-center justify-center"
             style={{ width: 'min(74vh, 92vw)', height: 'min(74vh, 92vw)' }}
           >
-            <Eclipse avance={fase === 'intro' ? 1 : avance} quieto={fase === 'intro'} />
+            <Eclipse
+              avance={fase === 'intro' ? 1 : avance}
+              quieto={fase === 'intro'}
+              teleport={teleport}
+            />
             {fase === 'intro' && (
               <div
                 className="absolute inset-0 flex flex-col items-center justify-center px-[13%] text-center"
