@@ -73,7 +73,18 @@ function tinteDeFase(avance: number, total: boolean): string {
   return '0,213,84';
 }
 
-function Eclipse({ avance, size = 280 }: { avance: number; size?: number }) {
+function Eclipse({
+  avance,
+  size = 280,
+  quieto = false,
+}: {
+  avance: number;
+  size?: number;
+  // El hero: la totalidad en reposo, sin diamante (ese destello se reserva
+  // para el final del scan, cuando significa algo) y con la luz de la corona
+  // escapando en un loop lento.
+  quieto?: boolean;
+}) {
   const total = avance >= 1;
   const tinte = tinteDeFase(avance, total);
   // El halo asoma en el último tramo del parcial y explota en la totalidad.
@@ -126,6 +137,19 @@ function Eclipse({ avance, size = 280 }: { avance: number; size?: number }) {
         }}
       />
 
+      <div
+        className="pointer-events-none absolute"
+        style={{
+          top: '-9%',
+          left: '12%',
+          width: '76%',
+          height: '42%',
+          opacity: total ? 1 : 0,
+          transition: 'opacity 1300ms ease-out 350ms',
+          background: `radial-gradient(ellipse at 50% 70%, rgba(${BLANCO},0.42) 0%, rgba(${GRIS},0.14) 45%, transparent 72%)`,
+          filter: 'blur(10px)',
+        }}
+      />
       {/* La luna: negra de verdad, borde nítido contra la corona. */}
       <div
         className="absolute rounded-full"
@@ -148,22 +172,27 @@ function Eclipse({ avance, size = 280 }: { avance: number; size?: number }) {
           boxShadow: `0 0 14px 3px rgba(${BLANCO},0.8), 0 0 44px 12px rgba(${GRIS},0.38), 0 0 110px 34px rgba(${GRIS},0.12)`,
         }}
       />
-      <div
-        className="pointer-events-none absolute"
-        style={{
-          top: '-9%',
-          left: '12%',
-          width: '76%',
-          height: '42%',
-          opacity: total ? 1 : 0,
-          transition: 'opacity 1300ms ease-out 350ms',
-          background: `radial-gradient(ellipse at 50% 70%, rgba(${BLANCO},0.42) 0%, rgba(${GRIS},0.14) 45%, transparent 72%)`,
-          filter: 'blur(10px)',
-        }}
-      />
+
+      {/* Las hebras de la corona: luz que escapa y gira despacio. */}
+      {total && (
+        <div
+          className="pointer-events-none absolute rounded-full"
+          style={{
+            inset: '-20%',
+            background:
+              'conic-gradient(from 0deg, rgba(255,255,255,0) 0deg, rgba(226,232,244,0.16) 42deg, rgba(255,255,255,0) 96deg, rgba(226,232,244,0.10) 168deg, rgba(255,255,255,0) 226deg, rgba(226,232,244,0.14) 305deg, rgba(255,255,255,0) 360deg)',
+            filter: 'blur(9px)',
+            WebkitMaskImage:
+              'radial-gradient(circle, transparent 44%, black 51%, rgba(0,0,0,0.7) 60%, transparent 72%)',
+            maskImage:
+              'radial-gradient(circle, transparent 44%, black 51%, rgba(0,0,0,0.7) 60%, transparent 72%)',
+            animation: 'ecl-rotar 46s linear infinite',
+          }}
+        />
+      )}
 
       {/* El anillo de diamante: destello BLANCO del segundo contacto. */}
-      {total && (
+      {total && !quieto && (
         <div
           className="pointer-events-none absolute rounded-full"
           style={{
@@ -417,7 +446,7 @@ export function EclipseClient() {
       <div className="z-10 flex w-full max-w-xl flex-1 flex-col items-center justify-center py-14 text-center">
         {fase === 'intro' && (
           <>
-            <Eclipse avance={avance} />
+            <Eclipse avance={1} quieto />
             <h1 className="mt-12 text-balance text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
               Hoy hay un antes y un después.
             </h1>
@@ -504,7 +533,7 @@ export function EclipseClient() {
               className="mx-auto w-full max-w-md overflow-hidden rounded-2xl border border-white/12 bg-black p-8 text-left"
             >
               <div className="flex items-center justify-between">
-                <Eclipse avance={1} size={56} />
+                <Eclipse avance={1} size={56} quieto />
                 <LogoMark size={30} />
               </div>
               <p className="mt-6 font-mono text-[11px] uppercase tracking-[0.25em] text-white/40">
@@ -584,7 +613,7 @@ export function EclipseClient() {
 
         {fase === 'cola' && (
           <div style={{ animation: 'ecl-entrar 800ms cubic-bezier(0.23, 1, 0.32, 1)' }} className="max-w-md">
-            <Eclipse avance={1} />
+            <Eclipse avance={1} quieto />
             <h2 className="mt-12 text-2xl font-bold tracking-tight">Tu marca está en el eclipse.</h2>
             <p className="mt-4 text-sm leading-relaxed text-white/60">
               El scan de <strong className="text-white/90">{domain}</strong> está en cola. El
