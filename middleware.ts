@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 // Protege el dashboard: sin sesión → /login. Público: la landing (/), el
 // login y el callback de auth. Si Supabase no está configurado (modo demo),
 // no hay auth que aplicar y se deja pasar todo.
-const PUBLIC_PATHS = ['/', '/login', '/api/health'];
+const PUBLIC_PATHS = ['/', '/login', '/api/health', '/eclipse', '/api/eclipse'];
 
 // La Agent API (/api/v1) no usa la sesión del navegador: cada ruta valida su
 // propia clave Bearer con scopes (lib/agent-api/auth).
