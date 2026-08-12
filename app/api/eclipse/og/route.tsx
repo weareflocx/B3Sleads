@@ -43,8 +43,10 @@ export async function GET(req: NextRequest) {
               height: 250,
               borderRadius: 250,
               background: '#000',
+              // La corona rosa de la landing: anillo fino pegado al limbo y
+              // halo que muere en negro.
               boxShadow:
-                '0 0 0 3px rgba(255,255,255,0.9), 0 0 60px 14px rgba(255,255,255,0.5), 0 0 160px 60px rgba(200,215,255,0.22)',
+                '0 0 0 2px rgba(255,224,242,0.9), 0 0 34px 10px rgba(244,182,222,0.5), 0 0 130px 50px rgba(244,182,222,0.16)',
             }}
           />
         </div>

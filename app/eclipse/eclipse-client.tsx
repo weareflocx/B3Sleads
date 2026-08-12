@@ -56,8 +56,18 @@ function Estrellas({ intensidad }: { intensidad: number }) {
 }
 
 // ---------- el disco ----------
+// Calcado de la fotografía real de una totalidad: disco negro de borde
+// nítido, corona rosa pegada al limbo, más luminosa arriba (las coronas son
+// asimétricas), y un halo exterior que se difumina hasta nada. Sin rayos:
+// la corona de verdad es humo, no un sol de libro infantil.
+const ROSA = '244,182,222';
+const ROSA_CLARA = '255,224,242';
+
 function Eclipse({ avance, size = 280 }: { avance: number; size?: number }) {
   const total = avance >= 1;
+  // El halo va asomando en el último tramo del parcial y explota en la
+  // totalidad: es la luz de la corona ganando al último rayo de sol.
+  const halo = total ? 1 : Math.max(0, (avance - 0.55) * 0.8);
   return (
     <div
       className="relative"
@@ -65,87 +75,86 @@ function Eclipse({ avance, size = 280 }: { avance: number; size?: number }) {
       role="img"
       aria-label="Eclipse solar"
     >
-      {/* La corona radiada: un abanico de rayos que gira despacio y respira.
-          Solo existe en la totalidad, como la de verdad. */}
+      {/* Halo exterior: difuso, descentrado hacia arriba, respira. */}
       <div
         className="pointer-events-none absolute"
         style={{
-          inset: '-40%',
-          opacity: total ? 1 : 0,
-          transition: 'opacity 1600ms ease-out',
-          animation: total ? 'ecl-respirar 5.5s ease-in-out infinite' : undefined,
+          inset: '-45%',
+          opacity: halo,
+          transition: 'opacity 1400ms ease-out',
+          animation: total ? 'ecl-respirar 6s ease-in-out infinite' : undefined,
         }}
       >
         <div
           className="absolute inset-0 rounded-full"
           style={{
-            background:
-              'repeating-conic-gradient(from 0deg, rgba(255,255,255,0) 0deg 5deg, rgba(222,232,255,0.4) 7.5deg, rgba(255,255,255,0) 11deg 16deg)',
-            filter: 'blur(9px)',
-            WebkitMaskImage:
-              'radial-gradient(circle, transparent 33%, black 39%, rgba(0,0,0,0.55) 54%, transparent 72%)',
-            maskImage:
-              'radial-gradient(circle, transparent 33%, black 39%, rgba(0,0,0,0.55) 54%, transparent 72%)',
-            animation: 'ecl-rotar 90s linear infinite',
+            background: `radial-gradient(circle at 50% 42%, rgba(${ROSA},0.30) 24%, rgba(${ROSA},0.10) 40%, rgba(${ROSA},0.03) 52%, transparent 66%)`,
+            filter: 'blur(6px)',
           }}
         />
       </div>
 
-      {/* El sol. Su resplandor mengua según lo van tapando: la luz que queda
-          sale de una franja cada vez más fina. */}
+      {/* El sol de las fases parciales: quema blanco con borde rosado. */}
       <div
         className="absolute inset-0 rounded-full"
         style={{
-          background:
-            'radial-gradient(circle, #fff 58%, #ffe9c4 72%, rgba(255,210,140,0.25) 88%, transparent 100%)',
-          boxShadow: `0 0 ${70 - avance * 30}px ${14 - avance * 8}px rgba(255,244,224,${0.4 - avance * 0.2})`,
+          background: `radial-gradient(circle, #fff 56%, rgba(${ROSA_CLARA},0.95) 70%, rgba(${ROSA},0.30) 85%, transparent 97%)`,
+          boxShadow: `0 0 ${64 - avance * 34}px ${12 - avance * 8}px rgba(${ROSA_CLARA},${0.38 - avance * 0.22})`,
           transition: 'box-shadow 900ms ease-out',
         }}
       />
 
-      {/* La luna: no es un círculo plano, tiene limbo. Entra desde la
-          izquierda con la curva lenta de un cuerpo celeste. */}
+      {/* La luna: negra de verdad, borde nítido contra la corona. */}
       <div
         className="absolute rounded-full"
         style={{
-          inset: '-1.5%',
-          background: 'radial-gradient(circle at 36% 32%, #161616 0%, #0a0a0a 48%, #000 78%)',
-          boxShadow: 'inset -10px -8px 26px rgba(255,255,255,0.05)',
-          transform: `translateX(${(avance - 1) * 106}%)`,
+          inset: '-1%',
+          background: '#000',
+          transform: `translateX(${(avance - 1) * 104}%)`,
           transition: 'transform 1100ms cubic-bezier(0.34, 0.88, 0.4, 1)',
         }}
       />
 
-      {/* El anillo de diamante: el destello del segundo contacto, un
-          instante antes de la totalidad. Una sola vez, y se apaga. */}
+      {/* La corona del limbo: un anillo rosa fino y quemado, con el lóbulo
+          superior más vivo. Solo en la totalidad. */}
+      <div
+        className="pointer-events-none absolute rounded-full"
+        style={{
+          inset: '-0.5%',
+          opacity: total ? 1 : 0,
+          transition: 'opacity 1100ms ease-out 200ms',
+          boxShadow: `0 0 14px 3px rgba(${ROSA_CLARA},0.85), 0 0 44px 12px rgba(${ROSA},0.4), 0 0 110px 34px rgba(${ROSA},0.14)`,
+        }}
+      />
+      <div
+        className="pointer-events-none absolute"
+        style={{
+          top: '-9%',
+          left: '12%',
+          width: '76%',
+          height: '42%',
+          opacity: total ? 1 : 0,
+          transition: 'opacity 1300ms ease-out 350ms',
+          background: `radial-gradient(ellipse at 50% 70%, rgba(${ROSA_CLARA},0.5) 0%, rgba(${ROSA},0.16) 45%, transparent 72%)`,
+          filter: 'blur(10px)',
+        }}
+      />
+
+      {/* El anillo de diamante del segundo contacto: un destello, y se apaga. */}
       {total && (
         <div
           className="pointer-events-none absolute rounded-full"
           style={{
-            top: '4%',
-            right: '13%',
+            top: '3%',
+            right: '14%',
             width: '10%',
             height: '10%',
-            background:
-              'radial-gradient(circle, #fff 0%, rgba(255,255,255,0.9) 30%, transparent 68%)',
-            boxShadow:
-              '0 0 40px 14px rgba(255,255,255,0.9), 0 0 110px 44px rgba(255,246,220,0.5)',
+            background: `radial-gradient(circle, #fff 0%, rgba(${ROSA_CLARA},0.9) 34%, transparent 68%)`,
+            boxShadow: `0 0 40px 14px rgba(255,255,255,0.85), 0 0 110px 44px rgba(${ROSA},0.5)`,
             animation: 'ecl-diamante 1600ms cubic-bezier(0.23, 1, 0.32, 1) forwards',
           }}
         />
       )}
-
-      {/* La corona interior: el anillo fino pegado al limbo. */}
-      <div
-        className="pointer-events-none absolute rounded-full"
-        style={{
-          inset: '-2%',
-          opacity: total ? 1 : 0,
-          transition: 'opacity 1200ms ease-out 300ms',
-          boxShadow:
-            'inset 0 0 24px 2px rgba(255,255,255,0.85), 0 0 40px 6px rgba(255,255,255,0.5), 0 0 130px 34px rgba(200,215,255,0.22)',
-        }}
-      />
     </div>
   );
 }
@@ -249,7 +258,7 @@ export function EclipseClient() {
       })}`
     : `${origen}/eclipse`;
   const postTexto = result
-    ? `Hoy el eclipse ha pasado por mi marca. B3S Scanner: ${result.score}/100.\n\nLo que brilla: ${result.brilla.label.toLowerCase()}. Lo que se eclipsa: ${result.eclipsa.label.toLowerCase()}.\n\nDespués de un eclipse hay un antes y un después. Escanea la tuya gratis: ${urlCompartir}`
+    ? `El eclipse ha pasado por mi marca: ${result.score}/100 en B3S. Brilla: ${result.brilla.label.toLowerCase()}. Se eclipsa: ${result.eclipsa.label.toLowerCase()}.\n\nEscanea la tuya gratis: ${urlCompartir}`
     : '';
 
   async function copiarPost() {
