@@ -1,0 +1,523 @@
+'use client';
+
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { LogoMark } from '../(dashboard)/logo-mark';
+import type { EclipseResult } from '@/lib/eclipse';
+
+// El Eclipse Scan: la landing de captación del 12 de agosto de 2026, el día
+// del eclipse total sobre España. La idea entera cabe en una frase: un
+// eclipse es un antes y un después, también para una marca.
+//
+// El motion está calcado del fenómeno real, porque es lo que lo hace creíble:
+// según la luna avanza, el cielo se oscurece y salen las estrellas; justo en
+// el segundo contacto destella el anillo de diamante; y en la totalidad
+// aparece la corona, que respira. Nada de barras de progreso: el progreso ES
+// el eclipse.
+
+type Fase = 'intro' | 'escaneando' | 'resultado' | 'cola';
+
+// ---------- cielo ----------
+// Estrellas deterministas (misma semilla en servidor y cliente: sin saltos de
+// hidratación). Dos capas con titileo desfasado; su intensidad la gobierna la
+// fase: emergen conforme el día se apaga, como en el eclipse de verdad.
+function Estrellas({ intensidad }: { intensidad: number }) {
+  const capas = useMemo(() => {
+    let s = 20260812;
+    const rnd = () => {
+      s = (s * 1664525 + 1013904223) % 4294967296;
+      return s / 4294967296;
+    };
+    const capa = (n: number) =>
+      Array.from({ length: n }, () => {
+        const x = (rnd() * 100).toFixed(2);
+        const y = (rnd() * 100).toFixed(2);
+        const alfa = (0.2 + rnd() * 0.65).toFixed(2);
+        const radio = rnd() > 0.86 ? '1.3px' : '0.5px';
+        return `${x}vw ${y}vh 0 ${radio} rgba(255,255,255,${alfa})`;
+      }).join(', ');
+    return [capa(70), capa(55)];
+  }, []);
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none fixed inset-0"
+      style={{ opacity: intensidad, transition: 'opacity 1800ms ease-out' }}
+    >
+      <div
+        className="absolute h-px w-px"
+        style={{ boxShadow: capas[0], animation: 'ecl-titilar 4.5s ease-in-out infinite' }}
+      />
+      <div
+        className="absolute h-px w-px"
+        style={{ boxShadow: capas[1], animation: 'ecl-titilar 6.5s ease-in-out 1.8s infinite' }}
+      />
+    </div>
+  );
+}
+
+// ---------- el disco ----------
+function Eclipse({ avance, size = 280 }: { avance: number; size?: number }) {
+  const total = avance >= 1;
+  return (
+    <div
+      className="relative"
+      style={{ width: size, height: size }}
+      role="img"
+      aria-label="Eclipse solar"
+    >
+      {/* La corona radiada: un abanico de rayos que gira despacio y respira.
+          Solo existe en la totalidad, como la de verdad. */}
+      <div
+        className="pointer-events-none absolute"
+        style={{
+          inset: '-40%',
+          opacity: total ? 1 : 0,
+          transition: 'opacity 1600ms ease-out',
+          animation: total ? 'ecl-respirar 5.5s ease-in-out infinite' : undefined,
+        }}
+      >
+        <div
+          className="absolute inset-0 rounded-full"
+          style={{
+            background:
+              'repeating-conic-gradient(from 0deg, rgba(255,255,255,0) 0deg 5deg, rgba(222,232,255,0.4) 7.5deg, rgba(255,255,255,0) 11deg 16deg)',
+            filter: 'blur(9px)',
+            WebkitMaskImage:
+              'radial-gradient(circle, transparent 33%, black 39%, rgba(0,0,0,0.55) 54%, transparent 72%)',
+            maskImage:
+              'radial-gradient(circle, transparent 33%, black 39%, rgba(0,0,0,0.55) 54%, transparent 72%)',
+            animation: 'ecl-rotar 90s linear infinite',
+          }}
+        />
+      </div>
+
+      {/* El sol. Su resplandor mengua según lo van tapando: la luz que queda
+          sale de una franja cada vez más fina. */}
+      <div
+        className="absolute inset-0 rounded-full"
+        style={{
+          background:
+            'radial-gradient(circle, #fff 58%, #ffe9c4 72%, rgba(255,210,140,0.25) 88%, transparent 100%)',
+          boxShadow: `0 0 ${70 - avance * 30}px ${14 - avance * 8}px rgba(255,244,224,${0.4 - avance * 0.2})`,
+          transition: 'box-shadow 900ms ease-out',
+        }}
+      />
+
+      {/* La luna: no es un círculo plano, tiene limbo. Entra desde la
+          izquierda con la curva lenta de un cuerpo celeste. */}
+      <div
+        className="absolute rounded-full"
+        style={{
+          inset: '-1.5%',
+          background: 'radial-gradient(circle at 36% 32%, #161616 0%, #0a0a0a 48%, #000 78%)',
+          boxShadow: 'inset -10px -8px 26px rgba(255,255,255,0.05)',
+          transform: `translateX(${(avance - 1) * 106}%)`,
+          transition: 'transform 1100ms cubic-bezier(0.34, 0.88, 0.4, 1)',
+        }}
+      />
+
+      {/* El anillo de diamante: el destello del segundo contacto, un
+          instante antes de la totalidad. Una sola vez, y se apaga. */}
+      {total && (
+        <div
+          className="pointer-events-none absolute rounded-full"
+          style={{
+            top: '4%',
+            right: '13%',
+            width: '10%',
+            height: '10%',
+            background:
+              'radial-gradient(circle, #fff 0%, rgba(255,255,255,0.9) 30%, transparent 68%)',
+            boxShadow:
+              '0 0 40px 14px rgba(255,255,255,0.9), 0 0 110px 44px rgba(255,246,220,0.5)',
+            animation: 'ecl-diamante 1600ms cubic-bezier(0.23, 1, 0.32, 1) forwards',
+          }}
+        />
+      )}
+
+      {/* La corona interior: el anillo fino pegado al limbo. */}
+      <div
+        className="pointer-events-none absolute rounded-full"
+        style={{
+          inset: '-2%',
+          opacity: total ? 1 : 0,
+          transition: 'opacity 1200ms ease-out 300ms',
+          boxShadow:
+            'inset 0 0 24px 2px rgba(255,255,255,0.85), 0 0 40px 6px rgba(255,255,255,0.5), 0 0 130px 34px rgba(200,215,255,0.22)',
+        }}
+      />
+    </div>
+  );
+}
+
+const FIELD =
+  'w-full border-0 border-b border-white/20 bg-transparent px-0 py-2.5 text-lg text-white outline-none transition-colors placeholder:text-white/25 focus:border-white/70';
+
+export function EclipseClient() {
+  const [fase, setFase] = useState<Fase>('intro');
+  const [domain, setDomain] = useState('');
+  const [email, setEmail] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [avance, setAvance] = useState(0.82); // el hero enseña un eclipse a medias
+  const [result, setResult] = useState<EclipseResult | null>(null);
+  const [copiado, setCopiado] = useState<string | null>(null);
+  const timers = useRef<ReturnType<typeof setInterval>[]>([]);
+  const inicio = useRef(0);
+
+  useEffect(() => () => timers.current.forEach(clearInterval), []);
+
+  // El avance durante el scan: rápido al principio, asintótico al 96% hasta
+  // que el resultado llega de verdad. La totalidad solo ocurre con dato.
+  function animarProgreso(esperadoMs: number) {
+    inicio.current = Date.now();
+    const t = setInterval(() => {
+      const x = (Date.now() - inicio.current) / esperadoMs;
+      setAvance(Math.min(0.96, 1 - Math.exp(-2.2 * x)));
+    }, 180);
+    timers.current.push(t);
+  }
+
+  function revelar(r: EclipseResult) {
+    timers.current.forEach(clearInterval);
+    setAvance(1);
+    // La totalidad se saborea: anillo de diamante, corona, y entonces el
+    // después. Dos segundos que son el momento de la landing.
+    setTimeout(() => {
+      setResult(r);
+      setFase('resultado');
+    }, 2300);
+  }
+
+  function encolar() {
+    timers.current.forEach(clearInterval);
+    setAvance(1);
+    setTimeout(() => setFase('cola'), 2300);
+  }
+
+  async function escanear() {
+    setError(null);
+    if (!/\./.test(domain)) return setError('Escribe el dominio de tu marca, tipo tumarca.com');
+    if (!/@/.test(email)) return setError('El análisis completo llega por email: necesitamos uno de verdad.');
+    setFase('escaneando');
+    setAvance(0.05);
+    animarProgreso(90_000);
+    try {
+      const res = await fetch('/api/eclipse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain, email }),
+      });
+      const json = await res.json();
+      if (res.status === 422) {
+        timers.current.forEach(clearInterval);
+        setFase('intro');
+        setAvance(0.82);
+        return setError(json.error);
+      }
+      if (json.status === 'ready') return revelar(json.result);
+      if (json.status === 'queued') return encolar();
+      // Scan en marcha: polling hasta la totalidad.
+      const poll = setInterval(async () => {
+        try {
+          const r = await fetch(
+            `/api/eclipse?job=${encodeURIComponent(json.job)}&email=${encodeURIComponent(email)}&domain=${encodeURIComponent(domain)}`,
+          );
+          const j = await r.json();
+          if (j.status === 'ready') revelar(j.result);
+          if (j.status === 'queued') encolar();
+        } catch {
+          // un fallo de red en un poll no rompe el eclipse: se reintenta
+        }
+      }, 5_000);
+      timers.current.push(poll);
+    } catch {
+      encolar();
+    }
+  }
+
+  // ---------- compartir ----------
+  // La URL compartida lleva el resultado en la query: la página genera con
+  // ella la tarjeta Open Graph, así LinkedIn y X pintan SU resultado y no un
+  // banner genérico.
+  const origen = typeof window !== 'undefined' ? window.location.origin : '';
+  const urlCompartir = result
+    ? `${origen}/eclipse?${new URLSearchParams({
+        d: domain.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0],
+        s: String(result.score),
+        b: result.brilla.label,
+        e: result.eclipsa.label,
+      })}`
+    : `${origen}/eclipse`;
+  const postTexto = result
+    ? `Hoy el eclipse ha pasado por mi marca. B3S Scanner: ${result.score}/100.\n\nLo que brilla: ${result.brilla.label.toLowerCase()}. Lo que se eclipsa: ${result.eclipsa.label.toLowerCase()}.\n\nDespués de un eclipse hay un antes y un después. Escanea la tuya gratis: ${urlCompartir}`
+    : '';
+
+  async function copiarPost() {
+    await navigator.clipboard.writeText(postTexto);
+    setCopiado('Post copiado. Pégalo al compartir.');
+    setTimeout(() => setCopiado(null), 3000);
+  }
+
+  function compartirX() {
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(postTexto)}`, '_blank');
+  }
+
+  async function compartirLinkedIn() {
+    // LinkedIn no acepta texto prefijado: se copia al portapapeles y se abre
+    // el share con la URL del resultado, cuya tarjeta OG sí es personalizada.
+    await copiarPost();
+    window.open(
+      `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(urlCompartir)}`,
+      '_blank',
+    );
+  }
+
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  async function descargarImagen() {
+    if (!cardRef.current) return;
+    const { toBlob } = await import('html-to-image');
+    const blob = await Promise.race([
+      toBlob(cardRef.current, { pixelRatio: 2, cacheBust: true, backgroundColor: '#000' }),
+      new Promise<null>((r) => setTimeout(() => r(null), 12_000)),
+    ]).catch(() => null);
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `eclipse-scan-${domain.replace(/\./g, '-')}.png`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // El cielo se apaga con el avance: en la intro se intuyen estrellas, en la
+  // totalidad se ven todas.
+  const intensidadEstrellas =
+    fase === 'intro' ? 0.3 : fase === 'escaneando' ? 0.15 + avance * 0.85 : 1;
+
+  return (
+    <main className="relative flex min-h-screen flex-col items-center overflow-hidden bg-black px-5 font-sans text-white">
+      {/* Los keyframes del fenómeno. Viven aquí y no en globals: son de esta
+          página y de ninguna otra. */}
+      <style>{`
+        @keyframes ecl-rotar { to { transform: rotate(360deg) } }
+        @keyframes ecl-respirar {
+          0%, 100% { transform: scale(1); opacity: 0.85 }
+          50% { transform: scale(1.045); opacity: 1 }
+        }
+        @keyframes ecl-diamante {
+          0% { opacity: 0; transform: scale(0.3) }
+          16% { opacity: 1; transform: scale(1.1) }
+          100% { opacity: 0; transform: scale(2.6) }
+        }
+        @keyframes ecl-titilar {
+          0%, 100% { opacity: 0.55 }
+          50% { opacity: 1 }
+        }
+        @keyframes ecl-entrar {
+          from { opacity: 0; transform: translateY(12px) }
+          to { opacity: 1; transform: none }
+        }
+      `}</style>
+
+      <Estrellas intensidad={intensidadEstrellas} />
+
+      {/* La luz ambiente del horizonte: cálida al principio, se enfría y se
+          apaga con el avance, como la tarde del eclipse. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-x-0 bottom-0 h-72"
+        style={{
+          background: 'radial-gradient(60% 100% at 50% 100%, rgba(255,176,88,0.07), transparent)',
+          opacity: fase === 'escaneando' ? 1 - avance : fase === 'intro' ? 0.6 : 0,
+          transition: 'opacity 1500ms ease-out',
+        }}
+      />
+
+      {/* Header: solo el símbolo, como en B3S Leads. */}
+      <header className="z-10 flex w-full max-w-3xl items-center justify-between pt-6">
+        <LogoMark size={26} />
+        <span className="font-mono text-[11px] uppercase tracking-[0.25em] text-white/35">
+          12 · 08 · 2026
+        </span>
+      </header>
+
+      <div className="z-10 flex w-full max-w-xl flex-1 flex-col items-center justify-center py-14 text-center">
+        {fase === 'intro' && (
+          <>
+            <Eclipse avance={avance} />
+            <h1 className="mt-12 text-balance text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
+              Hoy hay un antes y un después.
+            </h1>
+            <p className="mt-4 max-w-md text-pretty text-base leading-relaxed text-white/60">
+              Un eclipse total cruza España por primera vez en un siglo. Dura dos minutos y lo
+              cambia todo. A tu marca le puede pasar lo mismo: escanéala gratis con B3S y descubre
+              qué brilla y qué se eclipsa.
+            </p>
+
+            <div className="mt-10 w-full max-w-sm space-y-4 text-left">
+              <input
+                value={domain}
+                onChange={(e) => setDomain(e.target.value)}
+                placeholder="tumarca.com"
+                aria-label="Dominio de tu marca"
+                autoFocus
+                className={FIELD}
+                onKeyDown={(e) => e.key === 'Enter' && escanear()}
+              />
+              <input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                type="email"
+                placeholder="tu@email.com"
+                aria-label="Tu email"
+                className={FIELD}
+                onKeyDown={(e) => e.key === 'Enter' && escanear()}
+              />
+              {error && <p className="text-sm text-[#ff6b6b]">{error}</p>}
+              <button
+                onClick={escanear}
+                className="w-full rounded-md bg-white py-3 text-center text-sm font-medium text-black transition-transform active:scale-[0.98]"
+              >
+                Escanear mi marca
+              </button>
+              <p className="text-center font-mono text-[11px] leading-relaxed text-white/30">
+                Gratis. El análisis completo llega a tu email y entras en la lista de B3S.
+              </p>
+            </div>
+          </>
+        )}
+
+        {fase === 'escaneando' && (
+          <>
+            <Eclipse avance={avance} />
+            <p
+              className="mt-12 font-mono text-xs uppercase text-white/45"
+              style={{
+                letterSpacing: avance >= 1 ? '0.6em' : '0.25em',
+                transition: 'letter-spacing 1800ms cubic-bezier(0.23, 1, 0.32, 1)',
+              }}
+            >
+              {avance < 0.35
+                ? 'Leyendo tu huella digital'
+                : avance < 0.7
+                  ? 'Midiendo los 9 componentes de tu marca'
+                  : avance < 1
+                    ? 'Calculando magnetismo y coherencia'
+                    : 'Totalidad'}
+            </p>
+            {avance < 1 && (
+              <p className="mt-3 max-w-sm text-sm leading-relaxed text-white/45">
+                {domain} está entrando en el eclipse. Esto tarda uno o dos minutos: lo que tarda en
+                leerse una marca entera.
+              </p>
+            )}
+          </>
+        )}
+
+        {fase === 'resultado' && result && (
+          <div style={{ animation: 'ecl-entrar 800ms cubic-bezier(0.23, 1, 0.32, 1)' }} className="w-full">
+            {/* La tarjeta del resultado: también es la imagen que se comparte. */}
+            <div
+              ref={cardRef}
+              className="mx-auto w-full max-w-md overflow-hidden rounded-2xl border border-white/12 bg-black p-8 text-left"
+            >
+              <div className="flex items-center justify-between">
+                <Eclipse avance={1} size={56} />
+                <LogoMark size={30} />
+              </div>
+              <p className="mt-6 font-mono text-[11px] uppercase tracking-[0.25em] text-white/40">
+                Eclipse Scan · {domain}
+              </p>
+              <div className="mt-3 flex items-baseline gap-3">
+                <span className="font-mono text-6xl font-medium leading-none">{result.score}</span>
+                <span className="font-mono text-sm text-white/40">/100 · {result.banda}</span>
+              </div>
+
+              <div className="mt-7 space-y-5">
+                <div>
+                  <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-[#00d554]">
+                    Lo que brilla · {result.brilla.label}
+                  </p>
+                  <p className="mt-1.5 text-[15px] leading-relaxed text-white/85">
+                    {result.brilla.frase}
+                  </p>
+                </div>
+                <div>
+                  <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-[#ff5555]">
+                    Lo que se eclipsa · {result.eclipsa.label}
+                  </p>
+                  <p className="mt-1.5 text-[15px] leading-relaxed text-white/85">
+                    {result.eclipsa.frase}
+                  </p>
+                </div>
+              </div>
+
+              <p className="mt-7 border-t border-white/10 pt-4 font-mono text-[11px] text-white/30">
+                B3S Scanner by FLOC* · {result.demo ? 'simulación local' : '12.08.2026'}
+              </p>
+            </div>
+
+            {/* El después: qué pasa ahora y el puente a GTM. */}
+            <div className="mx-auto mt-8 max-w-md text-left">
+              <p className="text-sm leading-relaxed text-white/60">
+                El análisis completo de los 9 componentes llega a <strong className="text-white/90">{email}</strong>.
+                Ya estás en la lista de B3S, el scanner que mide marcas como se miden métricas.
+              </p>
+              <p className="mt-4 text-sm leading-relaxed text-white/60">
+                Y si quieres que el después sea mejor que el antes: <strong className="text-white/90">GTM by FLOC*</strong> es
+                el sistema para salir al mercado con una marca que distingue. Estrategia, narrativa
+                y lanzamiento, en un solo paquete.
+              </p>
+
+              <div className="mt-7 flex flex-wrap gap-2">
+                <button
+                  onClick={compartirX}
+                  className="rounded-md border border-white/25 px-4 py-2 text-sm text-white transition-colors hover:border-white/60"
+                >
+                  Compartir en X
+                </button>
+                <button
+                  onClick={compartirLinkedIn}
+                  className="rounded-md border border-[#0000ff] bg-[#0000ff]/20 px-4 py-2 text-sm text-white transition-colors hover:bg-[#0000ff]/35"
+                >
+                  Compartir en LinkedIn
+                </button>
+                <button
+                  onClick={descargarImagen}
+                  className="rounded-md border border-white/25 px-4 py-2 text-sm text-white transition-colors hover:border-white/60"
+                >
+                  Descargar imagen
+                </button>
+                <button
+                  onClick={copiarPost}
+                  className="rounded-md px-4 py-2 text-sm text-white/50 transition-colors hover:text-white"
+                >
+                  Copiar post
+                </button>
+              </div>
+              {copiado && <p className="mt-3 text-xs text-[#00d554]">{copiado}</p>}
+            </div>
+          </div>
+        )}
+
+        {fase === 'cola' && (
+          <div style={{ animation: 'ecl-entrar 800ms cubic-bezier(0.23, 1, 0.32, 1)' }} className="max-w-md">
+            <Eclipse avance={1} />
+            <h2 className="mt-12 text-2xl font-bold tracking-tight">Tu marca está en el eclipse.</h2>
+            <p className="mt-4 text-sm leading-relaxed text-white/60">
+              El scan de <strong className="text-white/90">{domain}</strong> está en cola. El
+              resultado y el análisis completo llegarán a{' '}
+              <strong className="text-white/90">{email}</strong> cuando la luz vuelva. Ya estás en
+              la lista de B3S.
+            </p>
+          </div>
+        )}
+      </div>
+
+      <footer className="z-10 w-full max-w-3xl pb-6 text-center font-mono text-[11px] text-white/25">
+        B3S Scanner by FLOC* · el envío del análisis es humano, como todo lo que hacemos
+      </footer>
+    </main>
+  );
+}

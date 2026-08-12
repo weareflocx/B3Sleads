@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 // Protege el dashboard: sin sesión → /login. Público: la landing (/), el
 // login y el callback de auth. Si Supabase no está configurado (modo demo),
 // no hay auth que aplicar y se deja pasar todo.
-const PUBLIC_PATHS = ['/', '/login', '/api/health', '/eclipse', '/api/eclipse'];
+const PUBLIC_PATHS = ['/', '/login', '/api/health', '/eclipse'];
 
 // La Agent API (/api/v1) no usa la sesión del navegador: cada ruta valida su
 // propia clave Bearer con scopes (lib/agent-api/auth).
@@ -45,7 +45,10 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  const isPublic = PUBLIC_PATHS.includes(path) || path.startsWith('/auth');
+  // /api/eclipse por prefijo: cuelga la imagen OG (/api/eclipse/og) y el
+  // polling, y las tarjetas de LinkedIn y X las rastrea un bot sin sesión.
+  const isPublic =
+    PUBLIC_PATHS.includes(path) || path.startsWith('/auth') || path.startsWith('/api/eclipse');
 
   if (!user && !isPublic) {
     const redirectUrl = request.nextUrl.clone();
