@@ -121,13 +121,14 @@ function Eclipse({
       </div>
 
       {/* El sol: un disco blanco NÍTIDO que quema por resplandor, no por
-          degradado. El borde difuso de antes creaba una penumbra gris que no
-          simulaba nada. */}
+          degradado. Un SOLO resplandor con caída continua: la segunda capa
+          gris que había antes tenía spread propio y dibujaba un aro alrededor
+          del disco, un contorno que el sol no tiene. */}
       <div
         className="absolute inset-0 rounded-full"
         style={{
           background: '#fff',
-          boxShadow: `0 0 ${70 - avance * 36}px ${18 - avance * 10}px rgba(255,255,255,${0.38 - avance * 0.22}), 0 0 160px 60px rgba(${GRIS},${0.12 - avance * 0.08})`,
+          boxShadow: `0 0 ${86 - avance * 44}px 0 rgba(255,255,255,${0.34 - avance * 0.2})`,
           transition: 'box-shadow 900ms ease-out',
         }}
       />
@@ -446,7 +447,10 @@ export function EclipseClient() {
         }
       `}</style>
 
-      <div className="relative z-[25]">
+      {/* Las estrellas van DETRÁS del disco: son cielo, no polvo sobre la
+          luna. Antes iban por encima para sobrevivir al telón del fundido;
+          ahora el fundido lo hace el propio contenido, así que sobra. */}
+      <div className="relative z-0">
         <Estrellas intensidad={intensidadEstrellas} />
       </div>
 
@@ -489,17 +493,6 @@ export function EclipseClient() {
         />
       )}
 
-      {/* El telón del fundido. Va por encima del disco pero por debajo de
-          las estrellas, así el cielo nunca se apaga del todo. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none fixed inset-0 z-20 bg-black"
-        style={{
-          opacity: telon ? 1 : 0,
-          transition: telon ? 'opacity 800ms ease-in' : 'opacity 1500ms ease-out',
-        }}
-      />
-
       {/* Grano de película: rompe los degradados y quita el plástico. Es la
           diferencia entre un render y una fotografía. */}
       <div
@@ -520,7 +513,16 @@ export function EclipseClient() {
         </span>
       </header>
 
-      <div className="z-10 flex w-full flex-1 flex-col items-center justify-center py-10 text-center">
+      {/* El fundido del arranque lo hace el propio contenido, no un telón
+          negro a pantalla completa: así el cielo estrellado sigue ahí
+          mientras la luna se recoloca al otro lado. */}
+      <div
+        className="z-10 flex w-full flex-1 flex-col items-center justify-center py-10 text-center"
+        style={{
+          opacity: telon ? 0 : 1,
+          transition: telon ? 'opacity 800ms ease-in' : 'opacity 1500ms ease-out',
+        }}
+      >
         {/* El escenario: UN solo disco, grande como la página, compartido por
             la bienvenida y el scan. En la intro es la totalidad en reposo con
             el contenido viviendo DENTRO del disco negro; al escanear, el
