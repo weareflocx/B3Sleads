@@ -31,11 +31,11 @@ function Estrellas({ intensidad }: { intensidad: number }) {
       Array.from({ length: n }, () => {
         const x = (rnd() * 100).toFixed(2);
         const y = (rnd() * 100).toFixed(2);
-        const alfa = (0.2 + rnd() * 0.65).toFixed(2);
-        const radio = rnd() > 0.86 ? '1.3px' : '0.5px';
+        const alfa = (0.12 + rnd() * 0.4).toFixed(2);
+        const radio = rnd() > 0.9 ? '1px' : '0.5px';
         return `${x}vw ${y}vh 0 ${radio} rgba(255,255,255,${alfa})`;
       }).join(', ');
-    return [capa(70), capa(55)];
+    return [capa(60), capa(45)];
   }, []);
   return (
     <div
@@ -56,17 +56,27 @@ function Estrellas({ intensidad }: { intensidad: number }) {
 }
 
 // ---------- el disco ----------
-// Calcado de la fotografía real de una totalidad: disco negro de borde
-// nítido, corona rosa pegada al limbo, más luminosa arriba (las coronas son
-// asimétricas), y un halo exterior que se difumina hasta nada. Sin rayos:
-// la corona de verdad es humo, no un sol de libro infantil.
-const ROSA = '244,182,222';
-const ROSA_CLARA = '255,224,242';
+// Calcado de la fotografía de una totalidad, en escala de grises: disco
+// negro de borde nítido, corona blanca pegada al limbo con el lóbulo
+// superior más vivo (las coronas reales son asimétricas) y halo que muere
+// en negro. El único color es un tinte que hace el viaje de la casa:
+// ROJO mientras se lee, AZUL mientras se mide, VERDE al calcular. En la
+// totalidad, blanco puro: el veredicto no tiene color.
+const GRIS = '226,232,244';
+const BLANCO = '255,255,255';
+
+// El tinte según el avance: los mismos umbrales que los mensajes de fase.
+function tinteDeFase(avance: number, total: boolean): string {
+  if (total) return BLANCO;
+  if (avance < 0.35) return '255,0,0';
+  if (avance < 0.7) return '0,0,255';
+  return '0,213,84';
+}
 
 function Eclipse({ avance, size = 280 }: { avance: number; size?: number }) {
   const total = avance >= 1;
-  // El halo va asomando en el último tramo del parcial y explota en la
-  // totalidad: es la luz de la corona ganando al último rayo de sol.
+  const tinte = tinteDeFase(avance, total);
+  // El halo asoma en el último tramo del parcial y explota en la totalidad.
   const halo = total ? 1 : Math.max(0, (avance - 0.55) * 0.8);
   return (
     <div
@@ -75,7 +85,7 @@ function Eclipse({ avance, size = 280 }: { avance: number; size?: number }) {
       role="img"
       aria-label="Eclipse solar"
     >
-      {/* Halo exterior: difuso, descentrado hacia arriba, respira. */}
+      {/* Halo exterior: gris difuso, descentrado hacia arriba, respira. */}
       <div
         className="pointer-events-none absolute"
         style={{
@@ -88,18 +98,30 @@ function Eclipse({ avance, size = 280 }: { avance: number; size?: number }) {
         <div
           className="absolute inset-0 rounded-full"
           style={{
-            background: `radial-gradient(circle at 50% 42%, rgba(${ROSA},0.30) 24%, rgba(${ROSA},0.10) 40%, rgba(${ROSA},0.03) 52%, transparent 66%)`,
+            background: `radial-gradient(circle at 50% 42%, rgba(${GRIS},0.30) 24%, rgba(${GRIS},0.10) 40%, rgba(${GRIS},0.03) 52%, transparent 66%)`,
             filter: 'blur(6px)',
           }}
         />
       </div>
 
-      {/* El sol de las fases parciales: quema blanco con borde rosado. */}
+      {/* El tinte de fase: un aliento de color alrededor del disco, sutil.
+          Rojo, azul, verde; nunca en la totalidad. */}
+      <div
+        className="pointer-events-none absolute rounded-full"
+        style={{
+          inset: '-6%',
+          opacity: total ? 0 : 0.7,
+          boxShadow: `0 0 64px 22px rgba(${tinte},0.14)`,
+          transition: 'box-shadow 1200ms ease-out, opacity 900ms ease-out',
+        }}
+      />
+
+      {/* El sol de las fases parciales: quema blanco. */}
       <div
         className="absolute inset-0 rounded-full"
         style={{
-          background: `radial-gradient(circle, #fff 56%, rgba(${ROSA_CLARA},0.95) 70%, rgba(${ROSA},0.30) 85%, transparent 97%)`,
-          boxShadow: `0 0 ${64 - avance * 34}px ${12 - avance * 8}px rgba(${ROSA_CLARA},${0.38 - avance * 0.22})`,
+          background: `radial-gradient(circle, #fff 56%, rgba(255,255,255,0.92) 68%, rgba(${GRIS},0.28) 85%, transparent 97%)`,
+          boxShadow: `0 0 ${64 - avance * 34}px ${12 - avance * 8}px rgba(${BLANCO},${0.34 - avance * 0.2})`,
           transition: 'box-shadow 900ms ease-out',
         }}
       />
@@ -115,15 +137,15 @@ function Eclipse({ avance, size = 280 }: { avance: number; size?: number }) {
         }}
       />
 
-      {/* La corona del limbo: un anillo rosa fino y quemado, con el lóbulo
-          superior más vivo. Solo en la totalidad. */}
+      {/* La corona del limbo: anillo blanco fino y quemado, lóbulo superior
+          más vivo. Solo en la totalidad. */}
       <div
         className="pointer-events-none absolute rounded-full"
         style={{
           inset: '-0.5%',
           opacity: total ? 1 : 0,
           transition: 'opacity 1100ms ease-out 200ms',
-          boxShadow: `0 0 14px 3px rgba(${ROSA_CLARA},0.85), 0 0 44px 12px rgba(${ROSA},0.4), 0 0 110px 34px rgba(${ROSA},0.14)`,
+          boxShadow: `0 0 14px 3px rgba(${BLANCO},0.8), 0 0 44px 12px rgba(${GRIS},0.38), 0 0 110px 34px rgba(${GRIS},0.12)`,
         }}
       />
       <div
@@ -135,12 +157,12 @@ function Eclipse({ avance, size = 280 }: { avance: number; size?: number }) {
           height: '42%',
           opacity: total ? 1 : 0,
           transition: 'opacity 1300ms ease-out 350ms',
-          background: `radial-gradient(ellipse at 50% 70%, rgba(${ROSA_CLARA},0.5) 0%, rgba(${ROSA},0.16) 45%, transparent 72%)`,
+          background: `radial-gradient(ellipse at 50% 70%, rgba(${BLANCO},0.42) 0%, rgba(${GRIS},0.14) 45%, transparent 72%)`,
           filter: 'blur(10px)',
         }}
       />
 
-      {/* El anillo de diamante del segundo contacto: un destello, y se apaga. */}
+      {/* El anillo de diamante: destello BLANCO del segundo contacto. */}
       {total && (
         <div
           className="pointer-events-none absolute rounded-full"
@@ -149,8 +171,8 @@ function Eclipse({ avance, size = 280 }: { avance: number; size?: number }) {
             right: '14%',
             width: '10%',
             height: '10%',
-            background: `radial-gradient(circle, #fff 0%, rgba(${ROSA_CLARA},0.9) 34%, transparent 68%)`,
-            boxShadow: `0 0 40px 14px rgba(255,255,255,0.85), 0 0 110px 44px rgba(${ROSA},0.5)`,
+            background: `radial-gradient(circle, #fff 0%, rgba(${BLANCO},0.92) 34%, transparent 68%)`,
+            boxShadow: `0 0 44px 16px rgba(255,255,255,0.9), 0 0 120px 48px rgba(${GRIS},0.4)`,
             animation: 'ecl-diamante 1600ms cubic-bezier(0.23, 1, 0.32, 1) forwards',
           }}
         />
@@ -186,21 +208,43 @@ export function EclipseClient() {
     timers.current.push(t);
   }
 
-  function revelar(r: EclipseResult) {
+  // Aterrizar en la totalidad. Si el resultado llegó volando (histórico de
+  // B3S o demo), el eclipse no puede terminarse en un parpadeo: se comprime
+  // la línea temporal para que el viaje entero se vea igual, rojo, azul,
+  // verde, diamante, corona. Si el scan tardó lo suyo, la totalidad es ya.
+  function aterrizar(fin: () => void) {
     timers.current.forEach(clearInterval);
-    setAvance(1);
-    // La totalidad se saborea: anillo de diamante, corona, y entonces el
-    // después. Dos segundos que son el momento de la landing.
-    setTimeout(() => {
+    const transcurrido = Date.now() - inicio.current;
+    const restante = transcurrido < 5_000 ? 5_600 : 0;
+    if (restante) {
+      const t0 = Date.now();
+      const t = setInterval(() => {
+        const x = (Date.now() - t0) / restante;
+        if (x >= 1) {
+          clearInterval(t);
+          setAvance(1);
+          setTimeout(fin, 2300);
+        } else {
+          setAvance(0.06 + x * 0.9);
+        }
+      }, 120);
+      timers.current.push(t);
+    } else {
+      setAvance(1);
+      // La totalidad se saborea: diamante, corona, y entonces el después.
+      setTimeout(fin, 2300);
+    }
+  }
+
+  function revelar(r: EclipseResult) {
+    aterrizar(() => {
       setResult(r);
       setFase('resultado');
-    }, 2300);
+    });
   }
 
   function encolar() {
-    timers.current.forEach(clearInterval);
-    setAvance(1);
-    setTimeout(() => setFase('cola'), 2300);
+    aterrizar(() => setFase('cola'));
   }
 
   async function escanear() {
@@ -319,6 +363,10 @@ export function EclipseClient() {
           16% { opacity: 1; transform: scale(1.1) }
           100% { opacity: 0; transform: scale(2.6) }
         }
+        @keyframes ecl-bandas {
+          from { opacity: 0.35; transform: translateX(-1.5%) }
+          to { opacity: 1; transform: translateX(1.5%) }
+        }
         @keyframes ecl-titilar {
           0%, 100% { opacity: 0.55 }
           50% { opacity: 1 }
@@ -331,17 +379,32 @@ export function EclipseClient() {
 
       <Estrellas intensidad={intensidadEstrellas} />
 
-      {/* La luz ambiente del horizonte: cálida al principio, se enfría y se
-          apaga con el avance, como la tarde del eclipse. */}
+      {/* La luz del horizonte: cálida al principio, muere con el avance y
+          VUELVE tenue en la totalidad. Es el atardecer de 360 grados, el
+          fenómeno que nadie espera la primera vez. */}
       <div
         aria-hidden="true"
         className="pointer-events-none fixed inset-x-0 bottom-0 h-72"
         style={{
-          background: 'radial-gradient(60% 100% at 50% 100%, rgba(255,176,88,0.07), transparent)',
-          opacity: fase === 'escaneando' ? 1 - avance : fase === 'intro' ? 0.6 : 0,
+          background: 'radial-gradient(60% 100% at 50% 100%, rgba(255,166,78,0.08), transparent)',
+          opacity:
+            fase === 'escaneando' ? (avance >= 1 ? 0.45 : (1 - avance) * 0.8) : fase === 'intro' ? 0.5 : 0,
           transition: 'opacity 1500ms ease-out',
         }}
       />
+
+      {/* Las bandas de sombra: el parpadeo nervioso de la luz en el último
+          tramo antes de la totalidad. Sutil hasta lo subliminal. */}
+      {fase === 'escaneando' && avance > 0.88 && avance < 1 && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none fixed inset-0"
+          style={{
+            background: 'linear-gradient(100deg, transparent 30%, rgba(226,232,244,0.05) 42%, transparent 54%, rgba(226,232,244,0.04) 68%, transparent 80%)',
+            animation: 'ecl-bandas 460ms ease-in-out infinite alternate',
+          }}
+        />
+      )}
 
       {/* Header: solo el símbolo, como en B3S Leads. */}
       <header className="z-10 flex w-full max-w-3xl items-center justify-between pt-6">
@@ -401,12 +464,21 @@ export function EclipseClient() {
           <>
             <Eclipse avance={avance} />
             <p
-              className="mt-12 font-mono text-xs uppercase text-white/45"
+              className="mt-12 flex items-center justify-center gap-2.5 font-mono text-xs uppercase text-white/45"
               style={{
                 letterSpacing: avance >= 1 ? '0.6em' : '0.25em',
                 transition: 'letter-spacing 1800ms cubic-bezier(0.23, 1, 0.32, 1)',
               }}
             >
+              {avance < 1 && (
+                <span
+                  className="h-1.5 w-1.5 shrink-0 rounded-full"
+                  style={{
+                    background: `rgb(${tinteDeFase(avance, false)})`,
+                    transition: 'background 900ms ease-out',
+                  }}
+                />
+              )}
               {avance < 0.35
                 ? 'Leyendo tu huella digital'
                 : avance < 0.7
