@@ -75,20 +75,22 @@ function tinteDeFase(avance: number, total: boolean): string {
 
 function Eclipse({
   avance,
-  size = 280,
+  size = '100%',
   quieto = false,
 }: {
   avance: number;
-  size?: number;
+  // Acepta pixeles o el 100% del contenedor: el escenario grande manda su
+  // tamaño en vh y los minis en px.
+  size?: number | string;
   // El hero: la totalidad en reposo, sin diamante (ese destello se reserva
   // para el final del scan, cuando significa algo) y con la luz de la corona
   // escapando en un loop lento.
   quieto?: boolean;
 }) {
   const total = avance >= 1;
-  const tinte = tinteDeFase(avance, total);
-  // El halo asoma en el último tramo del parcial y explota en la totalidad.
-  const halo = total ? 1 : Math.max(0, (avance - 0.55) * 0.8);
+  // El halo solo existe cerca de la totalidad: antes ensuciaba el limbo con
+  // un contorno gris que no era ni sol ni luna.
+  const halo = total ? 1 : Math.max(0, (avance - 0.78) * 4);
   return (
     <div
       className="relative"
@@ -115,24 +117,14 @@ function Eclipse({
         />
       </div>
 
-      {/* El tinte de fase: un aliento de color alrededor del disco, sutil.
-          Rojo, azul, verde; nunca en la totalidad. */}
-      <div
-        className="pointer-events-none absolute rounded-full"
-        style={{
-          inset: '-6%',
-          opacity: total ? 0 : 0.7,
-          boxShadow: `0 0 64px 22px rgba(${tinte},0.14)`,
-          transition: 'box-shadow 1200ms ease-out, opacity 900ms ease-out',
-        }}
-      />
-
-      {/* El sol de las fases parciales: quema blanco. */}
+      {/* El sol: un disco blanco NÍTIDO que quema por resplandor, no por
+          degradado. El borde difuso de antes creaba una penumbra gris que no
+          simulaba nada. */}
       <div
         className="absolute inset-0 rounded-full"
         style={{
-          background: `radial-gradient(circle, #fff 56%, rgba(255,255,255,0.92) 68%, rgba(${GRIS},0.28) 85%, transparent 97%)`,
-          boxShadow: `0 0 ${64 - avance * 34}px ${12 - avance * 8}px rgba(${BLANCO},${0.34 - avance * 0.2})`,
+          background: '#fff',
+          boxShadow: `0 0 ${70 - avance * 36}px ${18 - avance * 10}px rgba(255,255,255,${0.38 - avance * 0.22}), 0 0 160px 60px rgba(${GRIS},${0.12 - avance * 0.08})`,
           transition: 'box-shadow 900ms ease-out',
         }}
       />
@@ -150,13 +142,15 @@ function Eclipse({
           filter: 'blur(10px)',
         }}
       />
-      {/* La luna: negra de verdad, borde nítido contra la corona. */}
+      {/* La luna: gemela del sol, negra de verdad, borde nítido. Entra en
+          diagonal desde arriba a la izquierda, como un cuerpo celeste y no
+          como un slider. */}
       <div
         className="absolute rounded-full"
         style={{
-          inset: '-1%',
+          inset: '-0.5%',
           background: '#000',
-          transform: `translateX(${(avance - 1) * 104}%)`,
+          transform: `translate(${(avance - 1) * 102}%, ${(1 - avance) * -16}%)`,
           transition: 'transform 1100ms cubic-bezier(0.34, 0.88, 0.4, 1)',
         }}
       />
@@ -422,6 +416,18 @@ export function EclipseClient() {
         }}
       />
 
+      {/* El cielo respira el color de la fase: rojo, azul, verde, muy tenue
+          y lejos del disco. El tinte pegado al limbo ensuciaba la figura. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0"
+        style={{
+          background: `radial-gradient(circle at 50% 44%, rgba(${tinteDeFase(avance, false)},0.07), transparent 52%)`,
+          opacity: fase === 'escaneando' && avance < 1 ? 1 : 0,
+          transition: 'opacity 1400ms ease-out, background 1600ms ease-out',
+        }}
+      />
+
       {/* Las bandas de sombra: el parpadeo nervioso de la luz en el último
           tramo antes de la totalidad. Sutil hasta lo subliminal. */}
       {fase === 'escaneando' && avance > 0.88 && avance < 1 && (
@@ -443,55 +449,69 @@ export function EclipseClient() {
         </span>
       </header>
 
-      <div className="z-10 flex w-full max-w-xl flex-1 flex-col items-center justify-center py-14 text-center">
-        {fase === 'intro' && (
-          <>
-            <Eclipse avance={1} quieto />
-            <h1 className="mt-12 text-balance text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
-              Hoy hay un antes y un después.
-            </h1>
-            <p className="mt-4 max-w-md text-pretty text-base leading-relaxed text-white/60">
-              Un eclipse total cruza España por primera vez en un siglo. Dura dos minutos y lo
-              cambia todo. A tu marca le puede pasar lo mismo: escanéala gratis con B3S y descubre
-              qué brilla y qué se eclipsa.
-            </p>
-
-            <div className="mt-10 w-full max-w-sm space-y-4 text-left">
-              <input
-                value={domain}
-                onChange={(e) => setDomain(e.target.value)}
-                placeholder="tumarca.com"
-                aria-label="Dominio de tu marca"
-                autoFocus
-                className={FIELD}
-                onKeyDown={(e) => e.key === 'Enter' && escanear()}
-              />
-              <input
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                type="email"
-                placeholder="tu@email.com"
-                aria-label="Tu email"
-                className={FIELD}
-                onKeyDown={(e) => e.key === 'Enter' && escanear()}
-              />
-              {error && <p className="text-sm text-[#ff6b6b]">{error}</p>}
-              <button
-                onClick={escanear}
-                className="w-full rounded-md bg-white py-3 text-center text-sm font-medium text-black transition-transform active:scale-[0.98]"
+      <div className="z-10 flex w-full flex-1 flex-col items-center justify-center py-10 text-center">
+        {/* El escenario: UN solo disco, grande como la página, compartido por
+            la bienvenida y el scan. En la intro es la totalidad en reposo con
+            el contenido viviendo DENTRO del disco negro; al escanear, el
+            contenido se desvanece, la luna se retira (el antes) y el
+            fenómeno se recorre entero para tu marca. Sin cortes: el mismo
+            cuerpo celeste todo el rato. */}
+        {(fase === 'intro' || fase === 'escaneando') && (
+          <div
+            className="relative flex items-center justify-center"
+            style={{ width: 'min(74vh, 92vw)', height: 'min(74vh, 92vw)' }}
+          >
+            <Eclipse avance={fase === 'intro' ? 1 : avance} quieto={fase === 'intro'} />
+            {fase === 'intro' && (
+              <div
+                className="absolute inset-0 flex flex-col items-center justify-center px-[13%] text-center"
+                style={{ animation: 'ecl-entrar 900ms cubic-bezier(0.23, 1, 0.32, 1)' }}
               >
-                Escanear mi marca
-              </button>
-              <p className="text-center font-mono text-[11px] leading-relaxed text-white/30">
-                Gratis. El análisis completo llega a tu email y entras en la lista de B3S.
-              </p>
-            </div>
-          </>
+                <h1 className="text-balance text-2xl font-bold leading-tight tracking-tight sm:text-3xl">
+                  Hoy hay un antes y un después.
+                </h1>
+                <p className="mt-3 max-w-sm text-pretty text-sm leading-relaxed text-white/55">
+                  Un eclipse total cruza España. Dura dos minutos y lo cambia todo. También a tu
+                  marca: escanéala gratis con B3S.
+                </p>
+
+                <div className="mt-7 w-full max-w-[19rem] space-y-3 text-left">
+                  <input
+                    value={domain}
+                    onChange={(e) => setDomain(e.target.value)}
+                    placeholder="tumarca.com"
+                    aria-label="Dominio de tu marca"
+                    autoFocus
+                    className={FIELD}
+                    onKeyDown={(e) => e.key === 'Enter' && escanear()}
+                  />
+                  <input
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    type="email"
+                    placeholder="tu@email.com"
+                    aria-label="Tu email"
+                    className={FIELD}
+                    onKeyDown={(e) => e.key === 'Enter' && escanear()}
+                  />
+                  {error && <p className="text-sm text-[#ff6b6b]">{error}</p>}
+                  <button
+                    onClick={escanear}
+                    className="w-full rounded-md bg-white py-2.5 text-center text-sm font-medium text-black transition-transform active:scale-[0.98]"
+                  >
+                    Escanear mi marca
+                  </button>
+                  <p className="text-center font-mono text-[10px] leading-relaxed text-white/30">
+                    Gratis. El análisis completo llega a tu email.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
         {fase === 'escaneando' && (
           <>
-            <Eclipse avance={avance} />
             <p
               className="mt-12 flex items-center justify-center gap-2.5 font-mono text-xs uppercase text-white/45"
               style={{
@@ -613,7 +633,9 @@ export function EclipseClient() {
 
         {fase === 'cola' && (
           <div style={{ animation: 'ecl-entrar 800ms cubic-bezier(0.23, 1, 0.32, 1)' }} className="max-w-md">
-            <Eclipse avance={1} quieto />
+            <div className="flex justify-center">
+              <Eclipse avance={1} quieto size={220} />
+            </div>
             <h2 className="mt-12 text-2xl font-bold tracking-tight">Tu marca está en el eclipse.</h2>
             <p className="mt-4 text-sm leading-relaxed text-white/60">
               El scan de <strong className="text-white/90">{domain}</strong> está en cola. El
