@@ -389,8 +389,25 @@ export function EclipseClient() {
         e: result.eclipsa.label,
       })}`
     : `${origen}/eclipse`;
+  // La misma tarjeta que pintan LinkedIn y X, para poder descargarla.
+  const urlImagen = result
+    ? `${origen}/api/eclipse/og?${new URLSearchParams({
+        d: domain.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0],
+        s: String(result.score),
+        b: result.brilla.label,
+        e: result.eclipsa.label,
+      })}`
+    : `${origen}/api/eclipse/og`;
+  // El post no puede depender del día en que se comparte. "Ayer el eclipse"
+  // solo era cierto el 13 de agosto: quien escanease una semana después
+  // publicaba algo falso. Ahora mira hacia el siguiente, que es un ancla que
+  // se mantiene viva sola y repite el gancho de la cuenta atrás de arriba.
+  const diasAlEclipse = Math.max(0, Math.ceil((PROXIMO_ECLIPSE - Date.now()) / 86_400_000));
+  const abre = diasAlEclipse
+    ? `Quedan ${diasAlEclipse} días para el próximo eclipse en España. Mi marca ya sabe cómo llega:`
+    : 'Pasé mi marca por el Eclipse Scan:';
   const postTexto = result
-    ? `Ayer el eclipse. Hoy el de mi marca: ${result.score}/100 en B3S. Brilla: ${result.brilla.label.toLowerCase()}. Se eclipsa: ${result.eclipsa.label.toLowerCase()}.\n\nEscanea la tuya gratis: ${urlCompartir}`
+    ? `${abre} ${result.score}/100 en B3S. Brilla: ${result.brilla.label.toLowerCase()}. Se eclipsa: ${result.eclipsa.label.toLowerCase()}.\n\nEscanea la tuya gratis: ${urlCompartir}`
     : '';
 
   async function copiarPost() {
@@ -413,22 +430,29 @@ export function EclipseClient() {
     );
   }
 
-  const cardRef = useRef<HTMLDivElement>(null);
-
+  // La imagen se pide al servidor, no se rasteriza el DOM. Rasterizar con
+  // html-to-image devolvía un PNG completamente negro: la tarjeta usa
+  // gradientes cónicos, máscaras y colores oklch de Tailwind 4, y ahí esa
+  // librería pinta el fondo y se deja el contenido. Además obligaba a
+  // mantener a mano dos diseños que debían parecerse.
+  // Ahora se descarga EXACTAMENTE la misma imagen que ven LinkedIn y X.
   async function descargarImagen() {
-    if (!cardRef.current) return;
-    const { toBlob } = await import('html-to-image');
-    const blob = await Promise.race([
-      toBlob(cardRef.current, { pixelRatio: 2, cacheBust: true, backgroundColor: '#000' }),
-      new Promise<null>((r) => setTimeout(() => r(null), 12_000)),
-    ]).catch(() => null);
-    if (!blob) return;
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `eclipse-scan-${domain.replace(/\./g, '-')}.png`;
-    a.click();
-    URL.revokeObjectURL(url);
+    setCopiado('Preparando la imagen…');
+    try {
+      const res = await fetch(urlImagen);
+      if (!res.ok) throw new Error(String(res.status));
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `eclipse-scan-${domain.replace(/\./g, '-')}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setCopiado(null);
+    } catch {
+      setCopiado('No se pudo generar la imagen. Vuelve a intentarlo.');
+      setTimeout(() => setCopiado(null), 4000);
+    }
   }
 
   // El cielo se apaga con el avance: en la intro se intuyen estrellas, en la
@@ -677,7 +701,6 @@ export function EclipseClient() {
           <div style={{ animation: 'ecl-entrar 800ms cubic-bezier(0.23, 1, 0.32, 1)' }} className="w-full">
             {/* La tarjeta del resultado: también es la imagen que se comparte. */}
             <div
-              ref={cardRef}
               className="mx-auto w-full max-w-lg overflow-hidden rounded-2xl border border-white/12 bg-black p-8 text-left"
             >
               <div className="flex items-center justify-between">
