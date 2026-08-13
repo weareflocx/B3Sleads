@@ -65,12 +65,15 @@ export async function GET(req: NextRequest) {
               height: 286,
               borderRadius: 286,
               background: '#000',
+              // Sin anillo de borde duro: una corona real no tiene contorno,
+              // tiene luz que se apaga. Todas las capas van desenfocadas y
+              // cada una más ancha y más tenue que la anterior.
               boxShadow: [
-                '0 0 0 2px rgba(255,255,255,0.92)',
-                '0 0 18px 4px rgba(255,255,255,0.55)',
-                '0 0 60px 18px rgba(226,232,244,0.30)',
-                '0 0 150px 60px rgba(226,232,244,0.13)',
-                '0 0 260px 110px rgba(226,232,244,0.06)',
+                '0 0 14px 2px rgba(255,255,255,0.50)',
+                '0 0 40px 10px rgba(255,255,255,0.26)',
+                '0 0 90px 28px rgba(226,232,244,0.16)',
+                '0 0 170px 65px rgba(226,232,244,0.09)',
+                '0 0 280px 120px rgba(226,232,244,0.05)',
               ].join(', '),
             }}
           />
@@ -125,14 +128,29 @@ export async function GET(req: NextRequest) {
                 </div>
                 <div style={{ fontSize: 68, fontWeight: 700, lineHeight: 1.1 }}>para tu marca</div>
               </div>
-              <div style={{ fontSize: 27, color: 'rgba(255,255,255,0.6)', marginTop: 26 }}>
-                Escanea tu marca gratis con B3S y prepárate para el siguiente: lo que brilla, lo que
-                se eclipsa.
+              {/* El corte lo damos nosotros. Dejando que satori parta la
+                  frase, ensanchaba los espacios de la primera línea para
+                  cuadrarla al ancho y aparecían huecos raros entre palabras. */}
+              {/* El corte lo damos nosotros, que si no satori parte donde le
+                  cabe. Los huecos entre palabras no salen todos iguales: cada
+                  una arrastra el espacio lateral de su ultima letra y satori lo
+                  cuenta. Es de la fuente, no del texto, y no hay ajuste que lo
+                  iguale sin romper la palabra en cajas. */}
+              <div style={{ display: 'flex', flexDirection: 'column', marginTop: 26 }}>
+                <div style={{ fontSize: 27, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>
+                  {'Escanea tu marca gratis con B3S.'}
+                </div>
+                <div style={{ fontSize: 27, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>
+                  {'Prepárate para el siguiente.'}
+                </div>
+                <div style={{ fontSize: 27, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>
+                  {'Lo que brilla. Lo que se eclipsa.'}
+                </div>
               </div>
             </div>
           )}
           <div style={{ fontSize: 24, color: 'rgba(255,255,255,0.35)', marginTop: 40 }}>
-            B3S Scanner by FLOC* · Eclipse 12.08.2026
+            {'B3S Scanner by FLOC* · Eclipse 12.08.2026'}
           </div>
         </div>
       </div>
