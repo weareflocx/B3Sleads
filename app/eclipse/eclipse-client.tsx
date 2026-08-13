@@ -404,7 +404,7 @@ export function EclipseClient() {
   // se mantiene viva sola y repite el gancho de la cuenta atrás de arriba.
   const diasAlEclipse = Math.max(0, Math.ceil((PROXIMO_ECLIPSE - Date.now()) / 86_400_000));
   const abre = diasAlEclipse
-    ? `Quedan ${diasAlEclipse} días para el próximo eclipse en España. Mi marca ya sabe cómo llega:`
+    ? `${diasAlEclipse === 1 ? 'Queda 1 día' : `Quedan ${diasAlEclipse} días`} para el próximo eclipse en España. Mi marca ya sabe cómo llega:`
     : 'Pasé mi marca por el Eclipse Scan:';
   const postTexto = result
     ? `${abre} ${result.score}/100 en B3S. Brilla: ${result.brilla.label.toLowerCase()}. Se eclipsa: ${result.eclipsa.label.toLowerCase()}.\n\nEscanea la tuya gratis: ${urlCompartir}`
