@@ -55,16 +55,23 @@ export async function GET(req: NextRequest) {
             flexShrink: 0,
           }}
         >
+          {/* Totalidad en blanco y negro: disco opaco de borde nítido y una
+              corona que se abre en tres capas, de un anillo fino pegado al
+              limbo a un halo ancho que muere en el fondo. Sin una sola gota
+              de color, que es lo que la hace parecer una fotografía. */}
           <div
             style={{
-              width: 250,
-              height: 250,
-              borderRadius: 250,
+              width: 286,
+              height: 286,
+              borderRadius: 286,
               background: '#000',
-              // La corona de la landing: blanco y gris, anillo fino pegado
-              // al limbo y halo que muere en negro.
-              boxShadow:
-                '0 0 0 2px rgba(255,255,255,0.9), 0 0 34px 10px rgba(226,232,244,0.45), 0 0 130px 50px rgba(226,232,244,0.14)',
+              boxShadow: [
+                '0 0 0 2px rgba(255,255,255,0.92)',
+                '0 0 18px 4px rgba(255,255,255,0.55)',
+                '0 0 60px 18px rgba(226,232,244,0.30)',
+                '0 0 150px 60px rgba(226,232,244,0.13)',
+                '0 0 260px 110px rgba(226,232,244,0.06)',
+              ].join(', '),
             }}
           />
         </div>
@@ -110,10 +117,15 @@ export async function GET(req: NextRequest) {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <div style={{ fontSize: 62, fontWeight: 700, lineHeight: 1.15 }}>
-                Un antes y un después.
+              {/* Dos líneas fijas, una por div: satori partiría "Una nueva
+                  mirada para tu marca" donde le cupiese, y el corte importa. */}
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <div style={{ fontSize: 68, fontWeight: 700, lineHeight: 1.1 }}>
+                  Una nueva mirada
+                </div>
+                <div style={{ fontSize: 68, fontWeight: 700, lineHeight: 1.1 }}>para tu marca</div>
               </div>
-              <div style={{ fontSize: 27, color: 'rgba(255,255,255,0.6)', marginTop: 22 }}>
+              <div style={{ fontSize: 27, color: 'rgba(255,255,255,0.6)', marginTop: 26 }}>
                 Escanea tu marca gratis con B3S y prepárate para el siguiente: lo que brilla, lo que
                 se eclipsa.
               </div>
