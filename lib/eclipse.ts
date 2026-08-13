@@ -16,7 +16,10 @@ export interface EclipseResult {
 
 // Frase de una dimensión, con los mismos filtros de la tarjeta: nada de
 // capturas en crudo ni de gritos. Esto se enseña a un desconocido.
-function frase(d: ScanDimension, max = 150): string | null {
+// El hallazgo se corta con puntos suspensivos si no cabe, y cortado a media
+// idea no dice nada. Estos topes son generosos a propósito: la tarjeta crece
+// hacia abajo sin romperse, y el founder prefiere leer la frase entera.
+function frase(d: ScanDimension, max = 240): string | null {
   const cita = pareceCaptura(d.quote) ? null : cardSentence(d.quote, max);
   return cita ?? cardSentence(d.analysis, max) ?? cardSentence(d.verdict, max);
 }
@@ -74,7 +77,7 @@ export function eclipseResultFromRaw(
   } else {
     const flojas = [...detectadas].reverse();
     for (const { d, key } of flojas) {
-      const f = frase(d, 130);
+      const f = frase(d, 220);
       if (f) {
         eclipsa = { label: DIMENSION_LABELS[key] ?? d.name, frase: f };
         break;
