@@ -51,13 +51,17 @@ export async function GET(req: NextRequest) {
           />
         </div>
 
+        {/* Ancho EXPLÍCITO, no flexGrow: satori no acota el texto por sí solo
+            y un titular largo se sale del lienzo en vez de partirse.
+            1200 - 72*2 de padding - 360 de la columna del disco - 64 de
+            separación = 632. */}
         <div
           style={{
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'center',
             marginLeft: 64,
-            flexGrow: 1,
+            width: 632,
           }}
         >
           {conResultado ? (
@@ -88,16 +92,16 @@ export async function GET(req: NextRequest) {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <div style={{ fontSize: 58, fontWeight: 700, lineHeight: 1.15 }}>
-                Hoy hay un antes y un después.
+              <div style={{ fontSize: 52, fontWeight: 700, lineHeight: 1.15 }}>
+                Ayer fue el antes. Hoy empieza el después.
               </div>
-              <div style={{ fontSize: 30, color: 'rgba(255,255,255,0.6)', marginTop: 22 }}>
-                Escanea tu marca gratis con B3S y descubre qué brilla y qué se eclipsa.
+              <div style={{ fontSize: 27, color: 'rgba(255,255,255,0.6)', marginTop: 22 }}>
+                Escanea tu marca gratis con B3S: qué brilla, qué se eclipsa y hacia dónde mira.
               </div>
             </div>
           )}
           <div style={{ fontSize: 24, color: 'rgba(255,255,255,0.35)', marginTop: 40 }}>
-            B3S Scanner by FLOC* · 12.08.2026
+            B3S Scanner by FLOC* · Eclipse 12.08.2026
           </div>
         </div>
       </div>

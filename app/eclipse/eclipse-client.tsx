@@ -353,7 +353,7 @@ export function EclipseClient() {
       })}`
     : `${origen}/eclipse`;
   const postTexto = result
-    ? `El eclipse ha pasado por mi marca: ${result.score}/100 en B3S. Brilla: ${result.brilla.label.toLowerCase()}. Se eclipsa: ${result.eclipsa.label.toLowerCase()}.\n\nEscanea la tuya gratis: ${urlCompartir}`
+    ? `Ayer el eclipse. Hoy el de mi marca: ${result.score}/100 en B3S. Brilla: ${result.brilla.label.toLowerCase()}. Se eclipsa: ${result.eclipsa.label.toLowerCase()}.\n\nEscanea la tuya gratis: ${urlCompartir}`
     : '';
 
   async function copiarPost() {
@@ -509,7 +509,7 @@ export function EclipseClient() {
       <header className="z-10 flex w-full max-w-3xl items-center justify-between pt-6">
         <LogoMark size={26} />
         <span className="font-mono text-[11px] uppercase tracking-[0.25em] text-white/35">
-          12 · 08 · 2026
+          El día después
         </span>
       </header>
 
@@ -545,11 +545,11 @@ export function EclipseClient() {
                 style={{ animation: 'ecl-entrar 900ms cubic-bezier(0.23, 1, 0.32, 1)' }}
               >
                 <h1 className="text-balance text-2xl font-bold leading-tight tracking-tight sm:text-3xl">
-                  Hoy hay un antes y un después.
+                  Ayer fue el antes. Hoy empieza el después.
                 </h1>
                 <p className="mt-3 max-w-sm text-pretty text-sm leading-relaxed text-white/55">
-                  Un eclipse total cruza España. Dura dos minutos y lo cambia todo. También a tu
-                  marca: escanéala gratis con B3S.
+                  Dos minutos de oscuridad y vuelta a la luz. Los ciclos se ven cuando acaban. Mira
+                  en cuál está tu marca y hacia dónde mira: escanéala gratis con B3S.
                 </p>
 
                 <div className="mt-7 w-full max-w-[19rem] space-y-3 text-left">
@@ -661,7 +661,7 @@ export function EclipseClient() {
               </div>
 
               <p className="mt-7 border-t border-white/10 pt-4 font-mono text-[11px] text-white/30">
-                B3S Scanner by FLOC* · {result.demo ? 'simulación local' : '12.08.2026'}
+                B3S Scanner by FLOC* · {result.demo ? 'simulación local' : 'Eclipse 12.08.2026'}
               </p>
             </div>
 
@@ -672,9 +672,12 @@ export function EclipseClient() {
                 Ya estás en la lista de B3S, el scanner que mide marcas como se miden métricas.
               </p>
               <p className="mt-4 text-sm leading-relaxed text-white/60">
-                Y si quieres que el después sea mejor que el antes: <strong className="text-white/90">GTM by FLOC*</strong> es
-                el sistema para salir al mercado con una marca que distingue. Estrategia, narrativa
-                y lanzamiento, en un solo paquete.
+                El eclipse duró dos minutos. Un ciclo de marca dura trimestres y se decide al
+                principio, cuando se eligen los objetivos y se dice hacia dónde se mira. Si el
+                próximo de <strong className="text-white/90">{domain}</strong> empieza ahora,{' '}
+                <strong className="text-white/90">GTM by FLOC*</strong> es el sistema para salir al
+                mercado con una marca que distingue: estrategia, narrativa y lanzamiento en un solo
+                paquete.
               </p>
 
               <div className="mt-7 flex flex-wrap gap-2">
@@ -717,7 +720,7 @@ export function EclipseClient() {
             <p className="mt-4 text-sm leading-relaxed text-white/60">
               El scan de <strong className="text-white/90">{domain}</strong> está en cola. El
               resultado y el análisis completo llegarán a{' '}
-              <strong className="text-white/90">{email}</strong> cuando la luz vuelva. Ya estás en
+              <strong className="text-white/90">{email}</strong> cuando vuelva la luz. Ya estás en
               la lista de B3S.
             </p>
           </div>

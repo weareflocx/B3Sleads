@@ -25,3 +25,6 @@ next-env.d.ts
 
 # datasets locales (datos personales, nunca commitear)
 data/
+
+# Local Netlify folder
+.netlify
