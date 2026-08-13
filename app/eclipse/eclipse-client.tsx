@@ -197,6 +197,43 @@ function Eclipse({
   );
 }
 
+// ---------- la cuenta atrás ----------
+// El siguiente eclipse total visible desde España: 2 de agosto de 2027, que
+// cruza el sur andaluz, Ceuta y Melilla. Se cuenta hasta la medianoche del
+// día en hora peninsular, no hasta el minuto de la totalidad: la fecha es el
+// dato, y así el contador no finge una precisión que no tiene.
+const PROXIMO_ECLIPSE = Date.UTC(2027, 7, 1, 22, 0, 0);
+
+function CuentaAtras() {
+  // Arranca en null y se rellena tras montar: el servidor y el cliente no
+  // comparten reloj, y pintarlo en el HTML daría un error de hidratación.
+  const [restante, setRestante] = useState<number | null>(null);
+  useEffect(() => {
+    const tic = () => setRestante(Math.max(0, PROXIMO_ECLIPSE - Date.now()));
+    tic();
+    const id = setInterval(tic, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const seg = restante == null ? null : Math.floor(restante / 1000);
+  const dd = seg == null ? null : Math.floor(seg / 86400);
+  const hh = seg == null ? null : Math.floor((seg % 86400) / 3600);
+  const mm = seg == null ? null : Math.floor((seg % 3600) / 60);
+  const ss = seg == null ? null : seg % 60;
+  const dos = (n: number) => String(n).padStart(2, '0');
+
+  return (
+    <div className="text-right font-mono text-[11px] uppercase leading-relaxed tracking-[0.25em] text-white/35">
+      <div>Próximo eclipse</div>
+      {/* Altura reservada aunque no haya cifras todavía: sin esto el header
+          da un salto en cuanto monta el componente. */}
+      <div className="tabular-nums text-white/55">
+        {dd == null ? ' ' : `${dd}d ${dos(hh!)}h ${dos(mm!)}m ${dos(ss!)}s`}
+      </div>
+    </div>
+  );
+}
+
 const FIELD =
   'ecl-campo w-full border-0 border-b border-white/15 bg-transparent px-0 py-2.5 text-lg text-white outline-none transition-colors placeholder:text-white/25 focus:border-white/60';
 
@@ -508,9 +545,7 @@ export function EclipseClient() {
       {/* Header: solo el símbolo, como en B3S Leads. */}
       <header className="z-10 flex w-full max-w-3xl items-center justify-between pt-6">
         <LogoMark size={26} />
-        <span className="font-mono text-[11px] uppercase tracking-[0.25em] text-white/35">
-          El día después
-        </span>
+        <CuentaAtras />
       </header>
 
       {/* El fundido del arranque lo hace el propio contenido, no un telón
@@ -530,9 +565,17 @@ export function EclipseClient() {
             fenómeno se recorre entero para tu marca. Sin cortes: el mismo
             cuerpo celeste todo el rato. */}
         {(fase === 'intro' || fase === 'escaneando') && (
+          /* El disco nunca baja de 430px: en móvil el cuadrado inscrito en un
+             círculo de 92vw no da para el titular, las cuatro frases y el
+             formulario, y el contenido se salía por los lados. A partir de ahí
+             el círculo sangra por los bordes de la pantalla, que es justo el
+             aspecto de una totalidad. En escritorio manda 74vh, como antes. */
           <div
             className="relative flex items-center justify-center"
-            style={{ width: 'min(74vh, 92vw)', height: 'min(74vh, 92vw)' }}
+            style={{
+              width: 'min(74vh, max(92vw, 430px))',
+              height: 'min(74vh, max(92vw, 430px))',
+            }}
           >
             <Eclipse
               avance={fase === 'intro' ? 1 : avance}
@@ -540,16 +583,24 @@ export function EclipseClient() {
               teleport={teleport}
             />
             {fase === 'intro' && (
+              /* Ancho propio, no un porcentaje del disco: el círculo puede
+                 crecer o sangrar por los bordes sin arrastrar al texto. */
               <div
-                className="absolute inset-0 flex flex-col items-center justify-center px-[13%] text-center"
+                className="absolute inset-0 mx-auto flex max-w-[21rem] flex-col items-center justify-center px-6 text-center"
                 style={{ animation: 'ecl-entrar 900ms cubic-bezier(0.23, 1, 0.32, 1)' }}
               >
                 <h1 className="text-balance text-2xl font-bold leading-tight tracking-tight sm:text-3xl">
-                  Ayer fue el antes. Hoy empieza el después.
+                  Un antes y un después.
                 </h1>
+                {/* Cada frase en su línea: el ritmo es parte del mensaje y una
+                    sola parrafada lo perdería. Los saltos son de bloque, no
+                    <br>, para que una frase larga siga pudiendo partirse sola
+                    en pantallas estrechas. */}
                 <p className="mt-3 max-w-sm text-pretty text-sm leading-relaxed text-white/55">
-                  Dos minutos de oscuridad y vuelta a la luz. Los ciclos se ven cuando acaban. Mira
-                  en cuál está tu marca y hacia dónde mira: escanéala gratis con B3S.
+                  <span className="block">Unos minutos de oscuridad y vuelta a la luz.</span>
+                  <span className="block">Los ciclos se ven cuando acaban.</span>
+                  <span className="block">Mira en cuál está tu marca y hacia dónde mira:</span>
+                  <span className="block">Escanéala ahora gratis con B3S Scanner.</span>
                 </p>
 
                 <div className="mt-7 w-full max-w-[19rem] space-y-3 text-left">
@@ -579,7 +630,7 @@ export function EclipseClient() {
                     Escanear mi marca
                   </button>
                   <p className="text-center font-mono text-[10px] leading-relaxed text-white/30">
-                    Gratis. El análisis completo llega a tu email.
+                    Pruébalo ya, el análisis completo te lo enviaremos al email.
                   </p>
                 </div>
               </div>
@@ -728,7 +779,8 @@ export function EclipseClient() {
       </div>
 
       <footer className="z-10 w-full max-w-3xl pb-6 text-center font-mono text-[11px] text-white/25">
-        B3S Scanner by FLOC* · el envío del análisis es humano, como todo lo que hacemos
+        Informe de narrativa de marca diseñado por inteligencias combinadas y nuestra firma humana ·
+        B3S Scanner by FLOC*
       </footer>
     </main>
   );
