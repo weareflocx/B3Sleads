@@ -5,26 +5,50 @@ import Link from 'next/link';
 import { companyLabel, displayName, stageLabel } from '@/lib/types';
 import type { BriefingLead } from '@/lib/types';
 import { ScoreRing } from '../score-ring';
+import { Heat } from '../heat';
+import { leadTemperature } from '@/lib/scoring';
 import { CompanyLogo } from '../company-logo';
 
 // Catálogo de marcas con controles: ordenar por score B3S o por recientes,
 // y verlo en tarjetas, lista o cuadrícula. Una tarjeta por startup.
-type Sort = 'score' | 'recientes';
+type Sort = 'score' | 'temperatura' | 'recientes';
+type Dir = 'desc' | 'asc';
 type View = 'tarjetas' | 'lista' | 'cuadricula';
 
 export function StartupsList({ items }: { items: BriefingLead[] }) {
   const [sort, setSort] = useState<Sort>('score');
+  const [dir, setDir] = useState<Dir>('desc');
   const [view, setView] = useState<View>('tarjetas');
 
-  const scoreOf = (bl: BriefingLead) =>
-    bl.scan?.status === 'ready' && bl.scan.score != null ? Number(bl.scan.score) : -1;
+  // Pulsar el orden que ya está activo lo invierte. Es el patrón de cualquier
+  // tabla y evita duplicar botones: con tres criterios y dos direcciones
+  // harían falta seis, y la barra dejaría de leerse de un vistazo.
+  const elegirOrden = (v: Sort) => {
+    if (v === sort) return setDir((d) => (d === 'desc' ? 'asc' : 'desc'));
+    setSort(v);
+    setDir('desc');
+  };
 
-  const sorted = [...items].sort((a, b) =>
-    sort === 'score'
-      ? scoreOf(b) - scoreOf(a)
-      : b.lead.updated_at.localeCompare(a.lead.updated_at),
-  );
+  const scoreOf = (bl: BriefingLead) =>
+    bl.scan?.status === 'ready' && bl.scan.score != null ? Number(bl.scan.score) : null;
+  const tempOf = (bl: BriefingLead) => leadTemperature(bl).score;
+
+  const sorted = [...items].sort((a, b) => {
+    const signo = dir === 'desc' ? 1 : -1;
+    if (sort === 'recientes') return signo * b.lead.updated_at.localeCompare(a.lead.updated_at);
+    if (sort === 'temperatura') return signo * (tempOf(b) - tempOf(a));
+    // Sin scan no es "la peor valorada", es una desconocida: se queda al final
+    // en las dos direcciones. Colarlas arriba en ascendente enterraría justo
+    // las marcas flojas que se quieren ver.
+    const sa = scoreOf(a);
+    const sb = scoreOf(b);
+    if (sa == null && sb == null) return 0;
+    if (sa == null) return 1;
+    if (sb == null) return -1;
+    return signo * (sb - sa);
+  });
   const variant: View = view;
+  const flecha = dir === 'desc' ? ' ↓' : ' ↑';
 
   return (
     <div>
@@ -32,10 +56,11 @@ export function StartupsList({ items }: { items: BriefingLead[] }) {
         <Segmented
           label="Orden"
           value={sort}
-          onChange={(v) => setSort(v as Sort)}
+          onChange={(v) => elegirOrden(v as Sort)}
           options={[
-            ['score', 'Score B3S'],
-            ['recientes', 'Recientes'],
+            ['score', `Score B3S${sort === 'score' ? flecha : ''}`],
+            ['temperatura', `Temperatura${sort === 'temperatura' ? flecha : ''}`],
+            ['recientes', `Recientes${sort === 'recientes' ? flecha : ''}`],
           ]}
         />
         <Segmented
@@ -53,13 +78,23 @@ export function StartupsList({ items }: { items: BriefingLead[] }) {
       {view === 'cuadricula' ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {sorted.map((bl) => (
-            <StartupCard key={bl.company!.domain} bl={bl} variant="cuadricula" />
+            <StartupCard
+              key={bl.company!.domain}
+              bl={bl}
+              variant="cuadricula"
+              verTemp={sort === 'temperatura'}
+            />
           ))}
         </div>
       ) : (
         <div className={view === 'lista' ? 'space-y-2' : 'space-y-3'}>
           {sorted.map((bl) => (
-            <StartupCard key={bl.company!.domain} bl={bl} variant={variant} />
+            <StartupCard
+              key={bl.company!.domain}
+              bl={bl}
+              variant={variant}
+              verTemp={sort === 'temperatura'}
+            />
           ))}
         </div>
       )}
@@ -67,7 +102,17 @@ export function StartupsList({ items }: { items: BriefingLead[] }) {
   );
 }
 
-function StartupCard({ bl, variant }: { bl: BriefingLead; variant: View }) {
+function StartupCard({
+  bl,
+  variant,
+  verTemp,
+}: {
+  bl: BriefingLead;
+  variant: View;
+  // Ordenando por temperatura hay que VER la temperatura: un orden cuyo
+  // criterio no se ve parece aleatorio.
+  verTemp: boolean;
+}) {
   const c = bl.company!;
   const name = companyLabel(c.name, c.domain);
   const score = bl.scan?.status === 'ready' && bl.scan.score != null ? Number(bl.scan.score) : null;
@@ -85,12 +130,18 @@ function StartupCard({ bl, variant }: { bl: BriefingLead; variant: View }) {
     <CompanyLogo domain={c.domain} name={name} size={size} src={c.logo_url} />
   );
 
-  const scoreEl =
-    score != null ? (
-      <ScoreRing score={score} size={variant === 'lista' ? 26 : 30} />
-    ) : (
-      <span className="shrink-0 text-xs text-[var(--muted)]">{scanning ? 'escaneando…' : 'sin scan'}</span>
-    );
+  const scoreEl = (
+    <span className="flex shrink-0 items-center gap-2.5">
+      {verTemp && <Heat temp={leadTemperature(bl)} size={variant === 'lista' ? 11 : 13} />}
+      {score != null ? (
+        <ScoreRing score={score} size={variant === 'lista' ? 26 : 30} />
+      ) : (
+        <span className="text-xs text-[var(--muted)]">
+          {scanning ? 'escaneando…' : 'sin scan'}
+        </span>
+      )}
+    </span>
+  );
 
   const sectorChips = sectors.length > 0 && (
     <div className="flex flex-wrap gap-1">
