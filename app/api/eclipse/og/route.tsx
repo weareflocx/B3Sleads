@@ -137,6 +137,20 @@ export async function GET(req: NextRequest) {
         </div>
       </div>
     ),
-    { width: 1200, height: 630, fonts: await geist },
+    {
+      width: 1200,
+      height: 630,
+      fonts: await geist,
+      // ImageResponse marca la respuesta como inmutable durante un año, y el
+      // runtime de Netlify solo declara variación por sus propios parámetros
+      // internos. Resultado: el CDN servía la MISMA tarjeta para cualquier
+      // query, así que todos los founders compartían el banner genérico en
+      // vez de su resultado. 'Netlify-Vary: query' mete la query entera en la
+      // clave de caché, que es lo que hace que cada marca tenga la suya.
+      headers: {
+        'netlify-vary': 'query',
+        'cache-control': 'public, max-age=300, s-maxage=86400',
+      },
+    },
   );
 }
