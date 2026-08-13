@@ -36,8 +36,6 @@ interface Tema {
   borde: string;
   bordeSuave: string;
   caja: string;
-  marca: string; // el cuadro del logo cuando la marca no tiene uno propio
-  marcaTexto: string;
   notas: { bajo: string; medio: string; alto: string; nulo: string };
 }
 
@@ -52,8 +50,6 @@ const TEMAS: Record<'oscuro' | 'claro', Tema> = {
     borde: 'rgba(255,255,255,0.12)',
     bordeSuave: 'rgba(255,255,255,0.15)',
     caja: 'rgba(255,255,255,0.045)',
-    marca: '#ffffff',
-    marcaTexto: '#000000',
     notas: { bajo: '#ff0000', medio: '#4d6bff', alto: '#00d554', nulo: 'rgba(255,255,255,0.35)' },
   },
   claro: {
@@ -66,8 +62,6 @@ const TEMAS: Record<'oscuro' | 'claro', Tema> = {
     borde: 'rgba(11,13,14,0.14)',
     bordeSuave: 'rgba(11,13,14,0.18)',
     caja: 'rgba(11,13,14,0.035)',
-    marca: '#0b0d0e',
-    marcaTexto: '#ffffff',
     notas: { bajo: '#d40000', medio: '#2440d0', alto: '#1a7f37', nulo: 'rgba(11,13,14,0.4)' },
   },
 };
@@ -499,19 +493,22 @@ export function BrandCard({
           {/* Cabecera: su logo a la izquierda, el nuestro a la derecha. */}
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-5">
+              {/* El logo lleva el MISMO marco que la caja del score: mismo
+                  tamaño, mismo radio y el mismo borde tenue. Antes iba sobre
+                  una placa blanca rellena que rompía la columna. */}
               {logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={logoData ?? logoUrl}
                   alt=""
                   crossOrigin="anonymous"
-                  className="h-[76px] w-[76px] rounded-[14px] object-contain p-1.5"
-                  style={{ background: '#ffffff' }}
+                  className="h-[76px] w-[76px] rounded-[14px] border object-contain p-1.5"
+                  style={{ borderColor: t.bordeSuave }}
                 />
               ) : (
                 <span
-                  className="flex h-[76px] w-[76px] items-center justify-center rounded-[14px] text-[30px] font-bold"
-                  style={{ background: t.marca, color: t.marcaTexto }}
+                  className="flex h-[76px] w-[76px] items-center justify-center rounded-[14px] border text-[30px] font-bold"
+                  style={{ borderColor: t.bordeSuave, color: t.texto }}
                 >
                   {company.slice(0, 2).toUpperCase()}
                 </span>

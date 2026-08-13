@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import type { BriefingLead } from '@/lib/types';
 import { DISCARD_REASONS, displayName, companyLabel } from '@/lib/types';
+import { CompanyLogo } from '../company-logo';
 import { agoLabel, computeRadar, type Radar } from '@/lib/radar';
 
 function timeAgo(iso: string): string {
@@ -141,7 +142,17 @@ export function LeadCard({ initial }: { initial: BriefingLead }) {
   return (
     <article className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-5">
       <div className="flex items-start justify-between gap-4">
-        <div>
+        {/* La marca con su cara, como en la ficha: en una lista de leads el
+            logo se reconoce antes que el nombre. */}
+        <Link href={`/companies/${bl.company.domain}`} className="mt-0.5 shrink-0">
+          <CompanyLogo
+            domain={bl.company.domain}
+            name={companyLabel(bl.company.name, bl.company.domain)}
+            size={40}
+            src={bl.company.logo_url}
+          />
+        </Link>
+        <div className="min-w-0 flex-1">
           <h2 className="font-semibold">
             <Link href={`/companies/${bl.company.domain}`} className="hover:underline">
               {companyLabel(bl.company.name, bl.company.domain)}

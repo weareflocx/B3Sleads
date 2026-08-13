@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import type { BriefingLead, LeadStage } from '@/lib/types';
 import { STAGES, displayName, companyLabel } from '@/lib/types';
+import { CompanyLogo } from '../company-logo';
 import { computeRadar } from '@/lib/radar';
 
 // Columnas visibles del kanban (detected y briefed se agrupan como "Detectado")
@@ -70,9 +71,19 @@ export function Kanban({ initial }: { initial: BriefingLead[] }) {
                     {bl.company ? (
                       <Link
                         href={`/companies/${bl.company.domain}`}
-                        className="min-w-0 flex-1 truncate text-sm font-medium leading-snug hover:underline"
+                        className="flex min-w-0 flex-1 items-center gap-2 hover:underline"
                       >
-                        {companyLabel(bl.company.name, bl.company.domain)}
+                        {/* En una columna estrecha el logo es lo unico que se
+                            reconoce de un vistazo. */}
+                        <CompanyLogo
+                          domain={bl.company.domain}
+                          name={companyLabel(bl.company.name, bl.company.domain)}
+                          size={22}
+                          src={bl.company.logo_url}
+                        />
+                        <span className="min-w-0 flex-1 truncate text-sm font-medium leading-snug">
+                          {companyLabel(bl.company.name, bl.company.domain)}
+                        </span>
                       </Link>
                     ) : (
                       <span className="min-w-0 flex-1 truncate text-sm font-medium leading-snug">

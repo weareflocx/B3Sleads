@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { companyLabel, displayName, stageLabel } from '@/lib/types';
 import type { BriefingLead } from '@/lib/types';
 import { ScoreRing } from '../score-ring';
+import { CompanyLogo } from '../company-logo';
 
 // Catálogo de marcas con controles: ordenar por score B3S o por recientes,
 // y verlo en tarjetas, lista o cuadrícula. Una tarjeta por startup.
@@ -76,16 +77,12 @@ function StartupCard({ bl, variant }: { bl: BriefingLead; variant: View }) {
     .map((s) => s.trim())
     .filter(Boolean);
   const founder = bl.contact ? displayName(bl.contact.full_name) : null;
-  const mono = (c.name || c.domain).trim().charAt(0).toUpperCase() || '·';
-
+  // El mismo componente que la ficha: manda el logo subido a mano, si no el
+  // publico por dominio, y solo si ninguno carga queda el monograma. Antes
+  // esta lista pintaba SIEMPRE la inicial, asi que el logo que alguien habia
+  // subido no se veia en ningun sitio salvo dentro de la ficha.
   const Logo = ({ size }: { size: number }) => (
-    <span
-      className="flex shrink-0 items-center justify-center rounded-md bg-[var(--surface-2)] font-mono text-[var(--muted)]"
-      style={{ width: size, height: size, fontSize: size * 0.42 }}
-      aria-hidden="true"
-    >
-      {mono}
-    </span>
+    <CompanyLogo domain={c.domain} name={name} size={size} src={c.logo_url} />
   );
 
   const scoreEl =
