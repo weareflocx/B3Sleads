@@ -15,7 +15,7 @@ import { suggestSectors, parseSectorList } from '@/lib/sectors';
 import { componentTerms } from '@/lib/component-terms';
 import { leadTemperature } from '@/lib/scoring';
 import { buildPitch } from '@/lib/pitch';
-import { storedScanReport } from '@/lib/scan-report';
+import { storedScanReport, retencionDeScan } from '@/lib/scan-report';
 import { buildCallBriefPrompt, buildLeadContext } from '@/lib/lead-prompts';
 import { stageLabel as stageLabelFor, displayName, companyLabel } from '@/lib/types';
 import { resolveInvestors } from '@/lib/investors';
@@ -106,22 +106,38 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
         .filter(Boolean)
         .join(' · ') || 'en ronda'
     : null;
-  const report = storedScanReport(scan?.result_raw ?? null);
+  // El lead apunta siempre al scan MÁS RECIENTE, y ese puede venir retenido
+  // por el Scanner (sin puntuación, en modo shadow). Pintar la ficha con él la
+  // dejaba vacía y enterraba un scan bueno de media hora antes. La ficha se
+  // queda con el último publicable; el retenido no se descarta, se avisa.
+  const publicable = (s: typeof scan) => s != null && s.score != null;
+  const scanVisible = publicable(scan)
+    ? scan
+    : ([...scanHistory].reverse().find(publicable) ?? scan);
+  const scanRetenido = scanVisible?.id !== scan?.id ? scan : null;
+  const retencion = scanRetenido ? retencionDeScan(scanRetenido.result_raw) : null;
+
+  const report = storedScanReport(scanVisible?.result_raw ?? null);
 
   const tldr =
-    typeof scan?.tldr === 'string' ? scan.tldr : ((scan?.tldr as { summary?: string })?.summary ?? null);
+    typeof scanVisible?.tldr === 'string'
+      ? scanVisible.tldr
+      : ((scanVisible?.tldr as { summary?: string })?.summary ?? null);
   // Versiones de cada componente a lo largo de todos los escaneos.
   const versions = componentVersions(scanHistory);
 
   // El Brand Seed consolidado: para cada dimensión, la versión elegida a mano
   // o, sin elección, la del último run. Sin curar, el consolidado ES el
   // automático (mismo número, misma agregación: no hay delta que aplicar).
-  const autoScore = scan?.status === 'ready' && scan.score != null ? Number(scan.score) : null;
+  const autoScore =
+    scanVisible?.status === 'ready' && scanVisible.score != null
+      ? Number(scanVisible.score)
+      : null;
   const consolidado = consolidateReport(
     report?.dimensions ?? [],
     selections,
     scanHistory,
-    scan?.id ?? null,
+    scanVisible?.id ?? null,
   );
   const scoreConsolidado =
     autoScore != null
@@ -144,7 +160,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
     consolidado.dimensions.map(async (d) => {
       const key = canonDimension(d.name);
       if (!TERM_DIMENSIONS.has(key) || d.terms?.length) return;
-      const scanId = consolidado.sourceByKey[key] ?? scan?.id;
+      const scanId = consolidado.sourceByKey[key] ?? scanVisible?.id;
       if (!scanId) return;
       const implicit = d.missing || d.score == null;
       const text = [d.reading, d.analysis, d.verdict, d.quote].filter(Boolean).join(' ');
@@ -212,7 +228,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
   const stageLabel = stageLabelFor(lead.stage);
   const firstName = displayName(contact?.full_name).split(' ')[0] || null;
   const temp = leadTemperature(bl);
-  const score = scan?.status === 'ready' ? scan.score : null;
+  const score = scanVisible?.status === 'ready' ? scanVisible.score : null;
 
   // Ronda para la cabecera (lo más "vendible" arriba del todo).
   const fd = latestFunding?.detail;
@@ -382,7 +398,18 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
 
                   {/* Debajo: la puntuación y el extracto del scan de B3S. */}
                   <div className="mt-4 border-t border-[var(--border)] pt-3">
-                    {scan?.status === 'ready' && scan.score != null ? (
+                    {/* Hay un scan posterior que el Scanner no publicó. No se
+                        esconde: el motivo suele ser algo de SU web, y eso es
+                        materia para abrir conversación con el founder. */}
+                    {retencion && (
+                      <p className="mb-3 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs leading-relaxed text-[var(--muted)]">
+                        Hay un scan más reciente sin puntuación publicable:{' '}
+                        {retencion.motivo}
+                        {retencion.detalle ? `, porque ${retencion.detalle}` : ''}. Se muestra el
+                        último con datos.
+                      </p>
+                    )}
+                    {scanVisible?.status === 'ready' && scanVisible.score != null ? (
                       <>
                         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                           <span className="font-mono text-2xl">{scoreConsolidado}</span>

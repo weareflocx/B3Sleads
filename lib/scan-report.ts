@@ -555,3 +555,45 @@ export function reportDigest(report: ScanReport): string {
   }
   return lines.join('\n');
 }
+
+// ---------- runs retenidos ----------
+// El Scanner no siempre publica una puntuación. Cuando detecta que en esta
+// pasada ha visto MENOS que en la anterior (una web tapada por un banner de
+// cookies, un bloqueo, contenido que ya no reacquiere) marca el run como
+// "shadow" y retiene el número, en vez de publicar uno peor que sabe que es
+// fruto de haber leído menos, no de que la marca haya empeorado. Es una
+// decisión sensata del Scanner, pero deja el run sin nada que enseñar.
+export interface Retencion {
+  motivo: string;
+  detalle: string | null;
+}
+
+const MOTIVOS: Record<string, string> = {
+  acquisition_regression: 'esta pasada leyó menos de la web que la anterior',
+  insufficient_evidence: 'no encontró evidencia suficiente',
+};
+
+const OBSTRUCCIONES: Record<string, string> = {
+  cookie_banner: 'un banner de cookies le tapa la página',
+  paywall: 'un muro de pago le corta el acceso',
+  login: 'un login le corta el acceso',
+  captcha: 'un captcha le corta el acceso',
+};
+
+// Devuelve por qué un scan se quedó sin puntuación, o null si sí la tiene.
+export function retencionDeScan(raw: unknown): Retencion | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, any>;
+  const score = r.score as Record<string, unknown> | undefined;
+  if (!score || score.value != null) return null;
+
+  const clave = String(score.retention_reason ?? '').trim();
+  const motivo = MOTIVOS[clave] ?? 'el Scanner no consideró publicable el resultado';
+
+  // El detalle útil está en el gate de adquisición: es lo que se le puede
+  // contar al founder, y suele ser algo que él puede arreglar.
+  const avisos = (r.acquisition_gate?.warnings ?? []) as Array<{ detail?: string }>;
+  const texto = avisos.map((a) => a?.detail ?? '').join(' ');
+  const obstruccion = Object.keys(OBSTRUCCIONES).find((k) => texto.includes(k));
+  return { motivo, detalle: obstruccion ? OBSTRUCCIONES[obstruccion] : null };
+}
