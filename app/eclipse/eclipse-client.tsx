@@ -599,7 +599,7 @@ export function EclipseClient() {
                 <p className="mt-3 max-w-sm text-pretty text-sm leading-relaxed text-white/55">
                   <span className="block">Unos minutos de oscuridad y vuelta a la luz.</span>
                   <span className="block">Los ciclos se ven cuando acaban.</span>
-                  <span className="block">Mira en cuál está tu marca y hacia dónde mira:</span>
+                  <span className="block">Mira hacia dónde mira tu marca.</span>
                   <span className="block">Escanéala ahora gratis con B3S Scanner.</span>
                 </p>
 
@@ -678,7 +678,7 @@ export function EclipseClient() {
             {/* La tarjeta del resultado: también es la imagen que se comparte. */}
             <div
               ref={cardRef}
-              className="mx-auto w-full max-w-md overflow-hidden rounded-2xl border border-white/12 bg-black p-8 text-left"
+              className="mx-auto w-full max-w-lg overflow-hidden rounded-2xl border border-white/12 bg-black p-8 text-left"
             >
               <div className="flex items-center justify-between">
                 <Eclipse avance={1} size={56} quieto />
@@ -717,18 +717,29 @@ export function EclipseClient() {
             </div>
 
             {/* El después: qué pasa ahora y el puente a GTM. */}
-            <div className="mx-auto mt-8 max-w-md text-left">
+            <div className="mx-auto mt-8 max-w-lg text-left">
               <p className="text-sm leading-relaxed text-white/60">
-                El análisis completo de los 9 componentes llega a <strong className="text-white/90">{email}</strong>.
-                Ya estás en la lista de B3S, el scanner que mide marcas como se miden métricas.
+                Pronto te enviaremos el análisis completo de la narrativa de tu marca a{' '}
+                <strong className="text-white/90">{email}</strong>. Además ya estás en la waitlist
+                de B3S, el scanner que analiza y mide la huella digital de las marcas.
               </p>
               <p className="mt-4 text-sm leading-relaxed text-white/60">
                 El eclipse duró dos minutos. Un ciclo de marca dura trimestres y se decide al
-                principio, cuando se eligen los objetivos y se dice hacia dónde se mira. Si el
-                próximo de <strong className="text-white/90">{domain}</strong> empieza ahora,{' '}
-                <strong className="text-white/90">GTM by FLOC*</strong> es el sistema para salir al
-                mercado con una marca que distingue: estrategia, narrativa y lanzamiento en un solo
-                paquete.
+                principio, cuando se eligen los objetivos y se dice hacia dónde se mira. Si estás
+                pensando en nuevos objetivos y retos de cara al siguiente eclipse quizás te interese{' '}
+                <strong className="text-white/90">GTM by FLOC*</strong>. El sistema completo para
+                que tu marca esté preparada para salir al mercado: Estrategia + Narrativa + Diseño.
+              </p>
+              <p className="mt-4 text-sm leading-relaxed text-white/60">
+                ¿Empezamos a construir juntos?{' '}
+                <a
+                  href="https://gtm.wearefloc.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-white underline decoration-white/30 underline-offset-4 transition-colors hover:decoration-white"
+                >
+                  gtm.wearefloc.com
+                </a>
               </p>
 
               <div className="mt-7 flex flex-wrap gap-2">
