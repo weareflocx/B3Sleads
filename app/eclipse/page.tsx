@@ -28,9 +28,9 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   const conResultado = Boolean(d) && /^\d{1,3}$/.test(p.s ?? '');
   const title = conResultado
     ? `${d} · ${p.s}/100 en el Eclipse Scan`
-    : 'Eclipse Scan · el día después para tu marca';
+    : 'Eclipse Scan · Una nueva mirada para tu marca';
   const description =
-    'El 12 de agosto de 2026 un eclipse total cruzó España. Los ciclos se ven cuando acaban. Escanea tu marca gratis con B3S: qué brilla, qué se eclipsa y hacia dónde mira.';
+    'El 12 de agosto de 2026 un eclipse total cruzó España. Los ciclos se ven cuando acaban. Escanea tu marca gratis con B3S y prepárate para el siguiente: Lo que brilla, lo que se eclipsa...';
   const og = conResultado
     ? `${BASE}/api/eclipse/og?${new URLSearchParams({
         d,
