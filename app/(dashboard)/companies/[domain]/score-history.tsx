@@ -1,4 +1,5 @@
 import type { Scan } from '@/lib/types';
+import { retencionDeScan } from '@/lib/scan-report';
 
 // Histórico de scans con un sparkline minimalista de la evolución del score.
 // Server component: SVG estático, sin librería. Coherente con el estilo B3S.
@@ -8,14 +9,20 @@ function fmtDate(iso: string): string {
 }
 
 export function ScoreHistory({ scans }: { scans: Scan[] }) {
+  // La linea solo puede dibujar lo que tiene numero, pero la LISTA los enseña
+  // todos. Un scan retenido es un intento que ocurrio: esconderlo hacia
+  // desaparecer del historico justo los runs que explican por que el score no
+  // se mueve, que es la informacion mas util cuando una marca se atasca.
   const withScore = scans.filter((s) => s.score != null);
-  if (withScore.length === 0) return null;
+  if (scans.length === 0) return null;
 
   const W = 320;
   const H = 56;
   const padX = 6;
   const padY = 8;
   const n = withScore.length;
+  const total = scans.length;
+  const retenidos = total - n;
 
   const x = (i: number) => (n === 1 ? W / 2 : padX + (i / (n - 1)) * (W - 2 * padX));
   const y = (score: number) => H - padY - (score / 100) * (H - 2 * padY);
@@ -31,7 +38,14 @@ export function ScoreHistory({ scans }: { scans: Scan[] }) {
   return (
     <div>
       <h2 className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
-        Histórico de scans ({n})
+        <span>
+          Histórico de scans ({total})
+          {retenidos > 0 && (
+            <span className="ml-2 font-normal normal-case tracking-normal text-[var(--soft)]">
+              {retenidos === 1 ? '1 retenido' : `${retenidos} retenidos`}
+            </span>
+          )}
+        </span>
         {n > 1 && delta !== 0 && (
           <span
             className={`font-mono ${delta > 0 ? 'text-[var(--success)]' : 'text-[var(--danger)]'}`}
@@ -61,10 +75,25 @@ export function ScoreHistory({ scans }: { scans: Scan[] }) {
           </svg>
         )}
         <ul className="mt-2 divide-y divide-[var(--border)] text-sm">
-          {[...withScore].reverse().map((s) => (
+          {[...scans].reverse().map((s) => {
+            const ret = s.score == null ? retencionDeScan(s.result_raw) : null;
+            return (
             <li key={s.id} className="flex items-center justify-between gap-3 py-1.5">
               <span className="font-mono text-[var(--muted)]">{fmtDate(s.created_at)}</span>
-              <span className="font-mono">{Number(s.score)}/100</span>
+              {s.score != null ? (
+                <span className="font-mono">{Number(s.score)}/100</span>
+              ) : (
+                <span
+                  className="font-mono text-xs text-[var(--soft)]"
+                  title={
+                    ret
+                      ? `Sin puntuación publicable: ${ret.motivo}${ret.detalle ? `, porque ${ret.detalle}` : ''}`
+                      : 'Sin puntuación publicable'
+                  }
+                >
+                  retenido
+                </span>
+              )}
               {s.ui_url ? (
                 <a
                   href={s.ui_url}
@@ -78,7 +107,8 @@ export function ScoreHistory({ scans }: { scans: Scan[] }) {
                 <span className="w-14" />
               )}
             </li>
-          ))}
+            );
+          })}
         </ul>
       </div>
     </div>
