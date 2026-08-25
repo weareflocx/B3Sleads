@@ -16,6 +16,7 @@ export interface Titular {
   detail: string | null;
   host: string;
   url: string;
+  published: string | null;
 }
 
 function madridToday(): string {
@@ -24,23 +25,26 @@ function madridToday(): string {
 
 async function fetchTitulares(): Promise<Titular[]> {
   if (!searchConfigured()) return [];
-  // Anclada al mes en curso: sin fecha, el buscador devuelve guías
-  // atemporales ("tipos de rondas…") en vez de noticias.
-  const mes = new Intl.DateTimeFormat('es-ES', {
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'Europe/Madrid',
-  }).format(new Date());
-  const hits = await searchWeb(`noticias inversión rondas startups España ${mes}`);
+  // Modo noticias con ventana de 7 dias, no una consulta anclada al mes. La
+  // version anterior preguntaba "…startups España agosto de 2026" y durante
+  // 31 dias pedia literalmente lo mismo: la cache se renovaba cada mañana y
+  // el buscador devolvia los mismos articulos, asi que la home parecia
+  // congelada sin estarlo. El indice de noticias ademas trae la fecha, que es
+  // lo que permite ordenar por frescura de verdad.
+  const hits = await searchWeb('rondas de financiación e inversión en startups españolas', 8000, {
+    dias: 7,
+  });
   // Ranking pro-noticia: un titular con cifras o verbos de ronda vale más que
   // una guía atemporal o un directorio. No se descarta nada en seco (la lista
   // no puede quedarse vacía por un filtro), solo se reordena.
   const NEWS = /millones|M€|récord|levanta|cierra|ronda|alcanza|invierte|capta|\d{4}/i;
   const EVERGREEN = /revista|guía|qué es|tipos de|mejores|foros|directorio|cómo/i;
+  const cuando = (h: (typeof hits)[number]) => (h.published ? Date.parse(h.published) || 0 : 0);
   const ranked = [...hits].sort((a, b) => {
     const score = (h: typeof a) =>
       (NEWS.test(h.snippet) ? 1 : 0) - (EVERGREEN.test(h.snippet) ? 1 : 0);
-    return score(b) - score(a);
+    // A igualdad de pinta de noticia, manda la más reciente.
+    return score(b) - score(a) || cuando(b) - cuando(a);
   });
   const seen = new Set<string>();
   const out: Titular[] = [];
@@ -58,6 +62,7 @@ async function fetchTitulares(): Promise<Titular[]> {
       detail: detail ? (detail.length > 160 ? detail.slice(0, 159).trimEnd() + '…' : detail) : null,
       host: hit.host,
       url: hit.url,
+      published: hit.published ?? null,
     });
     if (out.length >= 5) break;
   }
@@ -66,7 +71,7 @@ async function fetchTitulares(): Promise<Titular[]> {
 
 export async function titularesDelDia(): Promise<Titular[]> {
   const today = madridToday();
-  return unstable_cache(fetchTitulares, ['ecosystem-news', 'v3', today], {
+  return unstable_cache(fetchTitulares, ['ecosystem-news', 'v4', today], {
     revalidate: false,
   })();
 }

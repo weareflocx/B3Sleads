@@ -8,6 +8,19 @@ import { Clock } from '../clock';
 
 export const dynamic = 'force-dynamic';
 
+// Fecha del titular en corto. Los proveedores la dan en formatos distintos
+// (ISO en Tavily, RFC en Brave), así que se parsea y si no cuela no se enseña
+// nada: mejor sin fecha que con una inventada.
+function fechaCorta(iso: string): string | null {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return null;
+  return new Intl.DateTimeFormat('es-ES', {
+    day: '2-digit',
+    month: 'short',
+    timeZone: 'Europe/Madrid',
+  }).format(new Date(t));
+}
+
 // Saludo por hora de Madrid. La home es la puerta: recibe, no exige.
 function saludo(): string {
   const h = Number(
@@ -166,7 +179,10 @@ export default async function HomePage() {
                       >
                         <span className="block text-sm leading-snug">{t.headline}</span>
                         <span className="mt-0.5 block font-mono text-[10px] text-[var(--soft)]">
-                          {t.host} ↗
+                          {t.host}
+                          {/* La fecha a la vista: sin ella no hay forma de
+                              notar que los titulares se han quedado quietos. */}
+                          {t.published && ` · ${fechaCorta(t.published)}`} ↗
                         </span>
                       </a>
                     </li>

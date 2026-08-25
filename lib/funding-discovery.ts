@@ -421,6 +421,16 @@ export interface SearchHit {
   snippet: string;
   url: string;
   host: string;
+  // Fecha de publicación cuando el proveedor la da (solo en modo noticias).
+  // Sin ella no hay forma de saber si un titular es de hoy o de hace un mes.
+  published?: string | null;
+}
+
+// Ventana de frescura para el modo noticias. Sin esto una búsqueda genérica
+// devuelve artículos de escala mensual y la home parece congelada aunque la
+// caché se renueve cada día.
+export interface OpcionesBusqueda {
+  dias?: number;
 }
 
 // Búsqueda web con clave opcional en SEARCH_API_KEY. El proveedor se
@@ -429,49 +439,73 @@ export interface SearchHit {
 //  - "tvly-…" → Tavily (1.000 consultas/mes gratis, SIN tarjeta)
 //  - cualquier otra → Brave Search (5$ de crédito/mes = 1.000 consultas,
 //    pide tarjeta y cobra si se supera)
-async function braveSearch(query: string, key: string, signal: AbortSignal): Promise<SearchHit[]> {
+async function braveSearch(
+  query: string,
+  key: string,
+  signal: AbortSignal,
+  op: OpcionesBusqueda = {},
+): Promise<SearchHit[]> {
+  // pd = past day, pw = past week, pm = past month.
+  const fresh = op.dias ? `&freshness=${op.dias <= 1 ? 'pd' : op.dias <= 7 ? 'pw' : 'pm'}` : '';
   const res = await fetch(
-    `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=8`,
+    `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=8${fresh}`,
     { signal, headers: { Accept: 'application/json', 'X-Subscription-Token': key } },
   );
   if (!res.ok) return [];
   const json = (await res.json()) as {
-    web?: { results?: { title?: string; description?: string; url?: string }[] };
+    web?: { results?: { title?: string; description?: string; url?: string; age?: string }[] };
   };
   return (json.web?.results ?? []).map((r) => ({
     snippet: `${r.title ?? ''}. ${(r.description ?? '').replace(/<[^>]+>/g, '')}`.trim(),
     url: r.url ?? '',
     host: hostOf(r.url ?? '', 'búsqueda web'),
+    published: r.age ?? null,
   }));
 }
 
-async function tavilySearch(query: string, key: string, signal: AbortSignal): Promise<SearchHit[]> {
+async function tavilySearch(
+  query: string,
+  key: string,
+  signal: AbortSignal,
+  op: OpcionesBusqueda = {},
+): Promise<SearchHit[]> {
   const res = await fetch('https://api.tavily.com/search', {
     method: 'POST',
     signal,
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-    body: JSON.stringify({ query, max_results: 8 }),
+    body: JSON.stringify({
+      query,
+      max_results: 8,
+      // El indice de noticias devuelve piezas fechadas y acepta ventana de
+      // dias; el general devuelve articulos atemporales.
+      ...(op.dias ? { topic: 'news', days: op.dias } : {}),
+    }),
   });
   if (!res.ok) return [];
   const json = (await res.json()) as {
-    results?: { title?: string; content?: string; url?: string }[];
+    results?: { title?: string; content?: string; url?: string; published_date?: string }[];
   };
   return (json.results ?? []).map((r) => ({
     snippet: `${r.title ?? ''}. ${r.content ?? ''}`.trim(),
     url: r.url ?? '',
     host: hostOf(r.url ?? '', 'búsqueda web'),
+    published: r.published_date ?? null,
   }));
 }
 
-export async function searchWeb(query: string, timeoutMs = 8000): Promise<SearchHit[]> {
+export async function searchWeb(
+  query: string,
+  timeoutMs = 8000,
+  op: OpcionesBusqueda = {},
+): Promise<SearchHit[]> {
   const key = process.env.SEARCH_API_KEY?.trim();
   if (!key) return [];
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     return key.startsWith('tvly-')
-      ? await tavilySearch(query, key, ctrl.signal)
-      : await braveSearch(query, key, ctrl.signal);
+      ? await tavilySearch(query, key, ctrl.signal, op)
+      : await braveSearch(query, key, ctrl.signal, op);
   } catch {
     return [];
   } finally {
