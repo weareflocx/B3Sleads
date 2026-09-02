@@ -15,6 +15,7 @@ import { CompanyLogo } from '../../company-logo';
 import { GrupoEstudio, type MarcaEnGrupo } from './grupo-estudio';
 import { Matriz } from './matriz';
 import { NuevoGrupo } from './nuevo-grupo';
+import { MemoriaEstudio } from './memoria-estudio';
 
 export const dynamic = 'force-dynamic';
 
@@ -90,6 +91,7 @@ export default async function EstudioPage({ params, searchParams }: Props) {
 
   return (
     <main className={PAGE_XL}>
+      <MemoriaEstudio cliente={dom} query={sp.g ?? null} />
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-4">
           <CompanyLogo domain={dom} name={nombre} size={54} src={cliente.company.logo_url} />
