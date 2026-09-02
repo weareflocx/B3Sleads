@@ -93,14 +93,16 @@ export function parseGrupos(raw: string | undefined): Grupo[] {
         .split(',')
         .map((d) => d.trim().toLowerCase())
         .filter(Boolean);
-      return nombre && dominios.length ? { nombre, dominios } : null;
+      // Un grupo vacio es valido: se crea antes de tener marcas dentro.
+      return nombre ? { nombre, dominios } : null;
     })
     .filter(Boolean) as Grupo[];
 }
 
 export function serializeGrupos(grupos: Grupo[]): string {
+  // Sin filtrar por vacio: descartar los grupos sin marcas hacia imposible
+  // crear uno, porque nace vacio y desaparecia antes de poder llenarlo.
   return grupos
-    .filter((g) => g.dominios.length)
     .map((g) => `${encodeURIComponent(g.nombre)}:${g.dominios.join(',')}`)
     .join(';');
 }

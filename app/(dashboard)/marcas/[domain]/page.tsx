@@ -102,11 +102,14 @@ export default async function EstudioPage({ params, searchParams }: Props) {
         <EditorEstudio grupos={grupos} candidatas={candidatas} />
       </section>
 
-      {grupitos.length === 0 ? (
+      {/* La matriz aparece cuando hay algo que comparar. Con un grupo recien
+          creado y todavia vacio, una tabla entera de "sin dato" es ruido: lo
+          que toca en ese momento es elegir marcas. */}
+      {!grupitos.some((g) => g.perfiles.length) ? (
         <p className="mt-8 rounded-lg border border-dashed border-[var(--border)] p-10 text-center text-sm text-[var(--muted)]">
-          Añade un grupo de referencia para empezar. Conviene separarlos por lo que responden:
-          competidores directos dicen contra qué narrativa compites, y los referentes de modelo
-          dicen cómo se cuenta lo que hacéis cuando funciona.
+          {grupos.length === 0
+            ? 'Añade un grupo de referencia para empezar. Conviene separarlos por lo que responden: competidores directos dicen contra qué narrativa compites, y los referentes de modelo dicen cómo se cuenta lo que hacéis cuando funciona.'
+            : 'Grupo creado. Ahora pulsa «añadir marcas» para elegir del corpus ya escaneado: en cuanto haya una, aparece la comparación.'}
         </p>
       ) : (
         <>
