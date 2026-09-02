@@ -3,7 +3,7 @@
 import { getServiceSupabase, isDemoMode } from './supabase';
 import { DEMO_LEADS } from './demo-data';
 import { mergeSectorVocabulary, parseSectorList } from './sectors';
-import type { BriefingLead, Company, Contact, Lead, Message, Note, Scan, Signal } from './types';
+import type { BriefingLead, Company, Contact, Lead, Message, Note, Scan, Signal, Study } from './types';
 
 // Vocabulario de sectores para el picker: lista curada + los ya usados en la
 // BD, sin duplicar. Así "añadir uno nuevo" se incorpora al vocabulario.
@@ -267,4 +267,31 @@ export async function getCorpusBrands(domains: string[]): Promise<MarcaCorpus[]>
 export async function getCorpusBrand(domain: string): Promise<MarcaCorpus | null> {
   const [m] = await getCorpusBrands([domain]);
   return m ?? null;
+}
+
+// ---------- estudios ----------
+// El estudio deja de vivir en la URL: se guarda por cliente y lo ve todo el
+// equipo. La URL sigue sirviendo para compartir un estado concreto, pero ya
+// no es la única copia.
+export async function getEstudio(companyId: string): Promise<Study | null> {
+  if (isDemoMode()) return null;
+  const db = getServiceSupabase()!;
+  const { data } = await db.from('studies').select('*').eq('company_id', companyId).maybeSingle();
+  return (data as Study | null) ?? null;
+}
+
+export async function guardarEstudio(
+  companyId: string,
+  grupos: Study['grupos'],
+  email: string | null,
+): Promise<void> {
+  if (isDemoMode()) return;
+  const db = getServiceSupabase()!;
+  // upsert por company_id: un estudio por cliente, y guardar es siempre la
+  // misma operación tanto si existe como si no.
+  const { error } = await db.from('studies').upsert(
+    { company_id: companyId, grupos, updated_by_email: email, updated_at: new Date().toISOString() },
+    { onConflict: 'company_id' },
+  );
+  if (error) throw error;
 }

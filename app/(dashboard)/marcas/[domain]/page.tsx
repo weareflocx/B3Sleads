@@ -1,7 +1,7 @@
 import { PAGE_XL } from '@/app/(dashboard)/page-width';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getCorpusBrand, getCorpusBrands, getStartups } from '@/lib/data';
+import { getCorpusBrand, getCorpusBrands, getEstudio, getStartups } from '@/lib/data';
 import { companyLabel } from '@/lib/types';
 import {
   compara,
@@ -15,7 +15,7 @@ import { CompanyLogo } from '../../company-logo';
 import { GrupoEstudio, type MarcaEnGrupo } from './grupo-estudio';
 import { Matriz } from './matriz';
 import { NuevoGrupo } from './nuevo-grupo';
-import { MemoriaEstudio } from './memoria-estudio';
+import { GuardarEstudio } from './guardar-estudio';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,15 +35,18 @@ export default async function EstudioPage({ params, searchParams }: Props) {
   const { domain } = await params;
   const dom = decodeURIComponent(domain);
   const sp = await searchParams;
-  const grupos = parseGrupos(sp.g);
+  const cliente = await getCorpusBrand(dom);
+  if (!cliente) notFound();
+
+  // El estudio guardado es la fuente de verdad. La URL sigue mandando cuando
+  // viene explícita, para poder compartir un estado concreto o volver a uno
+  // anterior, y al llegar así se guarda: compartir un enlace y abrirlo deja
+  // el estudio como lo mandó quien lo compartió.
+  const guardado = await getEstudio(cliente.company.id);
+  const grupos = sp.g !== undefined ? parseGrupos(sp.g) : (guardado?.grupos ?? []);
 
   const dominios = grupos.flatMap((g) => g.dominios);
-  const [cliente, marcas, corpus] = await Promise.all([
-    getCorpusBrand(dom),
-    getCorpusBrands(dominios),
-    getStartups(),
-  ]);
-  if (!cliente) notFound();
+  const [marcas, corpus] = await Promise.all([getCorpusBrands(dominios), getStartups()]);
 
   const perfilCliente = perfilDeMarca(cliente);
   const nombre = companyLabel(cliente.company.name, cliente.company.domain);
@@ -91,7 +94,7 @@ export default async function EstudioPage({ params, searchParams }: Props) {
 
   return (
     <main className={PAGE_XL}>
-      <MemoriaEstudio cliente={dom} query={sp.g ?? null} />
+      <GuardarEstudio domain={dom} grupos={grupos} query={sp.g ?? null} />
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-4">
           <CompanyLogo domain={dom} name={nombre} size={54} src={cliente.company.logo_url} />

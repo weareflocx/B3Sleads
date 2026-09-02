@@ -293,3 +293,14 @@ export function companyLabel(name: string, domain?: string | null): string {
     .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
     .join(' ');
 }
+
+// Estudio de marca: el benchmark de un cliente, compartido por el equipo.
+// Los grupos van en jsonb porque no tienen vida fuera de su estudio.
+export interface Study {
+  id: string;
+  company_id: string;
+  grupos: { nombre: string; dominios: string[] }[];
+  updated_by_email: string | null;
+  updated_at: string;
+  created_at: string;
+}
