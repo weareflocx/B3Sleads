@@ -8,7 +8,7 @@
 // El estudio vive en la URL y no en base de datos: así se comparte pegando un
 // enlace, se prueba sin migración y no ensucia el pipeline. Cuando el formato
 // se estabilice con uso real, mover esto a una tabla es mecánico.
-import type { BriefingLead } from './types';
+import type { MarcaCorpus } from './data';
 import { companyLabel } from './types';
 import { storedScanReport } from './scan-report';
 import { canonDimension, DIMENSION_LABELS } from './scan-versions';
@@ -46,14 +46,13 @@ export interface PerfilMarca {
 
 // El último scan con puntuación publicable. Un run retenido no sirve para
 // comparar: no trae ni un componente con nota.
-function ultimoPublicable(bl: BriefingLead, historia: BriefingLead['scan'][]) {
-  const conNota = historia.filter((s) => s && s.score != null);
-  return conNota[conNota.length - 1] ?? (bl.scan?.score != null ? bl.scan : null);
+export function ultimoPublicable(m: MarcaCorpus) {
+  const conNota = m.scans.filter((s) => s.score != null);
+  return conNota[conNota.length - 1] ?? null;
 }
 
-export function perfilDeMarca(bl: BriefingLead, historia: BriefingLead['scan'][] = []): PerfilMarca | null {
-  if (!bl.company) return null;
-  const scan = ultimoPublicable(bl, historia.length ? historia : [bl.scan]);
+export function perfilDeMarca(m: MarcaCorpus): PerfilMarca {
+  const scan = ultimoPublicable(m);
   const rep = storedScanReport(scan?.result_raw ?? null);
   const ratios: Partial<Record<Componente, number>> = {};
   let detectados = 0;
@@ -65,8 +64,8 @@ export function perfilDeMarca(bl: BriefingLead, historia: BriefingLead['scan'][]
     detectados++;
   }
   return {
-    domain: bl.company.domain,
-    name: companyLabel(bl.company.name, bl.company.domain),
+    domain: m.company.domain,
+    name: companyLabel(m.company.name, m.company.domain),
     score: scan?.score != null ? Number(scan.score) : null,
     ratios,
     detectados,

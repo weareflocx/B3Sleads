@@ -221,3 +221,50 @@ export async function saveEditedMessage(messageId: string, editedFinal: string):
     .eq('id', messageId);
   if (error) throw error;
 }
+
+// ---------- el corpus ----------
+// Marcas por dominio SIN pasar por leads. El estudio de marca compara contra
+// competidores que no son leads ni deben serlo: si esta consulta arrancara
+// de la tabla leads, como el resto, un competidor sería invisible aquí.
+export interface MarcaCorpus {
+  company: Company;
+  scans: Scan[]; // del más antiguo al más reciente, solo 'ready'
+  activo: Scan | null; // un scan en marcha, si lo hay
+  lead: Lead | null; // presente solo si además es un lead
+}
+
+export async function getCorpusBrands(domains: string[]): Promise<MarcaCorpus[]> {
+  const wanted = [...new Set(domains.map((d) => d.toLowerCase()))];
+  if (isDemoMode() || wanted.length === 0) return [];
+  const db = getServiceSupabase()!;
+  const { data: companies } = await db.from('companies').select('*').in('domain', wanted);
+  const comps = (companies as Company[] | null) ?? [];
+  if (!comps.length) return [];
+  const ids = comps.map((c) => c.id);
+  const [{ data: scans }, { data: leads }] = await Promise.all([
+    db.from('scans').select('*').in('company_id', ids).order('created_at', { ascending: true }),
+    db.from('leads').select('*').in('company_id', ids),
+  ]);
+  const allScans = (scans as Scan[] | null) ?? [];
+  const allLeads = (leads as Lead[] | null) ?? [];
+  // Se devuelven en el orden pedido: el orden de un grupo lo decide quien lo
+  // monta, no la base de datos.
+  const byDomain = new Map(comps.map((c) => [c.domain, c]));
+  return wanted
+    .map((d) => byDomain.get(d))
+    .filter((c): c is Company => Boolean(c))
+    .map((company) => {
+      const mine = allScans.filter((s) => s.company_id === company.id);
+      return {
+        company,
+        scans: mine.filter((s) => s.status === 'ready'),
+        activo: mine.find((s) => ['queued', 'running', 'blocked'].includes(s.status)) ?? null,
+        lead: allLeads.find((l) => l.company_id === company.id) ?? null,
+      };
+    });
+}
+
+export async function getCorpusBrand(domain: string): Promise<MarcaCorpus | null> {
+  const [m] = await getCorpusBrands([domain]);
+  return m ?? null;
+}
