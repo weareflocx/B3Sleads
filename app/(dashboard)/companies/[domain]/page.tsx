@@ -41,6 +41,7 @@ import { ScoreRing } from '../../score-ring';
 import { Heat } from '../../heat';
 import { Avatar } from '../../avatar';
 import { EditableText } from '../../editable-text';
+import { NivelCerradoSlot } from './nivel-cerrado-slot';
 
 export const dynamic = 'force-dynamic';
 
@@ -244,6 +245,19 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
       <Link href="/briefing" className="text-sm text-[var(--muted)] hover:text-[var(--text)]">
         ← Briefing
       </Link>
+
+      {/* Cerrado deja de ser una etapa mas del desplegable y pasa a ser un
+          cambio de modo: arriba del todo, porque a partir de aqui la ficha ya
+          no sirve para decidir si escribir, sino para trabajar la marca. */}
+      {lead.stage === 'won' && (
+        <div className="mt-4">
+          <NivelCerradoSlot
+            leadId={lead.id}
+            domain={company.domain}
+            company={companyLabel(company.name, company.domain)}
+          />
+        </div>
+      )}
 
       {/* Cabecera: identidad + estado, con logo, score y temperatura */}
       <header className="mt-5 flex flex-wrap items-start justify-between gap-5 border-b border-[var(--border)] pb-6">

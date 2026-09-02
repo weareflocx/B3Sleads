@@ -27,6 +27,14 @@ export function FollowUp({ lead }: { lead: Lead }) {
     });
     setSaving(null);
     if (res.ok) {
+      // Cerrar un cliente se celebra una vez, no en cada recarga. La marca
+      // viaja por sessionStorage: la pone quien cierra y la consume la ficha
+      // al pintarse, asi que abrir la ficha manana no relanza el confeti.
+      if (next === 'won' && stage !== 'won') {
+        try {
+          sessionStorage.setItem(`b3s-cerrado-${lead.id}`, '1');
+        } catch {}
+      }
       setStage(next);
       router.refresh();
     }
