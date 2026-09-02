@@ -42,7 +42,14 @@ export async function POST(req: NextRequest) {
 
     if (!apiConfigured()) {
       return NextResponse.json(
-        { error: 'Lanzar scans necesita el token de la API de B3S y no está configurado.' },
+        {
+          // Decir DONDE se configura ahorra la pregunta. Es una herramienta
+          // interna: nombrar la variable no expone nada.
+          error:
+            process.env.NODE_ENV === 'production'
+              ? 'Falta el token del Scanner. Añade B3S_SCANNER_API_TOKEN en las variables de Netlify y redespliega.'
+              : 'En local no hay token del Scanner. Pégalo en .env.local (BRAND3_SCANNER_API_TOKEN=…) y reinicia el servidor. En producción ya está configurado.',
+        },
         { status: 503 },
       );
     }
