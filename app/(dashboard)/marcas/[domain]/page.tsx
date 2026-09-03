@@ -162,7 +162,7 @@ export default async function EstudioPage({ params, searchParams }: Props) {
           )}
           <section className="mt-8">
             <h2 className="mb-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Componente a componente</h2>
-            <Matriz filas={filas} cliente={nombre} grupos={grupitos} />
+            <Matriz filas={filas} cliente={nombre} clienteDominio={dom} grupos={grupitos} />
           </section>
         </>
       )}

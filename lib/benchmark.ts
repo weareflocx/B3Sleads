@@ -42,6 +42,11 @@ export interface PerfilMarca {
   // medias no se puede comparar con una leída entera, y callarlo sería
   // vender una diferencia de marca que en realidad es de adquisición.
   detectados: number;
+  // Lo que el Scanner ENTENDIÓ de cada componente, en frases, y la cita de la
+  // propia marca cuando la hay. Está en el 100% y el 74% de los componentes
+  // respectivamente, y hasta ahora no se leía en ningún sitio: la tabla
+  // enseñaba el número y escondía el porqué.
+  textos: Partial<Record<Componente, { analisis: string | null; cita: string | null }>>;
 }
 
 // El último scan con puntuación publicable. Un run retenido no sirve para
@@ -55,10 +60,17 @@ export function perfilDeMarca(m: MarcaCorpus): PerfilMarca {
   const scan = ultimoPublicable(m);
   const rep = storedScanReport(scan?.result_raw ?? null);
   const ratios: Partial<Record<Componente, number>> = {};
+  const textos: PerfilMarca['textos'] = {};
   let detectados = 0;
   for (const d of rep?.dimensions ?? []) {
     const key = canonDimension(d.name) as Componente;
     if (!COMPONENTES.includes(key)) continue;
+    // El texto se guarda aunque el componente no puntúe: "no se detectó nada"
+    // también se explica, y esa explicación es útil.
+    textos[key] = {
+      analisis: recorta(d.analysis ?? d.verdict ?? d.reading, 420),
+      cita: recorta(d.quote, 260),
+    };
     if (d.score == null || !d.max) continue;
     ratios[key] = d.score / d.max;
     detectados++;
@@ -69,7 +81,21 @@ export function perfilDeMarca(m: MarcaCorpus): PerfilMarca {
     score: scan?.score != null ? Number(scan.score) : null,
     ratios,
     detectados,
+    textos,
   };
+}
+
+// Un párrafo entero por marca y componente haría ilegible el desplegable con
+// siete marcas en un grupo. Se corta por frase para no dejar la idea a medias.
+function recorta(raw: string | null | undefined, max: number): string | null {
+  const limpio = (raw ?? '').replace(/\s+/g, ' ').trim();
+  if (limpio.length < 12) return null;
+  if (limpio.length <= max) return limpio;
+  const corte = limpio.slice(0, max);
+  const punto = corte.lastIndexOf('. ');
+  if (punto > max * 0.5) return corte.slice(0, punto + 1);
+  const espacio = corte.lastIndexOf(' ');
+  return (espacio > max * 0.6 ? corte.slice(0, espacio) : corte).trimEnd() + '…';
 }
 
 export interface Grupo {
@@ -107,11 +133,22 @@ export function serializeGrupos(grupos: Grupo[]): string {
 }
 
 // ---------- agregación ----------
+export interface MarcaEnFila {
+  name: string;
+  domain: string;
+  ratio: number | null;
+  analisis: string | null;
+  cita: string | null;
+}
+
 export interface FilaComponente {
   key: Componente;
   label: string;
   cliente: number | null;
-  porGrupo: { nombre: string; media: number | null; n: number }[];
+  porGrupo: { nombre: string; media: number | null; n: number; marcas: MarcaEnFila[] }[];
+  // El cliente también se despliega: su propio texto es la otra mitad de la
+  // comparación.
+  clienteTexto: { analisis: string | null; cita: string | null } | null;
 }
 
 function media(xs: number[]): number | null {
@@ -126,10 +163,22 @@ export function compara(
     key,
     label: DIMENSION_LABELS[key] ?? key,
     cliente: cliente?.ratios[key] ?? null,
+    clienteTexto: cliente?.textos[key] ?? null,
     porGrupo: grupos.map((g) => ({
       nombre: g.nombre,
       media: media(g.perfiles.map((p) => p.ratios[key]).filter((x): x is number => x != null)),
       n: g.perfiles.filter((p) => p.ratios[key] != null).length,
+      // Ordenadas por nota: al desplegar, arriba quien mejor lo cuenta. Es a
+      // quien hay que mirar.
+      marcas: [...g.perfiles]
+        .sort((a, b) => (b.ratios[key] ?? -1) - (a.ratios[key] ?? -1))
+        .map((p) => ({
+          name: p.name,
+          domain: p.domain,
+          ratio: p.ratios[key] ?? null,
+          analisis: p.textos[key]?.analisis ?? null,
+          cita: p.textos[key]?.cita ?? null,
+        })),
     })),
   }));
 }
