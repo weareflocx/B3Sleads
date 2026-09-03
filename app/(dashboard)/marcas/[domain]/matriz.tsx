@@ -78,14 +78,28 @@ export function Matriz({
 }) {
   const [abierta, setAbierta] = useState<string | null>(null);
 
+  // Con el cliente y cuatro grupos no caben cinco columnas en un portátil, y
+  // el contenedor RECORTABA en vez de dejar desplazar: los últimos grupos
+  // desaparecían sin más. Ahora la tabla se desplaza en horizontal dentro de
+  // su caja y la columna del componente se queda fija, que si no te pierdes
+  // qué fila estás leyendo en cuanto empujas a la derecha.
+  const COL = 150;
+  const GAP = 16;
+  const ETIQUETA = 222;
+  const anchoMinimo = 24 + ETIQUETA + (grupos.length + 1) * COL + (grupos.length + 2) * GAP + 32;
+  const fijo = 'sticky left-0 z-10 bg-[var(--surface)]';
+
   return (
-    <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+    <div className="overflow-x-auto rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+     <div style={{ minWidth: anchoMinimo }}>
       {/* Cabecera con anchos fijos por columna: repartir a partes iguales
           dejaba los grupos pegados a la derecha y muy lejos del cliente, que
           es justo la comparación que hay que leer de un vistazo. */}
       <div className="flex items-center gap-4 border-b border-[var(--border)] px-4 py-2.5 font-mono text-[10px] uppercase tracking-wider">
-        <span className="w-6 shrink-0" />
-        <span className="min-w-0 flex-1 text-[var(--soft)]">Componente</span>
+        <span className={`w-6 shrink-0 ${fijo}`} />
+        <span className={`shrink-0 text-[var(--soft)] ${fijo}`} style={{ width: ETIQUETA }}>
+          Componente
+        </span>
         <span className="w-[150px] shrink-0 text-[var(--cta)]">{cliente}</span>
         {grupos.map((g) => (
           <span key={g.nombre} className="w-[150px] shrink-0 text-[var(--soft)]">
@@ -108,11 +122,16 @@ export function Matriz({
                 className="flex w-full items-center gap-4 px-4 py-2.5 text-left transition-colors hover:bg-[var(--surface-2)] disabled:cursor-default disabled:hover:bg-transparent"
               >
                 <span
-                  className={`w-6 shrink-0 font-mono text-[11px] text-[var(--soft)] transition-transform ${abierto ? 'rotate-90' : ''}`}
+                  className={`w-6 shrink-0 font-mono text-[11px] text-[var(--soft)] transition-transform ${fijo} ${abierto ? 'rotate-90' : ''}`}
                 >
                   {hayQueLeer ? '›' : ''}
                 </span>
-                <span className="min-w-0 flex-1 text-sm font-medium">{f.label}</span>
+                <span
+                  className={`shrink-0 text-sm font-medium ${fijo}`}
+                  style={{ width: ETIQUETA }}
+                >
+                  {f.label}
+                </span>
                 <span className="w-[150px] shrink-0">
                   <Barra v={f.cliente} />
                 </span>
@@ -124,7 +143,9 @@ export function Matriz({
               </button>
 
               {abierto && (
-                <div className="grid gap-6 border-t border-[var(--border)] bg-[var(--bg)] px-4 py-4 lg:grid-cols-[1fr_2fr]">
+                <div className="sticky left-0 grid gap-6 border-t border-[var(--border)] bg-[var(--bg)] px-4 py-4 lg:grid-cols-[1fr_2fr]"
+                  style={{ width: 'min(100%, 100vw)' }}
+                >
                   <div>
                     <p className="mb-1 font-mono text-[10px] uppercase tracking-wider text-[var(--cta)]">
                       {cliente}
@@ -165,6 +186,7 @@ export function Matriz({
           );
         })}
       </ul>
+     </div>
     </div>
   );
 }
