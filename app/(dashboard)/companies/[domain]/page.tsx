@@ -421,6 +421,9 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                         {retencion.motivo}
                         {retencion.detalle ? `, porque ${retencion.detalle}` : ''}. Se muestra el
                         último con datos.
+                        {retencion.matiz && (
+                          <span className="mt-1.5 block text-[var(--soft)]">{retencion.matiz}</span>
+                        )}
                       </p>
                     )}
                     {scanVisible?.status === 'ready' && scanVisible.score != null ? (

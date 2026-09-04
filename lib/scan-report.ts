@@ -566,6 +566,12 @@ export function reportDigest(report: ScanReport): string {
 export interface Retencion {
   motivo: string;
   detalle: string | null;
+  // Lo que de verdad cambió entre las dos pasadas. El motivo del Scanner es
+  // una etiqueta de política, no una descripción: "regresión de adquisición"
+  // salta también cuando la pasada leyó MÁS pero no reencontró unas cuantas
+  // páginas de la vez anterior. Sin este matiz la ficha decía que el Scanner
+  // había leído menos cuando había leído más, que es peor que no decir nada.
+  matiz: string | null;
 }
 
 const MOTIVOS: Record<string, string> = {
@@ -595,5 +601,36 @@ export function retencionDeScan(raw: unknown): Retencion | null {
   const avisos = (r.acquisition_gate?.warnings ?? []) as Array<{ detail?: string }>;
   const texto = avisos.map((a) => a?.detail ?? '').join(' ');
   const obstruccion = Object.keys(OBSTRUCCIONES).find((k) => texto.includes(k));
-  return { motivo, detalle: obstruccion ? OBSTRUCCIONES[obstruccion] : null };
+
+  const cmp = r.stability?.baseline_comparison ?? r.stability?.previous_comparison;
+  const delta = cmp?.delta as Record<string, any> | undefined;
+  const perdidas = typeof delta?.lost_locator_count === 'number' ? delta.lost_locator_count : null;
+  const nuevas = typeof delta?.added_locator_count === 'number' ? delta.added_locator_count : 0;
+  // El Scanner distingue entre una URL que comprobó que ya no existe y una que
+  // simplemente no le tocó esta vez. Cuando la lista de bajas confirmadas está
+  // vacía, "perdió evidencia" es una sospecha, no un hecho.
+  const confirmadas = Array.isArray(delta?.verified_removed_urls)
+    ? delta.verified_removed_urls.length
+    : 0;
+
+  let matiz: string | null = null;
+  if (perdidas != null && nuevas > perdidas && confirmadas === 0) {
+    // Aquí la obstrucción NO es la causa: el banner tapa la captura visual,
+    // no el rastreo de páginas. Va como frase aparte para no encadenar una
+    // relación de causa que los datos no dicen.
+    matiz =
+      `En realidad leyó más que la vez anterior: ${nuevas} páginas nuevas frente a ${perdidas} que ` +
+      'dejó de ver, y ninguna de esas está confirmada como desaparecida. Retiene por prudencia, ' +
+      'no porque la marca haya empeorado.' +
+      (obstruccion ? ` Aparte, ${OBSTRUCCIONES[obstruccion]} y se quedó sin la parte visual.` : '');
+    return {
+      motivo: `no reencontró ${perdidas} páginas que sí leyó la vez anterior`,
+      detalle: null,
+      matiz,
+    };
+  }
+  if (perdidas != null && perdidas > 0) {
+    matiz = `Dejó de ver ${perdidas} páginas y encontró ${nuevas} nuevas.`;
+  }
+  return { motivo, detalle: obstruccion ? OBSTRUCCIONES[obstruccion] : null, matiz };
 }
