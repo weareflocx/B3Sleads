@@ -325,6 +325,14 @@ export function ScanComponents({
                     curado{selection.selectedBy ? ` por ${selection.selectedBy.split('@')[0]}` : ''}
                   </span>
                 )}
+                {prov.retained && (
+                  <span
+                    title="El Scanner no publicó el score de esa pasada; la lectura del componente existe igual"
+                    className="ml-2 rounded border border-dashed border-[var(--border)] px-1.5 py-0.5 text-[var(--soft)]"
+                  >
+                    pasada retenida
+                  </span>
+                )}
               </p>
             )}
 
@@ -460,6 +468,14 @@ function VersionPanel({
                   {v.detected ? `${v.score}/${v.max ?? 10}` : 'No detectado'}
                 </span>
                 <span className="font-mono text-[10px] text-[var(--muted)]">{fmtRun(v.runAt)}</span>
+                {v.retained && (
+                  <span
+                    title="El Scanner no publicó el score global de esta pasada. La lectura se puede elegir; el automático no cambia."
+                    className="rounded border border-dashed border-[var(--border)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--soft)]"
+                  >
+                    retenida
+                  </span>
+                )}
                 {v.rubricVersion && (
                   <span
                     title="Dos rúbricas distintas no son comparables"

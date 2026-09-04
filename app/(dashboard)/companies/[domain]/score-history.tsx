@@ -1,5 +1,5 @@
 import type { Scan } from '@/lib/types';
-import { retencionDeScan } from '@/lib/scan-report';
+import { notaRetenida, retencionDeScan } from '@/lib/scan-report';
 
 // Histórico de scans con un sparkline minimalista de la evolución del score.
 // Server component: SVG estático, sin librería. Coherente con el estilo B3S.
@@ -77,6 +77,7 @@ export function ScoreHistory({ scans }: { scans: Scan[] }) {
         <ul className="mt-2 divide-y divide-[var(--border)] text-sm">
           {[...scans].reverse().map((s) => {
             const ret = s.score == null ? retencionDeScan(s.result_raw) : null;
+            const bruta = s.score == null ? notaRetenida(s.result_raw) : null;
             return (
             <li key={s.id} className="flex items-center justify-between gap-3 py-1.5">
               <span className="font-mono text-[var(--muted)]">{fmtDate(s.created_at)}</span>
@@ -87,10 +88,13 @@ export function ScoreHistory({ scans }: { scans: Scan[] }) {
                   className="font-mono text-xs text-[var(--soft)]"
                   title={
                     ret
-                      ? `Sin puntuación publicable: ${ret.motivo}${ret.detalle ? `, porque ${ret.detalle}` : ''}`
+                      ? `Sin puntuación publicable: ${ret.motivo}${ret.detalle ? `, porque ${ret.detalle}` : ''}.${ret.matiz ? ` ${ret.matiz}` : ''}`
                       : 'Sin puntuación publicable'
                   }
                 >
+                  {/* El número que calculó y no publicó, tachado de aval pero
+                      no de vista: es la lectura más reciente que existe. */}
+                  {bruta != null && <span className="mr-1.5 text-[var(--muted)]">{bruta}</span>}
                   retenido
                 </span>
               )}

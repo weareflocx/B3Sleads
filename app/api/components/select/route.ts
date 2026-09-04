@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import { currentUserEmail } from '@/lib/auth';
-import { DIMENSION_LABELS } from '@/lib/scan-versions';
+import { DIMENSION_LABELS, hasReadings } from '@/lib/scan-versions';
+import type { Scan } from '@/lib/types';
 
 // Curación por componente: guarda QUÉ versión de una dimensión refleja la
 // realidad. Nunca edita el scan: apunta a él. La selección queda firmada
@@ -38,13 +39,15 @@ export async function POST(req: NextRequest) {
     // selección colgando de un scan ajeno o borrado no es trazabilidad.
     const { data: scan } = await db
       .from('scans')
-      .select('id, company_id, status, score')
+      .select('id, company_id, status, score, result_raw')
       .eq('id', scanId)
       .maybeSingle();
     if (!scan || scan.company_id !== companyId) {
       return NextResponse.json({ error: 'Ese scan no es de esta empresa' }, { status: 400 });
     }
-    if (scan.status !== 'ready' || scan.score == null || Number(scan.score) === 0) {
+    // Publicado o retenido, ambos tienen lectura. Lo que no puede elegirse
+    // es un run que no llegó a leer nada.
+    if (!hasReadings(scan as Scan)) {
       return NextResponse.json(
         { error: 'Un run fallido no puede ser la versión elegida' },
         { status: 400 },

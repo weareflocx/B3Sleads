@@ -35,7 +35,11 @@ export default async function CalibracionPage() {
     byCompany.set(s.company_id, [...(byCompany.get(s.company_id) ?? []), s]);
   }
 
-  const perCompany = [...byCompany.values()].map((list) => componentVersions(list));
+  // La calibración mide la estabilidad de lo que el Scanner DA por bueno. Las
+  // pasadas retenidas se pueden leer y curar en la ficha, pero aquí no
+  // entran: medir la varianza con lecturas que el propio Scanner descartó
+  // sería medir otra cosa.
+  const perCompany = [...byCompany.values()].map((list) => componentVersions(list.filter(isUsableRun)));
   const rows = calibrationByDimension(perCompany);
 
   const { deviation, pairs } = globalScoreDeviation(

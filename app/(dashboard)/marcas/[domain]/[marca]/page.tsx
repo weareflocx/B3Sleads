@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getCorpusBrand, getCorpusBrands, getComponentSelections, getEstudio } from '@/lib/data';
 import { companyLabel } from '@/lib/types';
-import { storedScanReport, retencionDeScan } from '@/lib/scan-report';
+import { storedScanReport, retencionDeScan, notaRetenida } from '@/lib/scan-report';
 import { componentVersions } from '@/lib/scan-versions';
 import { consolidateReport, consolidatedScore } from '@/lib/consolidated';
 import { cardBand } from '@/lib/brand-card';
@@ -15,6 +15,7 @@ import { ScoreRing } from '../../../score-ring';
 import { ScanComponents } from '../../../companies/[domain]/analysis-tabs';
 import { ScoreHistory } from '../../../companies/[domain]/score-history';
 import { ScanButton } from '../../../companies/[domain]/scan-button';
+import { AdoptarPasada } from '../../../companies/[domain]/adoptar-pasada';
 
 export const dynamic = 'force-dynamic';
 
@@ -78,7 +79,13 @@ export default async function MarcaCorpusPage({ params, searchParams }: Props) {
   // dice, sin esconderlo, que hay uno posterior y por qué no publicó.
   const scanVisible = ultimoPublicable(m);
   const ultimo = m.scans[m.scans.length - 1] ?? null;
-  const retencion = ultimo && ultimo.id !== scanVisible?.id ? retencionDeScan(ultimo.result_raw) : null;
+  const scanRetenido = ultimo && ultimo.id !== scanVisible?.id ? ultimo : null;
+  const retencion = scanRetenido ? retencionDeScan(scanRetenido.result_raw) : null;
+  const notaRetenidaVal = scanRetenido ? notaRetenida(scanRetenido.result_raw) : null;
+  const adoptada =
+    scanRetenido != null &&
+    selections.some((x) => x.is_manual) &&
+    selections.filter((x) => x.is_manual).every((x) => x.scan_id === scanRetenido.id);
   const report = storedScanReport(scanVisible?.result_raw ?? null);
   const versions = componentVersions(m.scans);
   const nombre = companyLabel(m.company.name, m.company.domain);
@@ -122,9 +129,8 @@ export default async function MarcaCorpusPage({ params, searchParams }: Props) {
   // La media del grupo se calcula con las que tienen nota publicable. Las
   // demás no restan: no puntuar no es puntuar bajo.
   const notasHermanas = hermanas
-    .map((h) => ultimoPublicable(h)?.score)
-    .filter((s): s is number => s != null)
-    .map(Number);
+    .map((h) => perfilDeMarca(h).score)
+    .filter((s): s is number => s != null);
   const mediaGrupo = notasHermanas.length
     ? Math.round(notasHermanas.reduce((a, b) => a + b, 0) / notasHermanas.length)
     : null;
@@ -226,6 +232,22 @@ export default async function MarcaCorpusPage({ params, searchParams }: Props) {
                       último con datos.
                       {retencion.matiz && (
                         <span className="mt-1.5 block text-[var(--soft)]">{retencion.matiz}</span>
+                      )}
+                      {notaRetenidaVal != null && (
+                        <span className="mt-1.5 block">
+                          Esa pasada la leyó en{' '}
+                          <span className="font-mono text-[var(--text)]">{notaRetenidaVal}</span>. Su
+                          lectura por componente se puede adoptar como curación; el automático no
+                          cambia.
+                        </span>
+                      )}
+                      {scanRetenido && (
+                        <AdoptarPasada
+                          companyId={m.company.id}
+                          scanId={scanRetenido.id}
+                          nota={notaRetenidaVal}
+                          adoptada={adoptada}
+                        />
                       )}
                     </p>
                   )}
@@ -344,7 +366,7 @@ export default async function MarcaCorpusPage({ params, searchParams }: Props) {
                   ) : (
                     <ul className="mt-2 divide-y divide-[var(--border)]">
                       {hermanas.map((h) => {
-                        const nota = ultimoPublicable(h)?.score;
+                        const nota = perfilDeMarca(h).score;
                         const etiqueta = companyLabel(h.company.name, h.company.domain);
                         return (
                           <li key={h.company.id} className="py-2 first:pt-0 last:pb-0">

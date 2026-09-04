@@ -15,7 +15,7 @@ import { suggestSectors, parseSectorList } from '@/lib/sectors';
 import { componentTerms } from '@/lib/component-terms';
 import { leadTemperature } from '@/lib/scoring';
 import { buildPitch } from '@/lib/pitch';
-import { storedScanReport, retencionDeScan } from '@/lib/scan-report';
+import { storedScanReport, retencionDeScan, notaRetenida } from '@/lib/scan-report';
 import { buildCallBriefPrompt, buildLeadContext } from '@/lib/lead-prompts';
 import { stageLabel as stageLabelFor, displayName, companyLabel } from '@/lib/types';
 import { resolveInvestors } from '@/lib/investors';
@@ -42,6 +42,7 @@ import { Heat } from '../../heat';
 import { Avatar } from '../../avatar';
 import { EditableText } from '../../editable-text';
 import { NivelCerradoSlot } from './nivel-cerrado-slot';
+import { AdoptarPasada } from './adoptar-pasada';
 
 export const dynamic = 'force-dynamic';
 
@@ -117,6 +118,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
     : ([...scanHistory].reverse().find(publicable) ?? scan);
   const scanRetenido = scanVisible?.id !== scan?.id ? scan : null;
   const retencion = scanRetenido ? retencionDeScan(scanRetenido.result_raw) : null;
+  const notaRetenidaVal = scanRetenido ? notaRetenida(scanRetenido.result_raw) : null;
 
   const report = storedScanReport(scanVisible?.result_raw ?? null);
 
@@ -423,6 +425,25 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                         último con datos.
                         {retencion.matiz && (
                           <span className="mt-1.5 block text-[var(--soft)]">{retencion.matiz}</span>
+                        )}
+                        {notaRetenidaVal != null && (
+                          <span className="mt-1.5 block">
+                            Esa pasada la leyó en{' '}
+                            <span className="font-mono text-[var(--text)]">{notaRetenidaVal}</span>.
+                            Su lectura por componente se puede adoptar como curación; el automático
+                            no cambia.
+                          </span>
+                        )}
+                        {scanRetenido && (
+                          <AdoptarPasada
+                            companyId={company.id}
+                            scanId={scanRetenido.id}
+                            nota={notaRetenidaVal}
+                            adoptada={
+                              selections.some((x) => x.is_manual) &&
+                              selections.filter((x) => x.is_manual).every((x) => x.scan_id === scanRetenido.id)
+                            }
+                          />
                         )}
                       </p>
                     )}

@@ -7,7 +7,7 @@
 // Sirve para dos cosas: elegir con criterio humano qué versión refleja la
 // realidad, y medir qué dimensiones de la rúbrica son inestables, que es lo
 // que dice qué arreglar del Scanner y en qué orden.
-import { storedScanReport, type ScanDimension } from './scan-report';
+import { notaRetenida, storedScanReport, type ScanDimension } from './scan-report';
 import type { Scan } from './types';
 
 // Nombre canónico de la dimensión: el Scanner la etiqueta en español o en
@@ -47,6 +47,10 @@ export interface ComponentVersion {
   uiUrl: string | null; // enlace al run en el Scanner
   rubricVersion: string | null; // dos rúbricas distintas no son comparables
   detected: boolean; // false NO es lo mismo que sacar un cero
+  // El Scanner no publicó el score de esa pasada. La lectura del componente
+  // existe igual y se puede elegir; lo que no existe es un número global
+  // automático que la respalde.
+  retained: boolean;
   score: number | null; // null si no se detectó
   max: number | null;
   reading: string | null;
@@ -71,10 +75,12 @@ export interface DimensionVersions {
   stats: DimensionStats;
 }
 
-// La versión por defecto es la del último run válido, NUNCA la más alta:
-// preseleccionar el máximo sesga el score al alza por construcción.
+// La versión por defecto es la del último run PUBLICADO, NUNCA la más alta:
+// preseleccionar el máximo sesga el score al alza por construcción. Una
+// pasada retenida tampoco es defecto aunque sea la más reciente: entrar en
+// el consolidado es una decisión humana, no un efecto del orden.
 export function defaultVersion(d: DimensionVersions): ComponentVersion | null {
-  return d.versions[0] ?? null;
+  return d.versions.find((v) => !v.retained) ?? d.versions[0] ?? null;
 }
 
 function rubricOf(scan: Scan): string | null {
@@ -90,6 +96,20 @@ export function isUsableRun(scan: Scan): boolean {
   return scan.score != null && Number(scan.score) > 0;
 }
 
+// Un run que el Scanner terminó y puntuó por componente pero cuyo score
+// global retuvo. Distinto de fallido: aquí hay lectura, lo que no hay es
+// aval. Movistar lo dejó claro: la pasada retenida leía mejor la marca que
+// la publicada, y no había forma de llegar a ella desde la ficha.
+export function isRetainedRun(scan: Scan): boolean {
+  return scan.status === 'ready' && scan.score == null && notaRetenida(scan.result_raw) != null;
+}
+
+// Lo que se puede LEER y elegir: publicado o retenido. Las medias, los
+// rankings y la calibración siguen usando solo isUsableRun.
+export function hasReadings(scan: Scan): boolean {
+  return isUsableRun(scan) || isRetainedRun(scan);
+}
+
 function stdev(values: number[]): number | null {
   if (values.length < 2) return null;
   const mean = values.reduce((a, b) => a + b, 0) / values.length;
@@ -103,7 +123,7 @@ function stdev(values: number[]): number | null {
 // explica por qué cayó el score.
 export function componentVersions(scans: Scan[]): DimensionVersions[] {
   const usable = scans
-    .filter(isUsableRun)
+    .filter(hasReadings)
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
 
   const byDimension = new Map<string, ComponentVersion[]>();
@@ -132,6 +152,7 @@ export function componentVersions(scans: Scan[]): DimensionVersions[] {
         uiUrl: scan.ui_url,
         rubricVersion: rubricOf(scan),
         detected: false,
+        retained: isRetainedRun(scan),
         score: null,
         max: null,
         reading: null,
@@ -173,6 +194,7 @@ function toVersion(scan: Scan, dim: ScanDimension): ComponentVersion {
     uiUrl: scan.ui_url,
     rubricVersion: rubricOf(scan),
     detected: !dim.missing && dim.score != null,
+    retained: isRetainedRun(scan),
     score: dim.missing ? null : dim.score,
     max: dim.max,
     reading: dim.reading ?? null,

@@ -1,6 +1,6 @@
 // Adaptador del resultado estructurado de B3S Scanner API v1. Conserva soporte
 // para los informes Markdown históricos ya guardados en Supabase.
-import type { B3SScanResult } from './brand3';
+import type { B3SScanComponent, B3SScanResult } from './brand3';
 
 export interface ScanTodo {
   label: string; // "Propia", "Clara"…
@@ -416,6 +416,33 @@ function tileText(tile: Record<string, unknown>, keys: string[]): string | null 
 // dimensiones que valen 20 puntos y no 10.
 const COMPONENT_WEIGHT = /magnet|coheren/i;
 
+// Nota por componente de una pasada RETENIDA. Cuando el Scanner retiene el
+// score global también pone a null el de cada componente, pero deja dos
+// cosas de las que sale el número exacto: su propia comparación con la
+// pasada anterior (score_after por componente) y las baldosas, cuyo recuento
+// de encendidas ES la nota (comprobado en 695 de 699 componentes publicados;
+// las cuatro restantes son un Magnetismo antiguo con tope en 5). Se prefiere
+// lo que el Scanner escribió; las baldosas son el recambio, acotado al máximo.
+const TILE_ON = /^(ok|s[ií]|yes|pass(ed)?|on)$/i;
+function retainedComponentScore(
+  result: B3SScanResult,
+  component: B3SScanComponent,
+): number | null {
+  const global = result.score as { value?: unknown; raw_value?: unknown } | undefined;
+  if (global?.value != null || global?.raw_value == null) return null;
+  const stab = (result as unknown as { stability?: Record<string, any> }).stability;
+  const cambios = (stab?.baseline_comparison?.delta?.changed_components ??
+    stab?.previous_comparison?.delta?.changed_components ??
+    []) as Array<{ component?: string; score_after?: unknown }>;
+  const propio = cambios.find((c) => c.component === component.key)?.score_after;
+  if (typeof propio === 'number') return propio;
+  if (!component.tiles?.length) return null;
+  const on = component.tiles.filter((t) =>
+    TILE_ON.test(String(t.estado ?? t.state ?? t.status ?? '')),
+  ).length;
+  return component.max_score != null ? Math.min(on, component.max_score) : on;
+}
+
 function structuredScanReport(result: B3SScanResult): ScanReport {
   // El primer evidence_ref suele ser el mismo para casi todos los componentes
   // (el H1 de la home), así que asignarlo a ciegas repetía la misma frase en
@@ -431,7 +458,8 @@ function structuredScanReport(result: B3SScanResult): ScanReport {
     // contra los 37 escaneos con contrato v1). Así la ficha enseña la escala
     // real (Magnetismo y Coherencia sobre 20) y el consolidado es exacto.
     const weight = COMPONENT_WEIGHT.test(`${component.key} ${component.label}`) ? 2 : 1;
-    const score = component.score != null ? component.score * weight : null;
+    const crudo = component.score ?? (missing ? null : retainedComponentScore(result, component));
+    const score = crudo != null ? crudo * weight : null;
     const max = component.max_score != null ? component.max_score * weight : null;
     const ratio = score != null && max ? score / max : missing ? 0 : null;
 
@@ -585,6 +613,19 @@ const OBSTRUCCIONES: Record<string, string> = {
   login: 'un login le corta el acceso',
   captcha: 'un captcha le corta el acceso',
 };
+
+// La nota que el Scanner calculó y NO publicó. Un run retenido no es un run
+// vacío: trae los diez componentes puntuados y un score bruto (raw_value);
+// lo que falta es la decisión de darlo por bueno. Ese número no ordena nada
+// ni entra en ninguna media, pero sí se enseña: es la lectura más reciente
+// que existe de la marca, y esconderla obligaba a ir al Scanner a buscarla.
+export function notaRetenida(raw: unknown): number | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const score = (raw as Record<string, any>).score as Record<string, unknown> | undefined;
+  if (!score || score.value != null) return null;
+  const v = Number(score.raw_value);
+  return Number.isFinite(v) && v > 0 ? Math.round(v) : null;
+}
 
 // Devuelve por qué un scan se quedó sin puntuación, o null si sí la tiene.
 export function retencionDeScan(raw: unknown): Retencion | null {

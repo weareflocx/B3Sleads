@@ -12,6 +12,7 @@ import type { MarcaCorpus } from './data';
 import { companyLabel } from './types';
 import { storedScanReport } from './scan-report';
 import { canonDimension, DIMENSION_LABELS } from './scan-versions';
+import { consolidateReport, consolidatedScore } from './consolidated';
 
 // Los 9 componentes en el orden en que se leen: primero lo que la marca dice
 // de sí misma, después lo que produce en quien la lee.
@@ -56,13 +57,18 @@ export function ultimoPublicable(m: MarcaCorpus) {
   return conNota[conNota.length - 1] ?? null;
 }
 
+// El perfil es el CONSOLIDADO, el mismo que enseña la ficha: si alguien curó
+// un componente (o adoptó una pasada retenida), el estudio lo ve. Sin
+// curación es idéntico al automático, así que nada cambia para quien no toca.
 export function perfilDeMarca(m: MarcaCorpus): PerfilMarca {
   const scan = ultimoPublicable(m);
   const rep = storedScanReport(scan?.result_raw ?? null);
+  const auto = rep?.dimensions ?? [];
+  const cons = consolidateReport(auto, m.selections ?? [], m.scans, scan?.id ?? null);
   const ratios: Partial<Record<Componente, number>> = {};
   const textos: PerfilMarca['textos'] = {};
   let detectados = 0;
-  for (const d of rep?.dimensions ?? []) {
+  for (const d of cons.dimensions) {
     const key = canonDimension(d.name) as Componente;
     if (!COMPONENTES.includes(key)) continue;
     // El texto se guarda aunque el componente no puntúe: "no se detectó nada"
@@ -78,7 +84,8 @@ export function perfilDeMarca(m: MarcaCorpus): PerfilMarca {
   return {
     domain: m.company.domain,
     name: companyLabel(m.company.name, m.company.domain),
-    score: scan?.score != null ? Number(scan.score) : null,
+    score:
+      scan?.score != null ? consolidatedScore(Number(scan.score), auto, cons.dimensions) : null,
     ratios,
     detectados,
     textos,

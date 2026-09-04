@@ -231,6 +231,9 @@ export interface MarcaCorpus {
   scans: Scan[]; // del más antiguo al más reciente, solo 'ready'
   activo: Scan | null; // un scan en marcha, si lo hay
   lead: Lead | null; // presente solo si además es un lead
+  // La curación humana. Sin esto el estudio comparaba automáticos mientras
+  // la ficha enseñaba consolidados: la misma marca, dos números.
+  selections: import('./consolidated').ComponentSelection[];
 }
 
 export async function getCorpusBrands(domains: string[]): Promise<MarcaCorpus[]> {
@@ -241,12 +244,18 @@ export async function getCorpusBrands(domains: string[]): Promise<MarcaCorpus[]>
   const comps = (companies as Company[] | null) ?? [];
   if (!comps.length) return [];
   const ids = comps.map((c) => c.id);
-  const [{ data: scans }, { data: leads }] = await Promise.all([
+  const [{ data: scans }, { data: leads }, { data: sels }] = await Promise.all([
     db.from('scans').select('*').in('company_id', ids).order('created_at', { ascending: true }),
     db.from('leads').select('*').in('company_id', ids),
+    db
+      .from('component_selections')
+      .select('company_id, dimension, scan_id, is_manual, selected_by_email, note, selected_at')
+      .in('company_id', ids),
   ]);
   const allScans = (scans as Scan[] | null) ?? [];
   const allLeads = (leads as Lead[] | null) ?? [];
+  type Sel = import('./consolidated').ComponentSelection & { company_id: string };
+  const allSels = (sels as Sel[] | null) ?? [];
   // Se devuelven en el orden pedido: el orden de un grupo lo decide quien lo
   // monta, no la base de datos.
   const byDomain = new Map(comps.map((c) => [c.domain, c]));
@@ -260,6 +269,7 @@ export async function getCorpusBrands(domains: string[]): Promise<MarcaCorpus[]>
         scans: mine.filter((s) => s.status === 'ready'),
         activo: mine.find((s) => ['queued', 'running', 'blocked'].includes(s.status)) ?? null,
         lead: allLeads.find((l) => l.company_id === company.id) ?? null,
+        selections: allSels.filter((x) => x.company_id === company.id),
       };
     });
 }

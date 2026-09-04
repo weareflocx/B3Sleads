@@ -12,7 +12,7 @@
 // contra consolidado. Nunca cruzado.
 import type { Scan } from './types';
 import { storedScanReport, type ScanDimension } from './scan-report';
-import { canonDimension, isUsableRun } from './scan-versions';
+import { canonDimension, hasReadings } from './scan-versions';
 
 export interface ComponentSelection {
   dimension: string; // clave canónica (purpose, mission, …)
@@ -46,7 +46,7 @@ export function consolidateReport(
   const dimensionsOf = (scanId: string): ScanDimension[] => {
     if (!reportCache.has(scanId)) {
       const scan = scans.find((s) => s.id === scanId);
-      const report = scan && isUsableRun(scan) ? storedScanReport(scan.result_raw) : null;
+      const report = scan && hasReadings(scan) ? storedScanReport(scan.result_raw) : null;
       reportCache.set(scanId, report?.dimensions ?? []);
     }
     return reportCache.get(scanId)!;
