@@ -43,6 +43,11 @@ export interface PerfilMarca {
   // medias no se puede comparar con una leída entera, y callarlo sería
   // vender una diferencia de marca que en realidad es de adquisición.
   detectados: number;
+  // Los componentes que el Scanner marcó SIN RASTRO. Van aparte de `ratios`
+  // a propósito: para comparar, "no hay nada" vale 0 y así lo puntúa el
+  // propio Scanner; para situar una marca en un eje, un 0 por ausencia no es
+  // una posición, es un hueco de lectura. Sin esta lista no se distingue.
+  sinRastro: Componente[];
   // Lo que el Scanner ENTENDIÓ de cada componente, en frases, y la cita de la
   // propia marca cuando la hay. Está en el 100% y el 74% de los componentes
   // respectivamente, y hasta ahora no se leía en ningún sitio: la tabla
@@ -67,6 +72,7 @@ export function perfilDeMarca(m: MarcaCorpus): PerfilMarca {
   const cons = consolidateReport(auto, m.selections ?? [], m.scans, scan?.id ?? null);
   const ratios: Partial<Record<Componente, number>> = {};
   const textos: PerfilMarca['textos'] = {};
+  const sinRastro: Componente[] = [];
   let detectados = 0;
   for (const d of cons.dimensions) {
     const key = canonDimension(d.name) as Componente;
@@ -79,7 +85,11 @@ export function perfilDeMarca(m: MarcaCorpus): PerfilMarca {
     };
     if (d.score == null || !d.max) continue;
     ratios[key] = d.score / d.max;
-    detectados++;
+    // Un componente sin rastro llega con un 0 numérico, no con null: contarlo
+    // como detectado hacía que Movistar dijera "10/10 componentes" teniendo
+    // tres sin una sola señal. En el corpus son 148 casos.
+    if (d.missing) sinRastro.push(key);
+    else detectados++;
   }
   return {
     domain: m.company.domain,
@@ -88,7 +98,61 @@ export function perfilDeMarca(m: MarcaCorpus): PerfilMarca {
       scan?.score != null ? consolidatedScore(Number(scan.score), auto, cons.dimensions) : null,
     ratios,
     detectados,
+    sinRastro,
     textos,
+  };
+}
+
+// ---------- mapa de madurez ----------
+// Se calcula, no se teclea: sale de lo que el Scanner ya midió.
+//
+//   X  significado (Propósito, Visión, Magnetismo) menos
+//      funcional   (Atributos, Valores)            → 0..10, 5 es equilibrio
+//   Y  el Brand3 Score                             → 0..100
+//
+// La spec decía "ambos sobre 5", pero los máximos reales no coinciden
+// (Propósito 10, Visión 5, Magnetismo 20): restar medias en escalas distintas
+// daría un eje sin significado. Se usan los ratios, ya normalizados.
+const MADUREZ_SIGNIFICADO: Componente[] = ['purpose', 'vision', 'magnetism'];
+const MADUREZ_FUNCIONAL: Componente[] = ['attributes', 'values'];
+
+export interface PosicionMadurez {
+  x: number;
+  y: number;
+  // Sobre cuántos componentes se calculó cada lado. Es lo que decide si la
+  // posición se puede defender delante de un cliente.
+  usadosSignificado: number;
+  usadosFuncional: number;
+  // Con la Visión detectada en 11 de 38 marcas, dar por buena una posición
+  // calculada sobre un solo componente sería inventarse el mapa. Se exigen 2
+  // de 3 en significado y 1 de 2 en funcional.
+  suficiente: boolean;
+}
+
+export function posicionMadurez(p: PerfilMarca): PosicionMadurez | null {
+  if (p.score == null) return null;
+  const ausentes = new Set(p.sinRastro);
+  const lado = (keys: Componente[]) =>
+    keys
+      .filter((k) => !ausentes.has(k))
+      .map((k) => p.ratios[k])
+      .filter((v): v is number => v != null);
+
+  const sig = lado(MADUREZ_SIGNIFICADO);
+  const fun = lado(MADUREZ_FUNCIONAL);
+  const media = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
+  const s = media(sig);
+  const f = media(fun);
+  const suficiente = sig.length >= 2 && fun.length >= 1;
+
+  return {
+    // Sin datos en un lado la marca se queda en el centro, pero marcada como
+    // insuficiente: el mapa la pinta hueca y no entra en ninguna lectura.
+    x: s != null && f != null ? Math.min(10, Math.max(0, 5 + (s - f) * 5)) : 5,
+    y: p.score,
+    usadosSignificado: sig.length,
+    usadosFuncional: fun.length,
+    suficiente,
   };
 }
 

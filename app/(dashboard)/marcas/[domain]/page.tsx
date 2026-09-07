@@ -9,16 +9,21 @@ import {
   huecosDeCategoria,
   parseGrupos,
   perfilDeMarca,
+  posicionMadurez,
   ultimoPublicable,
   visibles,
   type PerfilMarca,
 } from '@/lib/benchmark';
 import { CompanyLogo } from '../../company-logo';
 import { type DatosMarca } from './grupo-estudio';
-import { verificacionDerivada } from '@/lib/battle-cards';
+import { ROL_LABEL, verificacionDerivada } from '@/lib/battle-cards';
 import { Matriz } from './matriz';
 import { EstudioProvider } from './estudio-estado';
 import { GruposDelEstudio } from './grupos-del-estudio';
+import { TablaClasificacion } from './tabla-clasificacion';
+import { SeccionEjes } from './seccion-ejes';
+import { Mapa, type PuntoMapa } from './mapa';
+import { PestanasEstudio } from './pestanas-estudio';
 
 export const dynamic = 'force-dynamic';
 
@@ -114,6 +119,36 @@ export default async function EstudioPage({ params, searchParams }: Props) {
   const hayComparables = grupitos.some((g) => g.perfiles.length);
   const huecos = hayComparables ? huecosDeCategoria(filas) : [];
 
+  // El mapa de madurez sale del scan, así que se calcula aquí. Las marcas sin
+  // lectura suficiente entran igual pero marcadas: se pintan huecas y no
+  // cuentan para leer un cuadrante.
+  const puntosMadurez: PuntoMapa[] = [];
+  for (const d of new Set(dominios)) {
+    const m = porDominio.get(d);
+    if (!m || !ultimoPublicable(m)) continue;
+    const perfil = perfilDeMarca(m);
+    const pos = posicionMadurez(perfil);
+    if (!pos) continue;
+    const ficha = guardado?.marcas?.[d];
+    puntosMadurez.push({
+      dominio: d,
+      nombre: perfil.name,
+      score: perfil.score,
+      x: pos.x / 10,
+      y: pos.y / 100,
+      capa: ficha?.layer ?? null,
+      rol: ficha?.role ? ROL_LABEL[ficha.role] : null,
+      nota: ficha?.note ?? null,
+      flojo: !pos.suficiente,
+      motivoFlojo: pos.suficiente
+        ? null
+        : `lectura insuficiente: ${pos.usadosSignificado} de 3 componentes de significado y ${pos.usadosFuncional} de 2 de lo funcional`,
+    });
+  }
+  const posCliente = posicionMadurez(perfilCliente);
+  const clienteMadurez =
+    posCliente && posCliente.suficiente ? { x: posCliente.x / 10, y: posCliente.y / 100 } : null;
+
   const yaElegidas = new Set(dominios);
   const candidatas = corpus
     .filter((x) => x.company && x.company.domain !== dom && !yaElegidas.has(x.company.domain))
@@ -154,24 +189,64 @@ export default async function EstudioPage({ params, searchParams }: Props) {
         posicionesIniciales={guardado?.client_positions ?? {}}
         queryInicial={sp.g ?? null}
       >
-        <GruposDelEstudio
-          datos={datos}
-          candidatas={candidatas}
-          hrefBase={`/marcas/${dom}`}
-          cliente={dom}
-        />
-      </EstudioProvider>
-
-      {grupos.length === 0 && (
-        <p className="mt-6 rounded-lg border border-dashed border-[var(--border)] p-8 text-center text-sm text-[var(--muted)]">
-          Empieza por un grupo. Conviene separarlos por lo que responden: los competidores
-          directos dicen contra qué narrativa compites, y los referentes de modelo dicen cómo se
-          cuenta lo que hacéis cuando funciona.
-        </p>
-      )}
-
-      {hayComparables && (
-        <>
+        <PestanasEstudio
+          pestanas={[
+            {
+              clave: 'montaje',
+              etiqueta: 'Montaje',
+              nota: `${dominios.length}`,
+              contenido: (
+                <>
+                  <GruposDelEstudio
+                    datos={datos}
+                    candidatas={candidatas}
+                    hrefBase={`/marcas/${dom}`}
+                    cliente={dom}
+                  />
+                  {grupos.length === 0 && (
+                    <p className="mt-6 rounded-lg border border-dashed border-[var(--border)] p-8 text-center text-sm text-[var(--muted)]">
+                      Empieza por un grupo. Conviene separarlos por lo que responden: los
+                      competidores directos dicen contra qué narrativa compites, y los referentes de
+                      modelo dicen cómo se cuenta lo que hacéis cuando funciona.
+                    </p>
+                  )}
+                </>
+              ),
+            },
+            {
+              clave: 'clasificacion',
+              etiqueta: 'Clasificación',
+              contenido: (
+                <>
+                  <TablaClasificacion datos={datos} hrefBase={`/marcas/${dom}`} />
+                  <SeccionEjes datos={datos} />
+                </>
+              ),
+            },
+            {
+              clave: 'mapas',
+              etiqueta: 'Mapas',
+              contenido: (
+                <Mapa
+                  madurez={puntosMadurez}
+                  clienteMadurez={clienteMadurez}
+                  clienteNombre={nombre}
+                />
+              ),
+            },
+            {
+              clave: 'comparacion',
+              etiqueta: 'Comparación',
+              contenido: (
+                <>
+                  {!hayComparables && (
+                    <p className="mt-6 rounded-lg border border-dashed border-[var(--border)] p-8 text-center text-sm text-[var(--muted)]">
+                      Todavía no hay marcas con scan publicable en los grupos. En cuanto las haya,
+                      aquí sale la comparación componente a componente.
+                    </p>
+                  )}
+                  {hayComparables && (
+                    <>
           {huecos.length > 0 && (
             <section className="mt-8">
               <h2 className="mb-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">El hueco de la categoría</h2>
@@ -190,12 +265,20 @@ export default async function EstudioPage({ params, searchParams }: Props) {
               </div>
             </section>
           )}
-          <section className="mt-8">
-            <h2 className="mb-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Componente a componente</h2>
-            <Matriz filas={filas} cliente={nombre} clienteDominio={dom} grupos={grupitos} />
-          </section>
-        </>
-      )}
+                      <section className="mt-8">
+                        <h2 className="mb-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
+                          Componente a componente
+                        </h2>
+                        <Matriz filas={filas} cliente={nombre} clienteDominio={dom} grupos={grupitos} />
+                      </section>
+                    </>
+                  )}
+                </>
+              ),
+            },
+          ]}
+        />
+      </EstudioProvider>
     </main>
   );
 }
