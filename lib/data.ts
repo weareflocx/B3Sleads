@@ -300,6 +300,66 @@ export async function getEstudio(companyId: string): Promise<Study | null> {
   };
 }
 
+// Los ejes del estudio y la posición del cliente en ellos. Se manda el
+// conjunto entero: son cuatro como mucho y los edita una persona cada vez.
+export async function guardarEjes(
+  companyId: string,
+  axes: unknown,
+  clientPositions: unknown,
+  email: string | null,
+): Promise<void> {
+  if (isDemoMode()) return;
+  const db = getServiceSupabase()!;
+  const { error } = await db
+    .from('studies')
+    .update({
+      axes,
+      client_positions: clientPositions,
+      updated_by_email: email,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('company_id', companyId);
+  if (error) throw error;
+}
+
+// Puntuar una marca en un eje. `valor` null borra la puntuación, que no es lo
+// mismo que un 0 (0 es el extremo izquierdo del eje).
+export async function guardarPuntuacionEje(
+  companyId: string,
+  dominio: string,
+  eje: string,
+  valor: number | null,
+  email: string | null,
+): Promise<void> {
+  if (isDemoMode()) return;
+  const db = getServiceSupabase()!;
+  const { error } = await db.rpc('estudio_eje_score', {
+    p_company_id: companyId,
+    p_domain: dominio.toLowerCase(),
+    p_axis: eje,
+    p_value: valor,
+    p_email: email,
+  });
+  if (error) throw error;
+}
+
+// Borrar un eje se lleva su definición, todas sus puntuaciones y las
+// posiciones del cliente en él.
+export async function borrarEje(
+  companyId: string,
+  eje: string,
+  email: string | null,
+): Promise<void> {
+  if (isDemoMode()) return;
+  const db = getServiceSupabase()!;
+  const { error } = await db.rpc('estudio_eje_borrar', {
+    p_company_id: companyId,
+    p_axis: eje,
+    p_email: email,
+  });
+  if (error) throw error;
+}
+
 // Escribe la ficha de UNA marca del estudio. Mezcla en la base (función
 // estudio_marca_merge) en vez de releer y reescribir el documento entero:
 // clasificar es teclear rápido, y dos escrituras seguidas desde el cliente

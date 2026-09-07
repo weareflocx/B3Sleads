@@ -4,6 +4,7 @@ import { GrupoEstudio, type DatosMarca } from './grupo-estudio';
 import { NuevoGrupo } from './nuevo-grupo';
 import { useEstudio } from './estudio-estado';
 import { TablaClasificacion } from './tabla-clasificacion';
+import { SeccionEjes } from './seccion-ejes';
 
 // La rejilla de grupos. Existe como componente de cliente porque la LISTA de
 // grupos también es estado editable: recorrerla desde el servidor hacía que
@@ -49,6 +50,7 @@ export function GruposDelEstudio({
       </div>
 
       <TablaClasificacion datos={datos} hrefBase={hrefBase} />
+      <SeccionEjes datos={datos} />
     </>
   );
 }

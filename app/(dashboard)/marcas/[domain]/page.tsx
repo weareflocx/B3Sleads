@@ -150,6 +150,8 @@ export default async function EstudioPage({ params, searchParams }: Props) {
         dominio={dom}
         inicial={grupos}
         marcasIniciales={guardado?.marcas ?? {}}
+        ejesIniciales={guardado?.axes ?? []}
+        posicionesIniciales={guardado?.client_positions ?? {}}
         queryInicial={sp.g ?? null}
       >
         <GruposDelEstudio

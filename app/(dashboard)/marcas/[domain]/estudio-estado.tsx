@@ -11,7 +11,7 @@ import {
 } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { serializeGrupos, type Grupo } from '@/lib/benchmark';
-import type { MarcaEstudio } from '@/lib/battle-cards';
+import type { Eje, MarcaEstudio, PosicionesCliente } from '@/lib/battle-cards';
 
 // El estado del estudio, en un solo sitio. Tiene dos mitades que se guardan
 // de forma distinta porque no se parecen en nada:
@@ -44,6 +44,13 @@ interface Estudio {
   editar: (fn: (gs: Grupo[]) => Grupo[]) => void;
   // Cambia el criterio de una marca. Un campo a null lo borra de la ficha.
   clasificar: (dominio: string, parche: Partial<MarcaEstudio>) => void;
+  ejes: Eje[];
+  posiciones: PosicionesCliente;
+  // Define los ejes y dónde está el cliente en ellos. Se manda el conjunto.
+  definirEjes: (ejes: Eje[], posiciones: PosicionesCliente) => void;
+  // Puntúa una marca en un eje. null borra la puntuación; 0 es el extremo.
+  puntuar: (dominio: string, eje: string, valor: number | null) => void;
+  eliminarEje: (eje: string) => void;
   // Para enlazar a la ficha de una marca sin perder el estudio.
   query: string;
   guardando: boolean;
@@ -62,12 +69,16 @@ export function EstudioProvider({
   dominio,
   inicial,
   marcasIniciales,
+  ejesIniciales,
+  posicionesIniciales,
   queryInicial,
   children,
 }: {
   dominio: string; // dominio del cliente del estudio
   inicial: Grupo[];
   marcasIniciales: Record<string, MarcaEstudio>;
+  ejesIniciales: Eje[];
+  posicionesIniciales: PosicionesCliente;
   // La query con la que se entró, o null si se entró sin ?g=. Llegar con
   // grupos explícitos guarda: abrir un enlace compartido deja el estudio como
   // lo mandó quien lo compartió.
@@ -78,11 +89,15 @@ export function EstudioProvider({
   const pathname = usePathname();
   const [grupos, setGrupos] = useState<Grupo[]>(inicial);
   const [marcas, setMarcas] = useState<Record<string, MarcaEstudio>>(marcasIniciales);
+  const [ejes, setEjes] = useState<Eje[]>(ejesIniciales);
+  const [posiciones, setPosiciones] = useState<PosicionesCliente>(posicionesIniciales);
   const [enCurso, setEnCurso] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const actual = useRef<Grupo[]>(inicial);
   const fichas = useRef<Record<string, MarcaEstudio>>(marcasIniciales);
+  const ejesRef = useRef<Eje[]>(ejesIniciales);
+  const posicionesRef = useRef<PosicionesCliente>(posicionesIniciales);
   const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Una escritura de composición en vuelo y, como mucho, una esperando. Da
   // igual cuántos cambios se acumulen: se manda siempre el estado entero.
@@ -177,6 +192,95 @@ export function EstudioProvider({
     [dominio],
   );
 
+  // ---------- ejes ----------
+
+  // Toda escritura que no sea de composición sigue el mismo patrón: se pinta
+  // ya, se manda en el acto, y el error se enseña en vez de tragárselo.
+  const mandar = useCallback(async (url: string, method: string, cuerpo: unknown) => {
+    setEnCurso((n) => n + 1);
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cuerpo),
+      });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        setError(j.error ?? 'No se pudo guardar');
+      }
+    } catch {
+      setError('Sin conexión: el cambio no se ha guardado');
+    } finally {
+      setEnCurso((n) => n - 1);
+    }
+  }, []);
+
+  const definirEjes = useCallback(
+    (nuevos: Eje[], nuevasPosiciones: PosicionesCliente) => {
+      ejesRef.current = nuevos;
+      posicionesRef.current = nuevasPosiciones;
+      setEjes(nuevos);
+      setPosiciones(nuevasPosiciones);
+      setError(null);
+      void mandar('/api/estudio/ejes', 'PUT', {
+        domain: dominio,
+        axes: nuevos,
+        clientPositions: nuevasPosiciones,
+      });
+    },
+    [dominio, mandar],
+  );
+
+  const puntuar = useCallback(
+    (marca: string, eje: string, valor: number | null) => {
+      const d = marca.toLowerCase();
+      const ficha: MarcaEstudio = { ...(fichas.current[d] ?? {}) };
+      const scores = { ...(ficha.axis_scores ?? {}) };
+      if (valor == null) delete scores[eje];
+      else scores[eje] = valor;
+      ficha.axis_scores = scores;
+      const mapa = { ...fichas.current, [d]: ficha };
+      fichas.current = mapa;
+      setMarcas(mapa);
+      setError(null);
+      void mandar('/api/estudio/ejes', 'PATCH', { domain: dominio, marca: d, eje, valor });
+    },
+    [dominio, mandar],
+  );
+
+  const eliminarEje = useCallback(
+    (eje: string) => {
+      const nuevos = ejesRef.current.filter((e) => e.axis_id !== eje);
+      ejesRef.current = nuevos;
+      setEjes(nuevos);
+      // Borrar un eje se lleva sus puntuaciones y las posiciones del cliente:
+      // se refleja aquí igual que lo hace la base, para no enseñar durante un
+      // segundo un estado que ya no existe.
+      const limpiar = (p?: Record<string, number>) => {
+        if (!p) return undefined;
+        const { [eje]: _, ...resto } = p;
+        return Object.keys(resto).length ? resto : undefined;
+      };
+      const pos: PosicionesCliente = {
+        ...(limpiar(posicionesRef.current.current) ? { current: limpiar(posicionesRef.current.current)! } : {}),
+        ...(limpiar(posicionesRef.current.target) ? { target: limpiar(posicionesRef.current.target)! } : {}),
+      };
+      posicionesRef.current = pos;
+      setPosiciones(pos);
+      const mapa: Record<string, MarcaEstudio> = {};
+      for (const [d, f] of Object.entries(fichas.current)) {
+        if (!f.axis_scores) { mapa[d] = f; continue; }
+        const { [eje]: _, ...resto } = f.axis_scores;
+        mapa[d] = { ...f, axis_scores: resto };
+      }
+      fichas.current = mapa;
+      setMarcas(mapa);
+      setError(null);
+      void mandar('/api/estudio/ejes', 'DELETE', { domain: dominio, eje });
+    },
+    [dominio, mandar],
+  );
+
   // ---------- entrada y reconciliación ----------
 
   // Al llegar con ?g= explícito se guarda una vez, para que abrir un enlace
@@ -200,10 +304,19 @@ export function EstudioProvider({
 
   useEffect(() => {
     if (enCurso > 0) return;
-    if (JSON.stringify(marcasIniciales) === JSON.stringify(fichas.current)) return;
-    fichas.current = marcasIniciales;
-    setMarcas(marcasIniciales);
-  }, [marcasIniciales, enCurso]);
+    if (JSON.stringify(marcasIniciales) !== JSON.stringify(fichas.current)) {
+      fichas.current = marcasIniciales;
+      setMarcas(marcasIniciales);
+    }
+    if (JSON.stringify(ejesIniciales) !== JSON.stringify(ejesRef.current)) {
+      ejesRef.current = ejesIniciales;
+      setEjes(ejesIniciales);
+    }
+    if (JSON.stringify(posicionesIniciales) !== JSON.stringify(posicionesRef.current)) {
+      posicionesRef.current = posicionesIniciales;
+      setPosiciones(posicionesIniciales);
+    }
+  }, [marcasIniciales, ejesIniciales, posicionesIniciales, enCurso]);
 
   // Un cambio de composición recién hecho no puede quedarse sin guardar
   // porque alguien navegue dentro de la ventana de agrupación. El criterio no
@@ -234,6 +347,11 @@ export function EstudioProvider({
         marcas,
         editar,
         clasificar,
+        ejes,
+        posiciones,
+        definirEjes,
+        puntuar,
+        eliminarEje,
         query: serializeGrupos(grupos),
         guardando: enCurso > 0,
         error,
