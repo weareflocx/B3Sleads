@@ -14,10 +14,10 @@ import {
   type PerfilMarca,
 } from '@/lib/benchmark';
 import { CompanyLogo } from '../../company-logo';
-import { GrupoEstudio, type MarcaEnGrupo } from './grupo-estudio';
+import { type DatosMarca } from './grupo-estudio';
 import { Matriz } from './matriz';
-import { NuevoGrupo } from './nuevo-grupo';
-import { GuardarEstudio } from './guardar-estudio';
+import { EstudioProvider } from './estudio-estado';
+import { GruposDelEstudio } from './grupos-del-estudio';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,21 +59,26 @@ export default async function EstudioPage({ params, searchParams }: Props) {
   const nombre = companyLabel(cliente.company.name, cliente.company.domain);
   const porDominio = new Map(marcas.map((m) => [m.company.domain, m]));
 
-  const vista = (g: (typeof grupos)[number]) => (d: string): MarcaEnGrupo => {
-    const oculta = (g.ocultas ?? []).includes(d);
-    const nota = g.notas?.[d] ?? null;
+  // Los datos del servidor van por dominio y sin orden: la composición del
+  // estudio (grupo, posición, ocultas) la lleva el cliente, y así tocarla se
+  // ve en el acto en vez de esperar a que el servidor vuelva a pintar.
+  const datos: Record<string, DatosMarca> = {};
+  for (const d of new Set(dominios)) {
     const m = porDominio.get(d);
-    if (!m) return { domain: d, name: d, logoUrl: null, score: null, estado: 'sin-scan', scanId: null, detectados: 0, oculta, nota };
+    if (!m) {
+      datos[d] = { domain: d, name: d, logoUrl: null, score: null, estado: 'sin-scan', scanId: null, detectados: 0 };
+      continue;
+    }
     const p = perfilDeMarca(m);
     const ultimo = m.scans[m.scans.length - 1] ?? null;
-    const estado: MarcaEnGrupo['estado'] = m.activo
+    const estado: DatosMarca['estado'] = m.activo
       ? 'escaneando'
       : ultimoPublicable(m)
         ? 'listo'
         : ultimo
           ? 'retenido'
           : 'sin-scan';
-    return {
+    datos[d] = {
       domain: d,
       name: p.name,
       logoUrl: m.company.logo_url,
@@ -81,10 +86,8 @@ export default async function EstudioPage({ params, searchParams }: Props) {
       estado,
       scanId: m.activo?.id ?? null,
       detectados: p.detectados,
-      oculta,
-      nota,
     };
-  };
+  }
 
   // A la comparación van solo las visibles: ocultar una marca la saca de la
   // matriz, de las medias y del hueco de categoría, sin sacarla del grupo.
@@ -107,7 +110,6 @@ export default async function EstudioPage({ params, searchParams }: Props) {
 
   return (
     <main className={PAGE_XL}>
-      <GuardarEstudio domain={dom} grupos={grupos} query={sp.g ?? null} />
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-4">
           <CompanyLogo domain={dom} name={nombre} size={54} src={cliente.company.logo_url} />
@@ -130,21 +132,16 @@ export default async function EstudioPage({ params, searchParams }: Props) {
         </p>
       )}
 
-      {/* Los grupos, cada uno con sus marcas y su propio alta. */}
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        {grupos.map((g) => (
-          <GrupoEstudio
-            key={g.nombre}
-            grupo={g}
-            marcas={g.dominios.map(vista(g))}
-            grupos={grupos}
-            candidatas={candidatas}
-            hrefBase={`/marcas/${dom}`}
-            cliente={dom}
-          />
-        ))}
-        <NuevoGrupo grupos={grupos} />
-      </div>
+      {/* Los grupos, cada uno con sus marcas y su propio alta. Todos comparten
+          un solo estado de cliente: sin él, dos acciones seguidas se pisaban. */}
+      <EstudioProvider dominio={dom} inicial={grupos} queryInicial={sp.g ?? null}>
+        <GruposDelEstudio
+          datos={datos}
+          candidatas={candidatas}
+          hrefBase={`/marcas/${dom}`}
+          cliente={dom}
+        />
+      </EstudioProvider>
 
       {grupos.length === 0 && (
         <p className="mt-6 rounded-lg border border-dashed border-[var(--border)] p-8 text-center text-sm text-[var(--muted)]">

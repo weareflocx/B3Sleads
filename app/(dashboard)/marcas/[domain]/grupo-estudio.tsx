@@ -3,15 +3,18 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { serializeGrupos, type Grupo } from '@/lib/benchmark';
+import type { Grupo } from '@/lib/benchmark';
 import { CompanyLogo } from '../../company-logo';
 import { ScoreRing } from '../../score-ring';
 import { ScanProgress } from '../../scan-progress';
 import { NotaMarca } from './nota-marca';
+import { useEstudio } from './estudio-estado';
 
-// Lo que un grupo necesita saber de cada marca. Es una vista fina a
-// propósito: el scan entero pesa y aquí solo hace falta el estado.
-export interface MarcaEnGrupo {
+// Lo que el SERVIDOR sabe de cada marca: su scan y su identidad. Es una
+// vista fina a propósito, el scan entero pesa. Va indexada por dominio y sin
+// orden: la composición (a qué grupo pertenece, en qué posición y si está
+// oculta) es del cliente, y por eso se refleja al instante al tocarla.
+export interface DatosMarca {
   domain: string;
   name: string;
   logoUrl: string | null;
@@ -21,10 +24,16 @@ export interface MarcaEnGrupo {
   estado: 'listo' | 'escaneando' | 'retenido' | 'sin-scan';
   scanId: string | null;
   detectados: number;
-  // Sigue en el grupo pero fuera de la comparación.
+}
+
+// Lo de arriba más lo que aporta el grupo.
+export interface MarcaEnGrupo extends DatosMarca {
   oculta: boolean;
-  // Por qué está en el estudio.
   nota: string | null;
+}
+
+function sinDatos(domain: string): DatosMarca {
+  return { domain, name: domain, logoUrl: null, score: null, estado: 'sin-scan', scanId: null, detectados: 0 };
 }
 
 const ESTADO: Record<MarcaEnGrupo['estado'], string> = {
@@ -38,34 +47,36 @@ const MINI =
   'inline-flex h-6 min-w-6 items-center justify-center rounded border border-[var(--border)] px-1.5 font-mono text-[10px] text-[var(--muted)] transition-colors hover:border-[var(--muted)] hover:text-[var(--text)] disabled:opacity-30 disabled:hover:border-[var(--border)] disabled:hover:text-[var(--muted)]';
 
 export function GrupoEstudio({
-  grupo,
-  marcas,
-  grupos,
+  nombre,
+  datos,
   candidatas,
   hrefBase,
   cliente,
 }: {
-  grupo: Grupo;
-  marcas: MarcaEnGrupo[];
-  grupos: Grupo[];
+  // El grupo se identifica por nombre y se lee del estado del estudio, no de
+  // una prop: así reordenar u ocultar se ve en el acto.
+  nombre: string;
+  datos: Record<string, DatosMarca>;
   candidatas: { domain: string; name: string }[];
   hrefBase: string; // /marcas/<cliente>
   cliente: string; // dominio del cliente, para guardar las notas
 }) {
   const router = useRouter();
-  const pathname = usePathname();
+  const { grupos, editar: editarEstudio, query } = useEstudio();
   const [texto, setTexto] = useState('');
   const [ocupado, setOcupado] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [verOcultas, setVerOcultas] = useState(false);
 
-  const aplicar = (gs: Grupo[]) => {
-    const q = serializeGrupos(gs);
-    router.replace(q ? `${pathname}?g=${q}` : pathname);
-  };
-  const query = serializeGrupos(grupos);
+  const grupo = grupos.find((g) => g.nombre === nombre);
   const editar = (fn: (g: Grupo) => Grupo) =>
-    aplicar(grupos.map((g) => (g.nombre === grupo.nombre ? fn(g) : g)));
+    editarEstudio((gs) => gs.map((g) => (g.nombre === nombre ? fn(g) : g)));
+
+  const marcas: MarcaEnGrupo[] = (grupo?.dominios ?? []).map((d) => ({
+    ...(datos[d] ?? sinDatos(d)),
+    oculta: (grupo?.ocultas ?? []).includes(d),
+    nota: grupo?.notas?.[d] ?? null,
+  }));
 
   // Mientras haya scans en marcha en este grupo, se les pregunta al servidor
   // y se refresca la página cuando terminan. Un scan tarda uno o dos
@@ -101,7 +112,7 @@ export function GrupoEstudio({
   const añadir = async () => {
     const d = texto.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
     if (!d) return;
-    if (grupo.dominios.includes(d)) return setAviso('Ya está en este grupo.');
+    if (grupo?.dominios.includes(d)) return setAviso('Ya está en este grupo.');
     setAviso(null);
     const meter = () => editar((g) => ({ ...g, dominios: [...g.dominios, d] }));
 
@@ -165,10 +176,10 @@ export function GrupoEstudio({
     });
 
   const moverA = (d: string, destino: string) => {
-    if (!destino || destino === grupo.nombre) return;
-    aplicar(
-      grupos.map((g) => {
-        if (g.nombre === grupo.nombre) {
+    if (!destino || destino === nombre) return;
+    editarEstudio((gs) =>
+      gs.map((g) => {
+        if (g.nombre === nombre) {
           return {
             ...g,
             dominios: g.dominios.filter((x) => x !== d),
@@ -185,7 +196,7 @@ export function GrupoEstudio({
 
   const visibles = marcas.filter((m) => !m.oculta);
   const ocultas = marcas.filter((m) => m.oculta);
-  const otros = grupos.filter((g) => g.nombre !== grupo.nombre);
+  const otros = grupos.filter((g) => g.nombre !== nombre);
 
   function Fila({ m, lista }: { m: MarcaEnGrupo; lista: MarcaEnGrupo[] }) {
     const i = lista.indexOf(m);
@@ -294,14 +305,14 @@ export function GrupoEstudio({
     <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)]">
       <header className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-2.5">
         <h3 className="text-sm font-semibold">
-          {grupo.nombre}
+          {nombre}
           <span className="ml-2 font-mono text-xs font-normal text-[var(--soft)]">
             {visibles.length}
             {ocultas.length > 0 && ` · ${ocultas.length} fuera`}
           </span>
         </h3>
         <button
-          onClick={() => aplicar(grupos.filter((g) => g.nombre !== grupo.nombre))}
+          onClick={() => editarEstudio((gs) => gs.filter((g) => g.nombre !== nombre))}
           className="text-xs text-[var(--muted)] hover:text-[var(--danger)]"
         >
           quitar grupo
@@ -347,7 +358,7 @@ export function GrupoEstudio({
       <div className="border-t border-[var(--border)] p-3">
         <div className="flex gap-2">
           <input
-            list={`corpus-${grupo.nombre}`}
+            list={`corpus-${nombre}`}
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && !ocupado && añadir()}
@@ -355,7 +366,7 @@ export function GrupoEstudio({
             disabled={ocupado}
             className="min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 font-mono text-sm outline-none transition-colors focus:border-[var(--cta)] disabled:opacity-60"
           />
-          <datalist id={`corpus-${grupo.nombre}`}>
+          <datalist id={`corpus-${nombre}`}>
             {candidatas.map((c) => (
               <option key={c.domain} value={c.domain}>
                 {c.name}

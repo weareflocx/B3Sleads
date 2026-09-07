@@ -287,7 +287,40 @@ export async function getEstudio(companyId: string): Promise<Study | null> {
   if (isDemoMode()) return null;
   const db = getServiceSupabase()!;
   const { data } = await db.from('studies').select('*').eq('company_id', companyId).maybeSingle();
-  return (data as Study | null) ?? null;
+  if (!data) return null;
+  // Los tres campos de Battle Cards se normalizan aquí en vez de confiar en
+  // el DEFAULT de la tabla: así la app funciona igual antes y después de
+  // aplicar la migración, y un despliegue no depende del orden.
+  const fila = data as Record<string, unknown>;
+  return {
+    ...(fila as unknown as Study),
+    marcas: (fila.marcas as Study['marcas']) ?? {},
+    axes: (fila.axes as Study['axes']) ?? [],
+    client_positions: (fila.client_positions as Study['client_positions']) ?? {},
+  };
+}
+
+// Escribe la ficha de UNA marca del estudio. Mezcla en la base (función
+// estudio_marca_merge) en vez de releer y reescribir el documento entero:
+// clasificar es teclear rápido, y dos escrituras seguidas desde el cliente
+// se pisarían la una a la otra.
+//
+// Una clave con valor null borra ese campo de la ficha.
+export async function guardarMarcaEstudio(
+  companyId: string,
+  dominio: string,
+  parche: Record<string, unknown>,
+  email: string | null,
+): Promise<void> {
+  if (isDemoMode()) return;
+  const db = getServiceSupabase()!;
+  const { error } = await db.rpc('estudio_marca_merge', {
+    p_company_id: companyId,
+    p_domain: dominio.toLowerCase(),
+    p_patch: parche,
+    p_email: email,
+  });
+  if (error) throw error;
 }
 
 export async function guardarEstudio(

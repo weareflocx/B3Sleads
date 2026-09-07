@@ -8,6 +8,16 @@ import { currentUserEmail } from '@/lib/auth';
 // grupos con unos pocos dominios, y mandarlo entero evita toda una familia de
 // bugs de sincronización a cambio de nada de peso.
 export async function PUT(req: NextRequest) {
+  return guardar(req);
+}
+
+// sendBeacon solo sabe mandar POST. Se usa al salir de la página para que un
+// cambio hecho dentro de la ventana de agrupación no se quede sin guardar.
+export async function POST(req: NextRequest) {
+  return guardar(req);
+}
+
+async function guardar(req: NextRequest) {
   try {
     const { domain, grupos } = (await req.json()) as {
       domain?: string;

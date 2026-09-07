@@ -1,5 +1,7 @@
 // Tipos del modelo de datos (espejo de supabase/migrations/001_init.sql)
 
+import type { Eje, MarcaEstudio, PosicionesCliente } from './battle-cards';
+
 import { GIVEN_NAMES } from './names';
 
 export type CompanySource =
@@ -299,7 +301,13 @@ export function companyLabel(name: string, domain?: string | null): string {
 export interface Study {
   id: string;
   company_id: string;
+  // Pertenencia, orden y ocultas. Es lo que viaja en la URL (?g=).
   grupos: { nombre: string; dominios: string[]; ocultas?: string[]; notas?: Record<string, string> }[];
+  // La capa de criterio: rol, capa, prioridad, porqué y puntuación por eje.
+  // Indexada por dominio para que sobreviva a mover una marca de grupo.
+  marcas: Record<string, MarcaEstudio>;
+  axes: Eje[];
+  client_positions: PosicionesCliente;
   updated_by_email: string | null;
   updated_at: string;
   created_at: string;

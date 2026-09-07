@@ -1,20 +1,18 @@
 'use client';
 
 import { useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
-import { serializeGrupos, type Grupo } from '@/lib/benchmark';
+import { useEstudio } from './estudio-estado';
 
 // Crear un grupo es una caja más en la parrilla, junto a los existentes: así
 // el gesto de "otro grupo" vive donde vive el resultado del anterior.
-export function NuevoGrupo({ grupos }: { grupos: Grupo[] }) {
-  const router = useRouter();
-  const pathname = usePathname();
+export function NuevoGrupo() {
+  const { grupos, editar } = useEstudio();
   const [nombre, setNombre] = useState('');
   const crear = () => {
     const n = nombre.trim();
     if (!n || grupos.some((g) => g.nombre === n)) return;
     setNombre('');
-    router.replace(`${pathname}?g=${serializeGrupos([...grupos, { nombre: n, dominios: [] }])}`);
+    editar((gs) => [...gs, { nombre: n, dominios: [] }]);
   };
   return (
     <div className="flex items-center gap-2 rounded-lg border border-dashed border-[var(--border)] p-3">
