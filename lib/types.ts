@@ -299,7 +299,7 @@ export function companyLabel(name: string, domain?: string | null): string {
 export interface Study {
   id: string;
   company_id: string;
-  grupos: { nombre: string; dominios: string[] }[];
+  grupos: { nombre: string; dominios: string[]; ocultas?: string[]; notas?: Record<string, string> }[];
   updated_by_email: string | null;
   updated_at: string;
   created_at: string;

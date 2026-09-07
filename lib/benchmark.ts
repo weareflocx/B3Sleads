@@ -107,11 +107,27 @@ function recorta(raw: string | null | undefined, max: number): string | null {
 
 export interface Grupo {
   nombre: string;
+  // El orden de la lista ES el orden del estudio: quien lo monta decide qué
+  // se lee primero, y la matriz lo respeta.
   dominios: string[];
+  // Marcas que siguen en el grupo pero no entran en la comparación. Con
+  // catorce marcas en un grupo no todas merecen la matriz; ocultar no es
+  // quitar: la marca, su scan y su porqué siguen ahí para volver a entrar.
+  ocultas?: string[];
+  // Por qué está cada marca en el estudio, en una frase. Es lo que no se
+  // deduce del scan y lo primero que se olvida a la tercera semana.
+  notas?: Record<string, string>;
+}
+
+export function visibles(g: Grupo): string[] {
+  const ocultas = new Set(g.ocultas ?? []);
+  return g.dominios.filter((d) => !ocultas.has(d));
 }
 
 // ---------- el estudio en la URL ----------
-// Formato: Energéticas:a.com,b.com;Multinivel:c.com
+// Formato: Energéticas:a.com,!b.com;Multinivel:c.com
+// El '!' delante marca una oculta. Las notas NO van en la URL: viven en el
+// estudio guardado y la página las funde al cargar (ver fusionaNotas).
 export function parseGrupos(raw: string | undefined): Grupo[] {
   if (!raw) return [];
   return raw
@@ -120,13 +136,15 @@ export function parseGrupos(raw: string | undefined): Grupo[] {
       const i = tramo.indexOf(':');
       if (i < 1) return null;
       const nombre = decodeURIComponent(tramo.slice(0, i)).trim();
-      const dominios = tramo
+      const crudos = tramo
         .slice(i + 1)
         .split(',')
         .map((d) => d.trim().toLowerCase())
         .filter(Boolean);
+      const dominios = crudos.map((d) => d.replace(/^!/, ''));
+      const ocultas = crudos.filter((d) => d.startsWith('!')).map((d) => d.slice(1));
       // Un grupo vacio es valido: se crea antes de tener marcas dentro.
-      return nombre ? { nombre, dominios } : null;
+      return nombre ? { nombre, dominios, ...(ocultas.length ? { ocultas } : {}) } : null;
     })
     .filter(Boolean) as Grupo[];
 }
@@ -135,8 +153,33 @@ export function serializeGrupos(grupos: Grupo[]): string {
   // Sin filtrar por vacio: descartar los grupos sin marcas hacia imposible
   // crear uno, porque nace vacio y desaparecia antes de poder llenarlo.
   return grupos
-    .map((g) => `${encodeURIComponent(g.nombre)}:${g.dominios.join(',')}`)
+    .map((g) => {
+      const ocultas = new Set(g.ocultas ?? []);
+      const lista = g.dominios.map((d) => (ocultas.has(d) ? `!${d}` : d)).join(',');
+      return `${encodeURIComponent(g.nombre)}:${lista}`;
+    })
     .join(';');
+}
+
+// Las notas se fusionan por dominio, no por grupo: si una marca se mueve de
+// grupo por la URL, su porqué la sigue. La URL manda en pertenencia, orden y
+// ocultas; el estudio guardado manda en las notas.
+export function fusionaNotas(grupos: Grupo[], guardados: Grupo[] | null | undefined): Grupo[] {
+  const porDominio = new Map<string, string>();
+  for (const g of guardados ?? []) {
+    for (const [d, n] of Object.entries(g.notas ?? {})) if (n?.trim()) porDominio.set(d, n.trim());
+  }
+  for (const g of grupos) {
+    for (const [d, n] of Object.entries(g.notas ?? {})) if (n?.trim()) porDominio.set(d, n.trim());
+  }
+  return grupos.map((g) => {
+    const notas: Record<string, string> = {};
+    for (const d of g.dominios) {
+      const n = porDominio.get(d);
+      if (n) notas[d] = n;
+    }
+    return Object.keys(notas).length ? { ...g, notas } : { ...g, notas: undefined };
+  });
 }
 
 // ---------- agregación ----------

@@ -5,10 +5,12 @@ import { getCorpusBrand, getCorpusBrands, getEstudio, getStartups } from '@/lib/
 import { companyLabel } from '@/lib/types';
 import {
   compara,
+  fusionaNotas,
   huecosDeCategoria,
   parseGrupos,
   perfilDeMarca,
   ultimoPublicable,
+  visibles,
   type PerfilMarca,
 } from '@/lib/benchmark';
 import { CompanyLogo } from '../../company-logo';
@@ -43,7 +45,12 @@ export default async function EstudioPage({ params, searchParams }: Props) {
   // anterior, y al llegar así se guarda: compartir un enlace y abrirlo deja
   // el estudio como lo mandó quien lo compartió.
   const guardado = await getEstudio(cliente.company.id);
-  const grupos = sp.g !== undefined ? parseGrupos(sp.g) : (guardado?.grupos ?? []);
+  // Las notas nunca viajan en la URL: se funden desde lo guardado, por
+  // dominio, para que sigan a la marca aunque cambie de grupo.
+  const grupos = fusionaNotas(
+    sp.g !== undefined ? parseGrupos(sp.g) : (guardado?.grupos ?? []),
+    guardado?.grupos,
+  );
 
   const dominios = grupos.flatMap((g) => g.dominios);
   const [marcas, corpus] = await Promise.all([getCorpusBrands(dominios), getStartups()]);
@@ -52,9 +59,11 @@ export default async function EstudioPage({ params, searchParams }: Props) {
   const nombre = companyLabel(cliente.company.name, cliente.company.domain);
   const porDominio = new Map(marcas.map((m) => [m.company.domain, m]));
 
-  const vista = (d: string): MarcaEnGrupo => {
+  const vista = (g: (typeof grupos)[number]) => (d: string): MarcaEnGrupo => {
+    const oculta = (g.ocultas ?? []).includes(d);
+    const nota = g.notas?.[d] ?? null;
     const m = porDominio.get(d);
-    if (!m) return { domain: d, name: d, logoUrl: null, score: null, estado: 'sin-scan', scanId: null, detectados: 0 };
+    if (!m) return { domain: d, name: d, logoUrl: null, score: null, estado: 'sin-scan', scanId: null, detectados: 0, oculta, nota };
     const p = perfilDeMarca(m);
     const ultimo = m.scans[m.scans.length - 1] ?? null;
     const estado: MarcaEnGrupo['estado'] = m.activo
@@ -72,12 +81,16 @@ export default async function EstudioPage({ params, searchParams }: Props) {
       estado,
       scanId: m.activo?.id ?? null,
       detectados: p.detectados,
+      oculta,
+      nota,
     };
   };
 
+  // A la comparación van solo las visibles: ocultar una marca la saca de la
+  // matriz, de las medias y del hueco de categoría, sin sacarla del grupo.
   const grupitos = grupos.map((g) => ({
     nombre: g.nombre,
-    perfiles: g.dominios
+    perfiles: visibles(g)
       .map((d) => porDominio.get(d))
       .filter((m): m is NonNullable<typeof m> => Boolean(m && ultimoPublicable(m)))
       .map(perfilDeMarca) as PerfilMarca[],
@@ -123,10 +136,11 @@ export default async function EstudioPage({ params, searchParams }: Props) {
           <GrupoEstudio
             key={g.nombre}
             grupo={g}
-            marcas={g.dominios.map(vista)}
+            marcas={g.dominios.map(vista(g))}
             grupos={grupos}
             candidatas={candidatas}
             hrefBase={`/marcas/${dom}`}
+            cliente={dom}
           />
         ))}
         <NuevoGrupo grupos={grupos} />

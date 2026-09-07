@@ -11,7 +11,7 @@ export async function PUT(req: NextRequest) {
   try {
     const { domain, grupos } = (await req.json()) as {
       domain?: string;
-      grupos?: { nombre: string; dominios: string[] }[];
+      grupos?: { nombre: string; dominios: string[]; ocultas?: string[]; notas?: Record<string, string> }[];
     };
     if (!domain || !Array.isArray(grupos)) {
       return NextResponse.json({ error: 'domain y grupos requeridos' }, { status: 400 });
@@ -30,10 +30,29 @@ export async function PUT(req: NextRequest) {
     // sin repetir. Es un endpoint autenticado, pero el saneado evita que un
     // grupo vacío o un dominio duplicado se quede guardado para siempre.
     const limpios = grupos
-      .map((g) => ({
-        nombre: String(g?.nombre ?? '').trim().slice(0, 60),
-        dominios: [...new Set((g?.dominios ?? []).map((d) => String(d).trim().toLowerCase()).filter(Boolean))],
-      }))
+      .map((g) => {
+        const dominios = [
+          ...new Set((g?.dominios ?? []).map((d) => String(d).trim().toLowerCase()).filter(Boolean)),
+        ];
+        const dentro = new Set(dominios);
+        // Ocultas y notas solo de marcas que estén en el grupo: una nota
+        // huérfana no se ve nunca y una oculta fantasma no se puede mostrar.
+        const ocultas = [
+          ...new Set((g?.ocultas ?? []).map((d) => String(d).trim().toLowerCase()).filter((d) => dentro.has(d))),
+        ];
+        const notas: Record<string, string> = {};
+        for (const [d, n] of Object.entries(g?.notas ?? {})) {
+          const k = String(d).trim().toLowerCase();
+          const v = String(n ?? '').trim().slice(0, 600);
+          if (dentro.has(k) && v) notas[k] = v;
+        }
+        return {
+          nombre: String(g?.nombre ?? '').trim().slice(0, 60),
+          dominios,
+          ...(ocultas.length ? { ocultas } : {}),
+          ...(Object.keys(notas).length ? { notas } : {}),
+        };
+      })
       .filter((g) => g.nombre);
 
     await guardarEstudio(company.id, limpios, await currentUserEmail());

@@ -7,7 +7,8 @@ import { storedScanReport, retencionDeScan, notaRetenida } from '@/lib/scan-repo
 import { componentVersions } from '@/lib/scan-versions';
 import { consolidateReport, consolidatedScore } from '@/lib/consolidated';
 import { cardBand } from '@/lib/brand-card';
-import { parseGrupos, perfilDeMarca, ultimoPublicable } from '@/lib/benchmark';
+import { fusionaNotas, parseGrupos, perfilDeMarca, ultimoPublicable, visibles } from '@/lib/benchmark';
+import { NotaMarca } from '../nota-marca';
 import { CompanyLogo } from '../../../company-logo';
 import { EditableImage } from '../../../editable-image';
 import { EditableText } from '../../../editable-text';
@@ -67,11 +68,16 @@ export default async function MarcaCorpusPage({ params, searchParams }: Props) {
   // en la página del estudio: así un enlace compartido enseña lo mismo aquí.
   const marcaCliente = await getCorpusBrand(cliente);
   const guardado = marcaCliente ? await getEstudio(marcaCliente.company.id) : null;
-  const grupos = sp.g !== undefined ? parseGrupos(sp.g) : (guardado?.grupos ?? []);
+  const grupos = fusionaNotas(
+    sp.g !== undefined ? parseGrupos(sp.g) : (guardado?.grupos ?? []),
+    guardado?.grupos,
+  );
   const grupo = grupos.find((g) => g.dominios.includes(dom)) ?? null;
-  const hermanas = grupo
-    ? await getCorpusBrands(grupo.dominios.filter((d) => d !== dom))
-    : [];
+  const oculta = grupo ? (grupo.ocultas ?? []).includes(dom) : false;
+  const nota = grupo?.notas?.[dom] ?? null;
+  // Las hermanas son las que están EN la comparación: una oculta no cuenta
+  // en la media que se enseña aquí, igual que no cuenta en la matriz.
+  const hermanas = grupo ? await getCorpusBrands(visibles(grupo).filter((d) => d !== dom)) : [];
 
   const selections = await getComponentSelections(m.company.id);
 
@@ -182,7 +188,16 @@ export default async function MarcaCorpusPage({ params, searchParams }: Props) {
                 >
                   {grupo.nombre}
                 </Link>
-              ) : (
+              ) : null}
+              {grupo && oculta && (
+                <span
+                  title="Sigue en el grupo pero no entra en la matriz ni en las medias. Se vuelve a meter desde el estudio."
+                  className="inline-flex items-center rounded-md border border-dashed border-[var(--border)] px-2.5 py-1 text-xs text-[var(--soft)]"
+                >
+                  fuera de la comparación
+                </span>
+              )}
+              {!grupo && (
                 <span className="inline-flex items-center rounded-md border border-dashed border-[var(--border)] px-2.5 py-1 text-xs text-[var(--soft)]">
                   Fuera de los grupos del estudio
                 </span>
@@ -352,6 +367,15 @@ export default async function MarcaCorpusPage({ params, searchParams }: Props) {
                     </p>
                   </div>
                 </Link>
+              )}
+
+              {grupo && (
+                <div className="mt-4 border-t border-[var(--border)] pt-3">
+                  <p className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">
+                    Por qué está en el estudio
+                  </p>
+                  <NotaMarca cliente={cliente} marca={dom} inicial={nota} className="mt-1" />
+                </div>
               )}
 
               {grupo ? (
