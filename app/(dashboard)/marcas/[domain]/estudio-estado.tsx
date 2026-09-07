@@ -11,36 +11,43 @@ import {
 } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { serializeGrupos, type Grupo } from '@/lib/benchmark';
+import type { MarcaEstudio } from '@/lib/battle-cards';
 
-// El estado de composición del estudio: qué marcas hay, en qué grupo, en qué
-// orden y cuáles están fuera de la comparación.
+// El estado del estudio, en un solo sitio. Tiene dos mitades que se guardan
+// de forma distinta porque no se parecen en nada:
 //
-// Antes esto vivía SOLO en la URL, y cada control calculaba el estado nuevo a
-// partir del que le había llegado del servidor. Ese valor no se refresca
-// hasta que `router.replace` completa la navegación y la página se vuelve a
-// pintar contra la base: entre 200 y 500 ms en esta página, que hace varias
-// consultas. Dos clics dentro de esa ventana partían de la misma base y el
-// segundo pisaba al primero. No era intermitente: era seguro. Reproducido
-// ocultando dos marcas seguidas, solo se guardaba la segunda.
+//  - COMPOSICIÓN (`grupos`): qué marcas, en qué grupo, en qué orden, cuáles
+//    apartadas. Es un documento pequeño que se manda entero, viaja en la URL
+//    para poder compartirlo y se agrupa antes de escribir.
 //
-// Ahora la verdad para los manejadores es una referencia que se actualiza de
-// forma síncrona, la pantalla se pinta al instante y la URL y el guardado van
-// detrás, agrupados. La URL sigue sirviendo para compartir; deja de ser la
-// memoria de trabajo.
+//  - CRITERIO (`marcas`): rol, capa, prioridad, porqué, puntuación por eje.
+//    Se escribe marca a marca contra una función de base que mezcla por
+//    dominio, así que no hay nada que agrupar ni orden que respetar.
+//
+// Lo que comparten es la lección que costó un fallo en producción: los
+// manejadores no pueden leer el estado que vino del servidor. Ese valor no se
+// refresca hasta que la navegación blanda termina —entre 200 y 500 ms en esta
+// página— y dos acciones dentro de esa ventana partían de la misma base, así
+// que la segunda pisaba a la primera. Reproducido ocultando dos marcas
+// seguidas: solo se guardaba la segunda. Por eso la verdad para escribir es
+// una referencia que se actualiza de forma síncrona.
 
-// Cuánto se espera antes de sincronizar. Suficiente para que una ráfaga de
-// clics viaje junta, corto para que quien comparte el enlace no copie una URL
-// vieja.
+// Cuánto se espera antes de sincronizar la composición. Suficiente para que
+// una ráfaga de clics viaje junta, corto para que quien copia el enlace no se
+// lleve una URL vieja.
 const RETARDO_SYNC = 450;
 
 interface Estudio {
   grupos: Grupo[];
-  // Aplica un cambio. La función recibe SIEMPRE el estado más reciente,
-  // incluido el de un clic que todavía no ha llegado al servidor.
+  marcas: Record<string, MarcaEstudio>;
+  // Cambia la composición. La función recibe SIEMPRE el estado más reciente.
   editar: (fn: (gs: Grupo[]) => Grupo[]) => void;
-  // Para construir enlaces a la ficha de una marca sin perder el estudio.
+  // Cambia el criterio de una marca. Un campo a null lo borra de la ficha.
+  clasificar: (dominio: string, parche: Partial<MarcaEstudio>) => void;
+  // Para enlazar a la ficha de una marca sin perder el estudio.
   query: string;
   guardando: boolean;
+  error: string | null;
 }
 
 const Ctx = createContext<Estudio | null>(null);
@@ -54,11 +61,13 @@ export function useEstudio(): Estudio {
 export function EstudioProvider({
   dominio,
   inicial,
+  marcasIniciales,
   queryInicial,
   children,
 }: {
   dominio: string; // dominio del cliente del estudio
   inicial: Grupo[];
+  marcasIniciales: Record<string, MarcaEstudio>;
   // La query con la que se entró, o null si se entró sin ?g=. Llegar con
   // grupos explícitos guarda: abrir un enlace compartido deja el estudio como
   // lo mandó quien lo compartió.
@@ -68,16 +77,19 @@ export function EstudioProvider({
   const router = useRouter();
   const pathname = usePathname();
   const [grupos, setGrupos] = useState<Grupo[]>(inicial);
-  const [guardando, setGuardando] = useState(false);
+  const [marcas, setMarcas] = useState<Record<string, MarcaEstudio>>(marcasIniciales);
+  const [enCurso, setEnCurso] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
-  // La referencia es la verdad para los manejadores: setState no es síncrono,
-  // así que dos clics seguidos leerían los dos el mismo valor viejo.
   const actual = useRef<Grupo[]>(inicial);
+  const fichas = useRef<Record<string, MarcaEstudio>>(marcasIniciales);
   const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Una escritura en vuelo y, como mucho, una esperando. Da igual cuántos
-  // cambios se acumulen: lo que se manda es siempre el estado entero actual.
+  // Una escritura de composición en vuelo y, como mucho, una esperando. Da
+  // igual cuántos cambios se acumulen: se manda siempre el estado entero.
   const enVuelo = useRef(false);
   const pendiente = useRef(false);
+
+  // ---------- composición ----------
 
   const persistir = useCallback(async () => {
     if (enVuelo.current) {
@@ -85,7 +97,7 @@ export function EstudioProvider({
       return;
     }
     enVuelo.current = true;
-    setGuardando(true);
+    setEnCurso((n) => n + 1);
     try {
       await fetch('/api/estudio/grupos', {
         method: 'PUT',
@@ -94,10 +106,10 @@ export function EstudioProvider({
       });
     } catch {
       // Sin conexión el estudio sigue en pantalla y en la URL; el siguiente
-      // cambio lo vuelve a intentar con el estado completo.
+      // cambio lo reintenta con el estado completo.
     } finally {
       enVuelo.current = false;
-      setGuardando(false);
+      setEnCurso((n) => n - 1);
       if (pendiente.current) {
         pendiente.current = false;
         void persistir();
@@ -123,6 +135,50 @@ export function EstudioProvider({
     [sincronizar],
   );
 
+  // ---------- criterio ----------
+
+  const clasificar = useCallback(
+    (marca: string, parche: Partial<MarcaEstudio>) => {
+      const d = marca.toLowerCase();
+      const ficha: MarcaEstudio = { ...(fichas.current[d] ?? {}) };
+      for (const [clave, valor] of Object.entries(parche)) {
+        if (valor === null || valor === undefined || valor === '') {
+          delete (ficha as Record<string, unknown>)[clave];
+        } else {
+          (ficha as Record<string, unknown>)[clave] = valor;
+        }
+      }
+      const mapa = { ...fichas.current, [d]: ficha };
+      fichas.current = mapa;
+      setMarcas(mapa);
+      setError(null);
+
+      // Sin agrupar: cada petición toca un dominio y la mezcla la hace la
+      // base, así que dos cambios seguidos no compiten.
+      setEnCurso((n) => n + 1);
+      void (async () => {
+        try {
+          const res = await fetch('/api/estudio/clasificacion', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ domain: dominio, marca: d, parche }),
+          });
+          if (!res.ok) {
+            const j = (await res.json().catch(() => ({}))) as { error?: string };
+            setError(j.error ?? 'No se pudo guardar la clasificación');
+          }
+        } catch {
+          setError('Sin conexión: la clasificación no se ha guardado');
+        } finally {
+          setEnCurso((n) => n - 1);
+        }
+      })();
+    },
+    [dominio],
+  );
+
+  // ---------- entrada y reconciliación ----------
+
   // Al llegar con ?g= explícito se guarda una vez, para que abrir un enlace
   // compartido deje el estudio como venía en él.
   const yaGuardadoAlEntrar = useRef(false);
@@ -133,8 +189,8 @@ export function EstudioProvider({
   }, [queryInicial, persistir]);
 
   // El servidor manda cuando aquí no hay nada a medias: así se ve lo que
-  // añadió otra persona del equipo, o el resultado de dar de alta una marca
-  // nueva. Con cambios sin sincronizar, mandan los de aquí.
+  // cambió otra persona del equipo, o el resultado de dar de alta una marca.
+  // Con cambios sin sincronizar, mandan los de aquí.
   useEffect(() => {
     if (temporizador.current || enVuelo.current || pendiente.current) return;
     if (JSON.stringify(inicial) === JSON.stringify(actual.current)) return;
@@ -142,15 +198,23 @@ export function EstudioProvider({
     setGrupos(inicial);
   }, [inicial]);
 
-  // Un cambio recién hecho no puede quedarse sin guardar porque alguien
-  // navegue o cierre la pestaña dentro de la ventana de agrupación.
+  useEffect(() => {
+    if (enCurso > 0) return;
+    if (JSON.stringify(marcasIniciales) === JSON.stringify(fichas.current)) return;
+    fichas.current = marcasIniciales;
+    setMarcas(marcasIniciales);
+  }, [marcasIniciales, enCurso]);
+
+  // Un cambio de composición recién hecho no puede quedarse sin guardar
+  // porque alguien navegue dentro de la ventana de agrupación. El criterio no
+  // lo necesita: se manda en el acto.
   useEffect(() => {
     const alSalir = () => {
       if (!temporizador.current) return;
       clearTimeout(temporizador.current);
       temporizador.current = null;
       navigator.sendBeacon?.(
-        '/api/estudio/grupos-beacon',
+        '/api/estudio/grupos',
         new Blob([JSON.stringify({ domain: dominio, grupos: actual.current })], {
           type: 'application/json',
         }),
@@ -164,7 +228,17 @@ export function EstudioProvider({
   }, [dominio]);
 
   return (
-    <Ctx.Provider value={{ grupos, editar, query: serializeGrupos(grupos), guardando }}>
+    <Ctx.Provider
+      value={{
+        grupos,
+        marcas,
+        editar,
+        clasificar,
+        query: serializeGrupos(grupos),
+        guardando: enCurso > 0,
+        error,
+      }}
+    >
       {children}
     </Ctx.Provider>
   );

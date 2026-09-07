@@ -15,6 +15,7 @@ import {
 } from '@/lib/benchmark';
 import { CompanyLogo } from '../../company-logo';
 import { type DatosMarca } from './grupo-estudio';
+import { verificacionDerivada } from '@/lib/battle-cards';
 import { Matriz } from './matriz';
 import { EstudioProvider } from './estudio-estado';
 import { GruposDelEstudio } from './grupos-del-estudio';
@@ -66,7 +67,11 @@ export default async function EstudioPage({ params, searchParams }: Props) {
   for (const d of new Set(dominios)) {
     const m = porDominio.get(d);
     if (!m) {
-      datos[d] = { domain: d, name: d, logoUrl: null, score: null, estado: 'sin-scan', scanId: null, detectados: 0 };
+      datos[d] = {
+        domain: d, name: d, logoUrl: null, score: null,
+        estado: 'sin-scan', scanId: null, detectados: 0,
+        verificacionAuto: 'no_source',
+      };
       continue;
     }
     const p = perfilDeMarca(m);
@@ -86,6 +91,13 @@ export default async function EstudioPage({ params, searchParams }: Props) {
       estado,
       scanId: m.activo?.id ?? null,
       detectados: p.detectados,
+      // Valor de partida de la verificación. Lo que alguien fije a mano manda
+      // sobre esto; guardarlo en la migración habría dejado a las marcas
+      // nuevas naciendo en un estado que nadie eligió.
+      verificacionAuto: verificacionDerivada({
+        conScanPublicable: ultimoPublicable(m) != null,
+        conScanRetenido: ultimo != null,
+      }),
     };
   }
 
@@ -93,7 +105,7 @@ export default async function EstudioPage({ params, searchParams }: Props) {
   // matriz, de las medias y del hueco de categoría, sin sacarla del grupo.
   const grupitos = grupos.map((g) => ({
     nombre: g.nombre,
-    perfiles: visibles(g)
+    perfiles: visibles(g, guardado?.marcas)
       .map((d) => porDominio.get(d))
       .filter((m): m is NonNullable<typeof m> => Boolean(m && ultimoPublicable(m)))
       .map(perfilDeMarca) as PerfilMarca[],
@@ -134,7 +146,12 @@ export default async function EstudioPage({ params, searchParams }: Props) {
 
       {/* Los grupos, cada uno con sus marcas y su propio alta. Todos comparten
           un solo estado de cliente: sin él, dos acciones seguidas se pisaban. */}
-      <EstudioProvider dominio={dom} inicial={grupos} queryInicial={sp.g ?? null}>
+      <EstudioProvider
+        dominio={dom}
+        inicial={grupos}
+        marcasIniciales={guardado?.marcas ?? {}}
+        queryInicial={sp.g ?? null}
+      >
         <GruposDelEstudio
           datos={datos}
           candidatas={candidatas}

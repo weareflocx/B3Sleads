@@ -119,9 +119,32 @@ export interface Grupo {
   notas?: Record<string, string>;
 }
 
-export function visibles(g: Grupo): string[] {
+// Las marcas de un grupo que ENTRAN en la comparación.
+//
+// Dos formas de quedarse fuera, y no son lo mismo:
+//  - `ocultas`: apartada un rato. Es un gesto de foco, sin juicio.
+//  - prioridad "out": descartada del estudio. Es una decisión.
+// Descartar implica no comparar, así que "out" se deriva aquí en vez de
+// duplicarse en `ocultas`: si no, cambiar la prioridad dejaría el otro campo
+// desincronizado y habría marcas descartadas contando en las medias.
+export function visibles(g: Grupo, marcas?: Record<string, { priority?: string }>): string[] {
   const ocultas = new Set(g.ocultas ?? []);
-  return g.dominios.filter((d) => !ocultas.has(d));
+  return g.dominios.filter((d) => !ocultas.has(d) && marcas?.[d]?.priority !== 'out');
+}
+
+// Fuera de la comparación, y por qué. Lo usa la lista para plegarlas juntas
+// diciendo cuál es cuál.
+export function fueraDeComparacion(
+  g: Grupo,
+  marcas?: Record<string, { priority?: string }>,
+): { dominio: string; motivo: 'descartada' | 'oculta' }[] {
+  const ocultas = new Set(g.ocultas ?? []);
+  return g.dominios
+    .filter((d) => ocultas.has(d) || marcas?.[d]?.priority === 'out')
+    .map((d) => ({
+      dominio: d,
+      motivo: marcas?.[d]?.priority === 'out' ? ('descartada' as const) : ('oculta' as const),
+    }));
 }
 
 // ---------- el estudio en la URL ----------

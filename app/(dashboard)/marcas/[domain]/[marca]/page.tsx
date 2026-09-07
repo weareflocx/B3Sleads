@@ -8,6 +8,13 @@ import { componentVersions } from '@/lib/scan-versions';
 import { consolidateReport, consolidatedScore } from '@/lib/consolidated';
 import { cardBand } from '@/lib/brand-card';
 import { fusionaNotas, parseGrupos, perfilDeMarca, ultimoPublicable, visibles } from '@/lib/benchmark';
+import {
+  CAPA_LABEL,
+  PRIORIDAD_LABEL,
+  ROL_LABEL,
+  VERIFICACION_LABEL,
+  verificacionDe,
+} from '@/lib/battle-cards';
 import { NotaMarca } from '../nota-marca';
 import { CompanyLogo } from '../../../company-logo';
 import { EditableImage } from '../../../editable-image';
@@ -74,10 +81,13 @@ export default async function MarcaCorpusPage({ params, searchParams }: Props) {
   );
   const grupo = grupos.find((g) => g.dominios.includes(dom)) ?? null;
   const oculta = grupo ? (grupo.ocultas ?? []).includes(dom) : false;
-  const nota = grupo?.notas?.[dom] ?? null;
   // Las hermanas son las que están EN la comparación: una oculta no cuenta
   // en la media que se enseña aquí, igual que no cuenta en la matriz.
-  const hermanas = grupo ? await getCorpusBrands(visibles(grupo).filter((d) => d !== dom)) : [];
+  const hermanas = grupo
+    ? await getCorpusBrands(visibles(grupo, guardado?.marcas).filter((d) => d !== dom))
+    : [];
+  // La ficha de criterio: lo que decidimos de esta marca en ESTE estudio.
+  const ficha = guardado?.marcas?.[dom];
 
   const selections = await getComponentSelections(m.company.id);
 
@@ -371,10 +381,45 @@ export default async function MarcaCorpusPage({ params, searchParams }: Props) {
 
               {grupo && (
                 <div className="mt-4 border-t border-[var(--border)] pt-3">
+                  {/* Qué pinta tiene esta marca en el estudio. Se decide en la
+                      rejilla de clasificación; aquí se lee. */}
+                  {(ficha?.role || ficha?.layer || ficha?.priority) && (
+                    <p className="mb-2 flex flex-wrap gap-1.5">
+                      {ficha.role && (
+                        <span className="rounded-md border border-[var(--cta)]/40 bg-[var(--cta)]/8 px-2 py-0.5 text-[11px] text-[var(--cta)]">
+                          {ROL_LABEL[ficha.role]}
+                        </span>
+                      )}
+                      {ficha.layer && (
+                        <span className="rounded-md border border-[var(--border)] px-2 py-0.5 text-[11px] text-[var(--muted)]">
+                          {CAPA_LABEL[ficha.layer]}
+                        </span>
+                      )}
+                      {ficha.priority && (
+                        <span className="rounded-md border border-[var(--border)] px-2 py-0.5 text-[11px] text-[var(--muted)]">
+                          {PRIORIDAD_LABEL[ficha.priority]}
+                        </span>
+                      )}
+                    </p>
+                  )}
                   <p className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">
                     Por qué está en el estudio
                   </p>
-                  <NotaMarca cliente={cliente} marca={dom} inicial={nota} className="mt-1" />
+                  <NotaMarca
+                    cliente={cliente}
+                    marca={dom}
+                    inicial={ficha?.note ?? grupo.notas?.[dom] ?? null}
+                    className="mt-1"
+                  />
+                  <p className="mt-2 font-mono text-[10px] text-[var(--soft)]">
+                    Verificación:{' '}
+                    {VERIFICACION_LABEL[
+                      verificacionDe(ficha, {
+                        conScanPublicable: scanVisible != null,
+                        conScanRetenido: ultimo != null,
+                      })
+                    ]}
+                  </p>
                 </div>
               )}
 

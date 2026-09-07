@@ -9,6 +9,14 @@ import { ScoreRing } from '../../score-ring';
 import { ScanProgress } from '../../scan-progress';
 import { NotaMarca } from './nota-marca';
 import { useEstudio } from './estudio-estado';
+import { TONO_VERIFICACION } from './tabla-clasificacion';
+import {
+  CAPA_LABEL,
+  PRIORIDAD_LABEL,
+  ROL_LABEL,
+  VERIFICACION_LABEL,
+  type Verificacion,
+} from '@/lib/battle-cards';
 
 // Lo que el SERVIDOR sabe de cada marca: su scan y su identidad. Es una
 // vista fina a propósito, el scan entero pesa. Va indexada por dominio y sin
@@ -24,16 +32,30 @@ export interface DatosMarca {
   estado: 'listo' | 'escaneando' | 'retenido' | 'sin-scan';
   scanId: string | null;
   detectados: number;
+  // Lo que se deduce del estado del scan mientras nadie la fije a mano.
+  verificacionAuto: Verificacion;
 }
 
-// Lo de arriba más lo que aporta el grupo.
+// Lo de arriba más lo que aportan el grupo y la clasificación.
 export interface MarcaEnGrupo extends DatosMarca {
   oculta: boolean;
+  descartada: boolean;
   nota: string | null;
+  resumen: string[];
+  verificacion: Verificacion;
 }
 
 function sinDatos(domain: string): DatosMarca {
-  return { domain, name: domain, logoUrl: null, score: null, estado: 'sin-scan', scanId: null, detectados: 0 };
+  return {
+    domain,
+    name: domain,
+    logoUrl: null,
+    score: null,
+    estado: 'sin-scan',
+    scanId: null,
+    detectados: 0,
+    verificacionAuto: 'no_source',
+  };
 }
 
 const ESTADO: Record<MarcaEnGrupo['estado'], string> = {
@@ -62,7 +84,7 @@ export function GrupoEstudio({
   cliente: string; // dominio del cliente, para guardar las notas
 }) {
   const router = useRouter();
-  const { grupos, editar: editarEstudio, query } = useEstudio();
+  const { grupos, marcas: fichas, editar: editarEstudio, query } = useEstudio();
   const [texto, setTexto] = useState('');
   const [ocupado, setOcupado] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -72,11 +94,25 @@ export function GrupoEstudio({
   const editar = (fn: (g: Grupo) => Grupo) =>
     editarEstudio((gs) => gs.map((g) => (g.nombre === nombre ? fn(g) : g)));
 
-  const marcas: MarcaEnGrupo[] = (grupo?.dominios ?? []).map((d) => ({
-    ...(datos[d] ?? sinDatos(d)),
-    oculta: (grupo?.ocultas ?? []).includes(d),
-    nota: grupo?.notas?.[d] ?? null,
-  }));
+  const marcas: MarcaEnGrupo[] = (grupo?.dominios ?? []).map((d) => {
+    const f = fichas[d] ?? {};
+    const base = datos[d] ?? sinDatos(d);
+    // Lo que se lee de un vistazo en la lista. La rejilla de clasificación es
+    // donde se decide; aquí solo se ve lo decidido.
+    const resumen = [
+      f.role ? ROL_LABEL[f.role] : null,
+      f.layer ? CAPA_LABEL[f.layer] : null,
+      f.priority ? PRIORIDAD_LABEL[f.priority] : null,
+    ].filter(Boolean) as string[];
+    return {
+      ...base,
+      oculta: (grupo?.ocultas ?? []).includes(d),
+      descartada: f.priority === 'out',
+      nota: f.note ?? grupo?.notas?.[d] ?? null,
+      resumen,
+      verificacion: f.verification ?? base.verificacionAuto,
+    };
+  });
 
   // Mientras haya scans en marcha en este grupo, se les pregunta al servidor
   // y se refresca la página cuando terminan. Un scan tarda uno o dos
@@ -194,14 +230,17 @@ export function GrupoEstudio({
     );
   };
 
-  const visibles = marcas.filter((m) => !m.oculta);
-  const ocultas = marcas.filter((m) => m.oculta);
+  // Fuera de la comparación por dos motivos distintos: apartada un rato
+  // (oculta) o descartada del estudio (prioridad «Fuera»). Se pliegan juntas
+  // pero se dicen por separado: una es foco, la otra es juicio.
+  const visibles = marcas.filter((m) => !m.oculta && !m.descartada);
+  const ocultas = marcas.filter((m) => m.oculta || m.descartada);
   const otros = grupos.filter((g) => g.nombre !== nombre);
 
   function Fila({ m, lista }: { m: MarcaEnGrupo; lista: MarcaEnGrupo[] }) {
     const i = lista.indexOf(m);
     return (
-      <li className={`group flex items-start gap-3 px-4 py-2.5 ${m.oculta ? 'opacity-60' : ''}`}>
+      <li className={`group flex items-start gap-3 px-4 py-2.5 ${m.oculta || m.descartada ? 'opacity-60' : ''}`}>
         <Link
           href={`${hrefBase}/${m.domain}${query ? `?g=${query}` : ''}`}
           className="mt-0.5 shrink-0"
@@ -215,7 +254,13 @@ export function GrupoEstudio({
               href={`${hrefBase}/${m.domain}${query ? `?g=${query}` : ''}`}
               className="min-w-0 hover:underline"
             >
-              <span className="block truncate text-sm font-medium">{m.name}</span>
+              <span className="flex items-center gap-2">
+                <span
+                  title={`Verificación: ${VERIFICACION_LABEL[m.verificacion]}`}
+                  className={`h-2 w-2 shrink-0 rounded-full ${TONO_VERIFICACION[m.verificacion]}`}
+                />
+                <span className="truncate text-sm font-medium">{m.name}</span>
+              </span>
               <span className="block font-mono text-[11px] text-[var(--soft)]">
                 {m.domain}
                 {m.estado === 'listo' && m.detectados < 8 && ` · ${m.detectados}/10 detectados`}
@@ -233,6 +278,13 @@ export function GrupoEstudio({
               )}
             </span>
           </div>
+
+          {/* La clasificación, en dos palabras. Se decide en la rejilla. */}
+          {m.resumen.length > 0 && (
+            <p className="mt-1 font-mono text-[10px] uppercase tracking-wider text-[var(--cta)]">
+              {m.resumen.join(' · ')}
+            </p>
+          )}
 
           {/* El porqué, editable donde se lee. */}
           <NotaMarca cliente={cliente} marca={m.domain} inicial={m.nota} className="mt-1" />
@@ -255,7 +307,14 @@ export function GrupoEstudio({
                 </button>
               </>
             )}
-            {m.oculta ? (
+            {m.descartada ? (
+              <span
+                title="Prioridad «Fuera». Se cambia en la rejilla de clasificación."
+                className={`${MINI} border-dashed`}
+              >
+                descartada
+              </span>
+            ) : m.oculta ? (
               <button
                 onClick={() => ocultar(m.domain, false)}
                 className={`${MINI} border-[var(--cta)]/50 text-[var(--cta)]`}
@@ -338,6 +397,11 @@ export function GrupoEstudio({
           >
             <span>
               {ocultas.length === 1 ? '1 marca fuera de la comparación' : `${ocultas.length} marcas fuera de la comparación`}
+              {ocultas.some((m) => m.descartada) && (
+                <span className="ml-2 normal-case tracking-normal">
+                  ({ocultas.filter((m) => m.descartada).length} descartadas)
+                </span>
+              )}
             </span>
             <span>{verOcultas ? '−' : '+'}</span>
           </button>

@@ -3,6 +3,7 @@
 import { GrupoEstudio, type DatosMarca } from './grupo-estudio';
 import { NuevoGrupo } from './nuevo-grupo';
 import { useEstudio } from './estudio-estado';
+import { TablaClasificacion } from './tabla-clasificacion';
 
 // La rejilla de grupos. Existe como componente de cliente porque la LISTA de
 // grupos también es estado editable: recorrerla desde el servidor hacía que
@@ -18,13 +19,14 @@ export function GruposDelEstudio({
   hrefBase: string;
   cliente: string;
 }) {
-  const { grupos, guardando } = useEstudio();
+  const { grupos, guardando, error } = useEstudio();
 
   return (
     <>
-      <div className="mt-6 flex h-4 items-center justify-end">
+      <div className="mt-6 flex h-4 items-center justify-end gap-3">
         {/* El único aviso que hacía falta: antes un cambio podía perderse en
             silencio y no había forma de saberlo. */}
+        {error && <span className="text-xs text-[var(--danger)]">{error}</span>}
         {guardando && (
           <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">
             guardando…
@@ -45,6 +47,8 @@ export function GruposDelEstudio({
         ))}
         <NuevoGrupo />
       </div>
+
+      <TablaClasificacion datos={datos} hrefBase={hrefBase} />
     </>
   );
 }
