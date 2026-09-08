@@ -215,21 +215,53 @@ export function apiConfigured(): boolean {
   return Boolean(readApiToken());
 }
 
+// El Scanner puede estar simplemente caído. Cuando lo está, Fly tarda unos
+// 35 segundos en devolver un 503 con el cuerpo vacío, así que aquí se corta
+// antes y lo que llega a quien llama es un aborto de fetch: una DOMException
+// cuyo mensaje, "The operation was aborted due to timeout", acababa en la
+// pantalla del usuario tal cual. No dice qué pasa ni qué hacer.
+//
+// Cualquier fallo de red o de arranque se traduce a un error del dominio con
+// el mismo texto en todas partes.
+const SCANNER_CAIDO =
+  'El Scanner (b3s.fly.dev) no responde. Suele ser la máquina de Fly parada o arrancando: espera un par de minutos y reintenta, y si sigue, avisa a Jesús.';
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${apiBase()}${path}`, {
-    ...init,
-    cache: 'no-store',
-    // Sin timeout, una conexión colgada al Scanner (máquina de Fly fría)
-    // arrastra a quien llama más allá de los 10s de función de Netlify, y el
-    // proxy responde con su página HTML donde se esperaba JSON.
-    signal: init.signal ?? AbortSignal.timeout(8_000),
-    headers: {
-      Accept: 'application/json',
-      Authorization: `Bearer ${apiToken()}`,
-      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-      ...init.headers,
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${apiBase()}${path}`, {
+      ...init,
+      cache: 'no-store',
+      // Sin timeout, una conexión colgada al Scanner (máquina de Fly fría)
+      // arrastra a quien llama más allá de los 10s de función de Netlify, y el
+      // proxy responde con su página HTML donde se esperaba JSON.
+      signal: init.signal ?? AbortSignal.timeout(8_000),
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${apiToken()}`,
+        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+        ...init.headers,
+      },
+    });
+  } catch (e) {
+    throw new B3SApiError({
+      status: 503,
+      code: e instanceof Error && e.name === 'TimeoutError' ? 'scanner_timeout' : 'scanner_unreachable',
+      message: SCANNER_CAIDO,
+      details: { causa: e instanceof Error ? `${e.name}: ${e.message}` : String(e) },
+    });
+  }
+
+  // 502/503/504 no son un error de la petición: es que no hay nadie al otro
+  // lado. Con el cuerpo vacío que devuelve el proxy de Fly, el mensaje
+  // genérico "B3S Scanner API respondió 503" tampoco ayudaba.
+  if ([502, 503, 504].includes(response.status)) {
+    throw new B3SApiError({
+      status: response.status,
+      code: 'scanner_unreachable',
+      message: SCANNER_CAIDO,
+    });
+  }
 
   if (!response.ok) {
     let envelope: ApiErrorEnvelope = {};

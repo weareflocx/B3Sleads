@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { absoluteB3SUrl, apiConfigured, createScan, storedScanStatus } from '@/lib/brand3';
+import { absoluteB3SUrl, apiConfigured, B3SApiError, createScan, storedScanStatus } from '@/lib/brand3';
 import { syncStoredScan } from '@/lib/b3s-scan-storage';
 import { normalizarDominio } from '@/lib/eclipse';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
@@ -55,6 +55,11 @@ export async function POST(req: NextRequest) {
     }
 
     let company = existente;
+    // Si la creamos nosotros y el scan no llega a lanzarse, hay que deshacerla:
+    // una company sin scan ni lead no se ve en ninguna pantalla, no se puede
+    // borrar desde la interfaz y bloquea el alta siguiente, porque la rama de
+    // "ya existe" la encuentra y no vuelve a intentar el scan.
+    let reciennacida = false;
     if (!company) {
       const { data, error } = await db
         .from('companies')
@@ -63,31 +68,50 @@ export async function POST(req: NextRequest) {
         .single();
       if (error) throw error;
       company = data;
+      reciennacida = true;
     }
 
-    const job = await createScan(`https://${domain}`, {
-      brandName: company.name,
-      allowDegradedFallback: true,
-      idempotencyKey: `estudio-${domain}-${new Date().toISOString().slice(0, 10)}`,
-    });
-    const { data: scan, error } = await db
-      .from('scans')
-      .insert({
-        company_id: company.id,
-        scanner_job_id: job.id,
-        status: storedScanStatus(job.status),
-        ui_url: absoluteB3SUrl(job.links.report),
-      })
-      .select()
-      .single();
-    if (error) throw error;
-    const stored = job.status === 'completed' ? (await syncStoredScan(db, scan as Scan)).scan : scan;
-    return NextResponse.json({
-      ok: true,
-      domain,
-      estado: stored.status === 'ready' ? 'listo' : 'escaneando',
-      scanId: stored.id,
-    });
+    try {
+      const job = await createScan(`https://${domain}`, {
+        brandName: company.name,
+        allowDegradedFallback: true,
+        // La clave de idempotencia hace que reintentar sea gratis: si el scan
+        // llegó a crearse en el Scanner y solo se perdió la respuesta, la
+        // segunda llamada devuelve ese mismo trabajo en vez de duplicarlo.
+        idempotencyKey: `estudio-${domain}-${new Date().toISOString().slice(0, 10)}`,
+      });
+      const { data: scan, error } = await db
+        .from('scans')
+        .insert({
+          company_id: company.id,
+          scanner_job_id: job.id,
+          status: storedScanStatus(job.status),
+          ui_url: absoluteB3SUrl(job.links.report),
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      const stored = job.status === 'completed' ? (await syncStoredScan(db, scan as Scan)).scan : scan;
+      return NextResponse.json({
+        ok: true,
+        domain,
+        estado: stored.status === 'ready' ? 'listo' : 'escaneando',
+        scanId: stored.id,
+      });
+    } catch (e) {
+      if (reciennacida) {
+        await db.from('companies').delete().eq('id', company.id);
+      }
+      const esDelScanner = e instanceof B3SApiError;
+      return NextResponse.json(
+        {
+          error: esDelScanner
+            ? e.message
+            : `No se pudo lanzar el scan de ${domain}: ${e instanceof Error ? e.message : 'error desconocido'}`,
+        },
+        { status: esDelScanner ? (e as B3SApiError).status : 500 },
+      );
+    }
   } catch (e) {
     console.error('[estudio/marca]', e);
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });
