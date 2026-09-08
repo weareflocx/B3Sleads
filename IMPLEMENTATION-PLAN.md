@@ -1,8 +1,17 @@
 # Plan de implementación — Módulo Battle Cards
 
 Respuesta a `SPEC Battle Cards v1.0` (2026-09-07). Escrito tras explorar el
-repositorio y auditar los datos reales de producción. **No he escrito código
-del módulo: espero aprobación.**
+repositorio y auditar los datos reales de producción.
+
+> **Estado a 2026-09-08: las ocho fases están implementadas y desplegadas.**
+> Falta ejecutar las tres migraciones en Supabase; hasta entonces todo se ve
+> pero nada guarda, y cada endpoint responde 503 con la instrucción.
+>
+> Se añadió una fase 1.5 que no estaba en la spec: los controles del estudio
+> perdían cambios al hacer dos clics seguidos. Ver la sección 2.
+>
+> Este documento se conserva como registro de lo que se decidió y por qué,
+> incluidas las tres contradicciones entre la spec y los datos reales.
 
 Cifras de la auditoría (producción, 2026-09-07):
 
