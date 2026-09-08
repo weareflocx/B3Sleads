@@ -4,7 +4,15 @@ import { useMemo, useRef, useState } from 'react';
 import { Select } from '../../select';
 import { anilloDeScore } from '../../score-ring';
 import { useEstudio } from './estudio-estado';
-import { CAPA_LABEL, type Capa } from '@/lib/battle-cards';
+import {
+  CAPAS,
+  CAPA_LABEL,
+  PRIORIDADES,
+  PRIORIDAD_LABEL,
+  ROLES,
+  ROL_LABEL,
+  type Capa,
+} from '@/lib/battle-cards';
 
 // Los mapas del estudio. Dos lecturas del mismo conjunto de marcas:
 //
@@ -29,9 +37,8 @@ export interface PuntoMapa {
   capa: Capa | null;
   rol: string | null;
   nota: string | null;
-  // Logo pegado a mano, si lo hay. Manda sobre las fuentes automáticas.
+  grupo?: string | null;
   logoUrl?: string | null;
-  // Las diez del Scanner en porcentaje, para las barras del panel.
   dimensiones?: Record<string, number | null>;
   informeUrl?: string | null;
   // Posición calculada sobre datos incompletos: se pinta hueca y no cuenta.
@@ -46,32 +53,35 @@ const COLOR_CAPA: Record<Capa, string> = {
 };
 const COLOR_SIN_CAPA = 'var(--muted)';
 
-// 16:10, para que el SVG exportado salga a 1600x1000 exactos sin deformar
-// nada. La spec pide ese tamaño y estirar un dibujo para cuadrarlo mueve
-// todos los puntos de sitio.
+// 16:10, para que el SVG exportado salga a 1600x1000 exactos sin deformar.
 const W = 800;
 const H = 500;
-// Los márgenes crecen abajo y a la izquierda: ahí van los números, los
-// extremos de cada eje y el nombre del eje, en tres alturas distintas. Antes
-// los extremos del eje Y y los del X caían los dos en la esquina inferior
-// izquierda, uno encima de otro, y no se sabía cuál era de qué eje.
+// Abajo y a la izquierda caben tres cosas: números, extremos y nombre del
+// eje. Antes los extremos de los dos ejes se apilaban en la misma esquina.
 const M = { arriba: 30, derecha: 30, abajo: 62, izquierda: 62 };
 const CAJA = { w: W - M.izquierda - M.derecha, h: H - M.arriba - M.abajo };
 
-// El tamaño dice la CAPA, no el score. Antes el radio codificaba el score y
-// eso obligaba a comparar áreas para leer un número; ahora el score es el
-// arco del anillo, que se lee de un vistazo, y el tamaño queda libre para
-// decir de qué tipo de marca estamos hablando.
+// El tamaño dice la CAPA, no el score: el score es el arco, que se lee de un
+// vistazo sin comparar áreas. Son pequeños a propósito. Con cuarenta marcas,
+// una insignia grande deja de ser un dato y pasa a ser un estorbo; para mirar
+// de cerca está el zoom.
 const DIAMETRO_CAPA: Record<Capa, number> = {
-  competitive: 38,
-  register: 30,
-  anti_reference: 26,
+  competitive: 26,
+  register: 22,
+  anti_reference: 19,
 };
-const DIAMETRO_SIN_CAPA = 28;
+const DIAMETRO_SIN_CAPA = 20;
 
-// Las once líneas de la rejilla. La del 5 se dibuja distinta: es la que
-// parte los cuadrantes.
+// El lienzo mide 800 y se ve a 1600 o más: cada unidad son dos o tres píxeles
+// reales. Un 11 se convertía en 27, casi tan alto como una marca entera, y el
+// texto pesaba más que los datos.
+const TIPO = { marca: 8.5, extremo: 9, numero: 8, cuadrante: 7.5, titulo: 7.5 };
+
+// Cuánto del hueco ocupa el logo, dejando aire alrededor.
+const AIRE_LOGO = 0.82;
+
 const UNIDADES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+const ZOOM_MAX = 6;
 
 function diametro(capa: Capa | null): number {
   return capa ? DIAMETRO_CAPA[capa] : DIAMETRO_SIN_CAPA;
@@ -80,10 +90,9 @@ function radio(p: { capa: Capa | null }): number {
   return diametro(p.capa) / 2;
 }
 
-// Las mismas fuentes y el mismo orden que CompanyLogo. Repetirlas aquí es
-// deliberado: aquel es un componente de React con <img>, y dentro de un SVG
-// que además hay que exportar hace falta <image>. Lo que se comparte es el
-// criterio, no el marcado.
+// Las mismas fuentes y el mismo orden que CompanyLogo. Se repiten aquí porque
+// aquel es un componente con <img> y dentro de un SVG exportable hace falta
+// <image>. Lo que se comparte es el criterio, no el marcado.
 function fuentesDeLogo(dominio: string, manual?: string | null): string[] {
   return [
     manual?.trim() || null,
@@ -94,24 +103,20 @@ function fuentesDeLogo(dominio: string, manual?: string | null): string[] {
 
 function iniciales(nombre: string): string {
   return (
-    nombre
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((w) => w[0]?.toUpperCase() ?? '')
-      .join('') || '?'
+    nombre.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('') ||
+    '?'
   );
 }
 
-// Un identificador de clip válido y estable por marca.
 const clipId = (dominio: string) => `logo-${dominio.replace(/[^a-z0-9]/gi, '-')}`;
+const acotar = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
 // Exporta el mapa que se está viendo como SVG para Figma.
 //
 // El SVG de la página usa variables CSS (var(--cta), var(--border)…), que
 // fuera del documento no existen: el archivo llegaría a Figma con todo en
-// negro. Así que se clona el dibujo y se sustituye cada color por el valor
-// ya calculado por el navegador. Sin rasterizar, sin librería y sin fondo.
+// negro. Se clona el dibujo y se sustituye cada color por el valor ya
+// calculado por el navegador. Sin rasterizar y sin fondo.
 function descargarSvg(svg: SVGSVGElement, nombre: string) {
   const copia = svg.cloneNode(true) as SVGSVGElement;
   const origen = svg.querySelectorAll('*');
@@ -119,7 +124,7 @@ function descargarSvg(svg: SVGSVGElement, nombre: string) {
 
   const PROPS = [
     'fill', 'fill-opacity', 'stroke', 'stroke-width', 'stroke-dasharray',
-    'font-size', 'font-weight', 'text-anchor',
+    'stroke-opacity', 'font-size', 'font-weight', 'text-anchor',
   ] as const;
 
   for (let i = 0; i < origen.length; i++) {
@@ -130,10 +135,9 @@ function descargarSvg(svg: SVGSVGElement, nombre: string) {
       if (v && v !== 'none' && !v.includes('var(')) el.setAttribute(prop, v.trim());
       else if (v === 'none') el.setAttribute(prop, 'none');
     }
-    // La fuente se deja por nombre, no en trazos: en Figma el texto sigue
-    // siendo texto y se puede corregir. Si no está Geist, Figma avisa y
-    // sustituye, que es preferible a una curva que nadie puede editar.
-    if (el.tagName === 'text') el.setAttribute('font-family', 'Geist, Inter, Helvetica, Arial, sans-serif');
+    if (el.tagName === 'text') {
+      el.setAttribute('font-family', 'Geist, Inter, Helvetica, Arial, sans-serif');
+    }
     el.removeAttribute('style');
     el.removeAttribute('class');
   }
@@ -146,7 +150,6 @@ function descargarSvg(svg: SVGSVGElement, nombre: string) {
   }
 
   copia.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-  // La spec pide 1600x1000 y el lienzo es 16:10, así que cuadra sin estirar.
   copia.setAttribute('width', '1600');
   copia.setAttribute('height', '1000');
   copia.removeAttribute('class');
@@ -166,14 +169,18 @@ export function Mapa({
   clienteMadurez,
   clienteNombre,
   clienteScore,
+  clienteLogo,
+  clienteDominio,
 }: {
-  // Los puntos de madurez llegan calculados del servidor: salen del scan y
-  // no cambian al teclear. Los del mapa estratégico se derivan aquí, del
-  // estado del cliente, para que puntuar mueva el punto sin recargar.
+  // Los puntos de madurez llegan calculados del servidor: salen del scan y no
+  // cambian al teclear. Los del mapa estratégico se derivan aquí, del estado
+  // del cliente, para que puntuar mueva el punto sin recargar.
   madurez: PuntoMapa[];
   clienteMadurez: { x: number; y: number } | null;
   clienteNombre: string;
   clienteScore: number | null;
+  clienteLogo?: string | null;
+  clienteDominio: string;
 }) {
   const { ejes, posiciones, marcas } = useEstudio();
   const [tipo, setTipo] = useState<'estrategico' | 'madurez'>(
@@ -182,18 +189,48 @@ export function Mapa({
   const [ejeX, setEjeX] = useState(ejes[0]?.axis_id ?? '');
   const [ejeY, setEjeY] = useState(ejes[1]?.axis_id ?? '');
   const [verEtiquetas, setVerEtiquetas] = useState(true);
-  const [verDescartadas, setVerDescartadas] = useState(false);
   const [encima, setEncima] = useState<PuntoMapa | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
-  // Índice de la fuente de logo que se está probando por marca. Sube al
-  // fallar una y se queda ahí; agotadas, mandan las iniciales.
-  const [logoFallido, setLogoFallido] = useState<Record<string, number>>({});
+
+  // Los mismos filtros que la rejilla de Clasificación. Sin ellos, el mapa
+  // enseña las cuarenta y cuatro marcas a la vez y no hay forma de mirar solo
+  // el núcleo competitivo, que suele ser la pregunta.
+  const [fGrupo, setFGrupo] = useState('');
+  const [fRol, setFRol] = useState('');
+  const [fCapa, setFCapa] = useState('');
+  const [fPrioridad, setFPrioridad] = useState('');
+
+  // Cascada de logos y qué imagen ha llegado a cargar. Las iniciales solo se
+  // pintan mientras no haya logo: un PNG con transparencia dejaba ver la
+  // letra por debajo y parecía un error de dibujo.
+  const [logoIdx, setLogoIdx] = useState<Record<string, number>>({});
+  const [logoOk, setLogoOk] = useState<Record<string, boolean>>({});
+
+  // La ventana visible, en unidades de dato (0..1). Al acercar, los puntos se
+  // separan pero las marcas NO crecen: si creciera todo a la vez el amontonamiento
+  // sería el mismo y el zoom no serviría de nada.
+  const [vista, setVista] = useState({ escala: 1, x: 0, y: 0 });
+  const arrastre = useRef<{ x: number; y: number; vx: number; vy: number } | null>(null);
 
   const x = ejes.find((e) => e.axis_id === ejeX) ?? ejes[0];
   const y = ejes.find((e) => e.axis_id === ejeY) ?? ejes[1];
+  const esEstrategico = tipo === 'estrategico';
 
-  // Los puntos del mapa estratégico salen del estado del cliente, así que
-  // teclear una puntuación mueve el punto sin recargar.
+  const px = (v: number) => M.izquierda + (v - vista.x) * vista.escala * CAJA.w;
+  const py = (v: number) => M.arriba + CAJA.h - (v - vista.y) * vista.escala * CAJA.h;
+
+  const encuadrar = (escala: number, cx: number, cy: number) => {
+    const e = acotar(escala, 1, ZOOM_MAX);
+    const lado = 1 / e;
+    return {
+      escala: e,
+      x: acotar(cx - lado / 2, 0, 1 - lado),
+      y: acotar(cy - lado / 2, 0, 1 - lado),
+    };
+  };
+  const centro = { x: vista.x + 0.5 / vista.escala, y: vista.y + 0.5 / vista.escala };
+  const acercar = (f: number) => setVista(encuadrar(vista.escala * f, centro.x, centro.y));
+
   const estrategicos = useMemo<PuntoMapa[]>(() => {
     if (!x || !y) return [];
     return madurez
@@ -209,11 +246,17 @@ export function Mapa({
       .filter((p): p is PuntoMapa => p !== null);
   }, [madurez, marcas, x, y]);
 
-  const esEstrategico = tipo === 'estrategico';
   const base = esEstrategico ? estrategicos : madurez;
-  const visibles = base.filter(
-    (p) => verDescartadas || marcas[p.dominio]?.priority !== 'out',
-  );
+  const visibles = base.filter((p) => {
+    const f = marcas[p.dominio] ?? {};
+    if (fGrupo && p.grupo !== fGrupo) return false;
+    if (fRol && f.role !== fRol) return false;
+    if (fCapa && f.layer !== fCapa) return false;
+    if (fPrioridad ? f.priority !== fPrioridad : f.priority === 'out') return false;
+    return true;
+  });
+  const hayFiltro = Boolean(fGrupo || fRol || fCapa || fPrioridad);
+  const grupos = [...new Set(base.map((p) => p.grupo).filter(Boolean))] as string[];
 
   const etiquetas = {
     izquierda: esEstrategico ? (x?.label_left ?? '') : 'Funcional',
@@ -221,20 +264,15 @@ export function Mapa({
     abajo: esEstrategico ? (y?.label_left ?? '') : 'Score bajo',
     arriba: esEstrategico ? (y?.label_right ?? '') : 'Score alto',
   };
-
   const tituloX = `${etiquetas.izquierda} → ${etiquetas.derecha}`;
   const tituloY = `${etiquetas.abajo} → ${etiquetas.arriba}`;
 
-  // En el mapa de madurez el eje vertical NO es un 0-10: es el Brand3 Score.
-  // Poner ahí un 5 sería mentir sobre la escala.
-  const marcas0510 = [0, 5, 10].map((v) => ({
-    v,
-    x: String(v),
-    y: esEstrategico ? String(v) : String(v * 10),
-  }));
+  // Solo las unidades que caen dentro de la ventana. Al acercar, la escala
+  // que se lee es la de verdad y no un 0-10 que ya no se está viendo.
+  const dentro = (v: number) => v / 10 >= vista.x - 1e-6 && v / 10 <= vista.x + 1 / vista.escala + 1e-6;
+  const dentroY = (v: number) => v / 10 >= vista.y - 1e-6 && v / 10 <= vista.y + 1 / vista.escala + 1e-6;
+  const valorY = (v: number) => (esEstrategico ? String(v) : String(v * 10));
 
-  // Cada esquina, nombrada por los dos extremos que la forman. Es la lectura
-  // que antes había que reconstruir mirando los cuatro bordes.
   const CUADRANTES = [
     { clave: 'ai', ax: 0, ay: 1, anchor: 'start' as const, arriba: true, texto: `${etiquetas.izquierda} · ${etiquetas.arriba}` },
     { clave: 'ad', ax: 1, ay: 1, anchor: 'end' as const, arriba: true, texto: `${etiquetas.derecha} · ${etiquetas.arriba}` },
@@ -242,31 +280,17 @@ export function Mapa({
     { clave: 'bd', ax: 1, ay: 0, anchor: 'end' as const, arriba: false, texto: `${etiquetas.derecha} · ${etiquetas.abajo}` },
   ];
 
-  const px = (v: number) => M.izquierda + v * CAJA.w;
-  const py = (v: number) => M.arriba + (1 - v) * CAJA.h;
-
-  // Reparto de etiquetas.
-  //
-  // Los puntos NO se mueven: correr un punto para que quepa su nombre es
-  // mentir sobre su posición, y la posición es lo único que este dibujo
-  // afirma. Lo que se reparte son las etiquetas, probando cuatro huecos
-  // alrededor del punto y quedándose con el primero libre.
-  //
-  // Cuando no queda ninguno, la etiqueta NO se pinta. Con treinta y cinco
-  // marcas apiñadas en el centro, encajarlas todas significa superponer
-  // texto, que es peor que no ponerlo: el nombre sigue estando al pasar el
-  // ratón, y abajo se dice cuántas se quedaron sin sitio.
+  // Reparto de etiquetas. Los puntos NO se mueven: correr un punto para que
+  // quepa su nombre es mentir sobre su posición, y la posición es lo único
+  // que este dibujo afirma. Lo que se reparte son las etiquetas.
   const { etiquetadas, sinSitio } = useMemo(() => {
-    // Las de más score eligen antes: si algo se queda sin nombre, que sea lo
-    // que menos pesa en la lectura.
     const ordenados = [...visibles].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
     const ocupado: { x1: number; y1: number; x2: number; y2: number }[] = [];
     const choca = (r: (typeof ocupado)[number]) =>
       ocupado.some((o) => !(r.x2 < o.x1 || r.x1 > o.x2 || r.y2 < o.y1 || r.y1 > o.y2));
 
     // Los puntos entran como obstáculo antes que ninguna etiqueta: un nombre
-    // encima de otra marca se lee como si fuera suyo, que es peor que no
-    // verlo. Reservar el círculo entero es lo que evita esa confusión.
+    // encima de otra marca se lee como si fuera suyo.
     for (const p of ordenados) {
       const r = radio(p) + 2;
       ocupado.push({ x1: px(p.x) - r, y1: py(p.y) - r, x2: px(p.x) + r, y2: py(p.y) + r });
@@ -279,17 +303,13 @@ export function Mapa({
       const cx = px(p.x);
       const cy = py(p.y);
       const r = radio(p);
-      // Ancho estimado del texto. Medirlo de verdad exigiría pintarlo antes,
-      // y a 11px de una sans el carácter medio anda por 6,3 contando
-      // mayúsculas. Los 6 de más son aire: dos etiquetas que se rozan se leen
-      // como una sola palabra larga.
-      const ancho = p.nombre.length * 6.3 + 6;
-      const alto = 14;
+      const ancho = p.nombre.length * (TIPO.marca * 0.56) + 5;
+      const alto = TIPO.marca + 3;
       const candidatos = [
-        { lx: cx, ly: cy - r - 6, anchor: 'middle' as const, x1: cx - ancho / 2, y1: cy - r - 6 - alto },
-        { lx: cx, ly: cy + r + 13, anchor: 'middle' as const, x1: cx - ancho / 2, y1: cy + r + 3 },
-        { lx: cx + r + 5, ly: cy + 4, anchor: 'start' as const, x1: cx + r + 5, y1: cy - 5 },
-        { lx: cx - r - 5, ly: cy + 4, anchor: 'end' as const, x1: cx - r - 5 - ancho, y1: cy - 5 },
+        { lx: cx, ly: cy + r + 10, anchor: 'middle' as const, x1: cx - ancho / 2, y1: cy + r + 2 },
+        { lx: cx, ly: cy - r - 5, anchor: 'middle' as const, x1: cx - ancho / 2, y1: cy - r - 5 - alto },
+        { lx: cx + r + 4, ly: cy + 3, anchor: 'start' as const, x1: cx + r + 4, y1: cy - 5 },
+        { lx: cx - r - 4, ly: cy + 3, anchor: 'end' as const, x1: cx - r - 4 - ancho, y1: cy - 5 },
       ];
       const hueco = candidatos.find((c) => {
         const rect = { x1: c.x1, y1: c.y1, x2: c.x1 + ancho, y2: c.y1 + alto };
@@ -304,7 +324,7 @@ export function Mapa({
       out.push({ punto: p, lx: hueco.lx, ly: hueco.ly, anchor: hueco.anchor });
     }
     return { etiquetadas: out, sinSitio: perdidas };
-  }, [visibles]);
+  }, [visibles, vista]);
 
   const cliente = esEstrategico && x && y ? {
     hoy: posiciones.current?.[x.axis_id] != null && posiciones.current?.[y.axis_id] != null
@@ -321,56 +341,76 @@ export function Mapa({
   };
 
   const flojas = visibles.filter((p) => p.flojo).length;
+  const MINI = 'font-mono text-[10px] uppercase tracking-wider';
 
   return (
     <section className="mt-4">
       <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+        {/* Qué mapa y contra qué ejes. */}
         <div className="flex flex-wrap items-center gap-2">
-          <Select
-            value={tipo}
-            onChange={(v) => setTipo(v as typeof tipo)}
-            align="left"
-            ariaLabel="Tipo de mapa"
+          <Select value={tipo} onChange={(v) => setTipo(v as typeof tipo)} align="left" ariaLabel="Tipo de mapa"
             options={[
               { value: 'estrategico', label: 'Mapa estratégico' },
               { value: 'madurez', label: 'Mapa de madurez' },
-            ]}
-          />
+            ]} />
           {esEstrategico && ejes.length >= 2 && (
             <>
-              <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">
-                X
-              </span>
+              <span className={`${MINI} text-[var(--soft)]`}>X</span>
               <Select value={x?.axis_id ?? ''} onChange={setEjeX} align="left" ariaLabel="Eje horizontal"
                 options={ejes.map((e) => ({ value: e.axis_id, label: `${e.label_left} → ${e.label_right}` }))} />
-              <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">
-                Y
-              </span>
+              <span className={`${MINI} text-[var(--soft)]`}>Y</span>
               <Select value={y?.axis_id ?? ''} onChange={setEjeY} align="left" ariaLabel="Eje vertical"
                 options={ejes.map((e) => ({ value: e.axis_id, label: `${e.label_left} → ${e.label_right}` }))} />
             </>
           )}
-          <span className="ml-auto flex items-center gap-3 font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">
-            <label className="flex cursor-pointer items-center gap-1.5">
+        </div>
+
+        {/* Los mismos filtros que la rejilla de Clasificación: mirar solo el
+            núcleo competitivo es la pregunta más frecuente y hasta ahora
+            había que salir del mapa para responderla. */}
+        <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-[var(--border)] pt-2">
+          <span className={`${MINI} text-[var(--soft)]`}>ver</span>
+          {grupos.length > 1 && (
+            <Select value={fGrupo} onChange={setFGrupo} align="left" ariaLabel="Filtrar por grupo"
+              options={[{ value: '', label: 'Todos los grupos' }, ...grupos.map((g) => ({ value: g, label: g }))]} />
+          )}
+          <Select value={fCapa} onChange={setFCapa} align="left" ariaLabel="Filtrar por capa"
+            options={[{ value: '', label: 'Cualquier capa' }, ...CAPAS.map((c) => ({ value: c, label: CAPA_LABEL[c] }))]} />
+          <Select value={fPrioridad} onChange={setFPrioridad} align="left" ariaLabel="Filtrar por prioridad"
+            options={[{ value: '', label: 'Sin las descartadas' }, ...PRIORIDADES.map((p) => ({ value: p, label: PRIORIDAD_LABEL[p] }))]} />
+          <Select value={fRol} onChange={setFRol} align="left" ariaLabel="Filtrar por rol"
+            options={[{ value: '', label: 'Cualquier rol' }, ...ROLES.map((r) => ({ value: r, label: ROL_LABEL[r] }))]} />
+          {hayFiltro && (
+            <button onClick={() => { setFGrupo(''); setFRol(''); setFCapa(''); setFPrioridad(''); }}
+              className="rounded border border-[var(--border)] px-2 py-1 font-mono text-[10px] text-[var(--muted)] transition-colors hover:border-[var(--muted)] hover:text-[var(--text)]">
+              quitar filtros
+            </button>
+          )}
+          <span className="ml-auto flex items-center gap-3">
+            <label className={`${MINI} flex cursor-pointer items-center gap-1.5 text-[var(--soft)]`}>
               <input type="checkbox" checked={verEtiquetas} onChange={(e) => setVerEtiquetas(e.target.checked)} />
-              etiquetas
+              nombres
             </label>
-            <label className="flex cursor-pointer items-center gap-1.5">
-              <input type="checkbox" checked={verDescartadas} onChange={(e) => setVerDescartadas(e.target.checked)} />
-              descartadas
-            </label>
+            {/* Acercar separa los puntos sin agrandar las marcas: es lo único
+                que sirve cuando cuarenta caen en el mismo palmo. */}
+            <span className="flex items-center gap-1">
+              <button onClick={() => acercar(1 / 1.5)} disabled={vista.escala <= 1}
+                className="h-6 w-6 rounded border border-[var(--border)] font-mono text-xs text-[var(--muted)] transition-colors hover:border-[var(--muted)] hover:text-[var(--text)] disabled:opacity-30">−</button>
+              <span className={`${MINI} w-8 text-center text-[var(--soft)]`}>{vista.escala.toFixed(1)}×</span>
+              <button onClick={() => acercar(1.5)} disabled={vista.escala >= ZOOM_MAX}
+                className="h-6 w-6 rounded border border-[var(--border)] font-mono text-xs text-[var(--muted)] transition-colors hover:border-[var(--muted)] hover:text-[var(--text)] disabled:opacity-30">+</button>
+              {vista.escala > 1 && (
+                <button onClick={() => setVista({ escala: 1, x: 0, y: 0 })}
+                  className="ml-1 rounded border border-[var(--border)] px-2 py-1 font-mono text-[10px] text-[var(--muted)] hover:border-[var(--muted)] hover:text-[var(--text)]">
+                  todo
+                </button>
+              )}
+            </span>
             <button
-              onClick={() =>
-                svgRef.current &&
-                descargarSvg(
-                  svgRef.current,
-                  `mapa-${esEstrategico ? 'estrategico' : 'madurez'}-${clienteNombre.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
-                )
-              }
+              onClick={() => svgRef.current && descargarSvg(svgRef.current, `mapa-${esEstrategico ? 'estrategico' : 'madurez'}-${clienteNombre.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`)}
               disabled={visibles.length === 0}
               title="Descarga el mapa tal y como se ve, para abrirlo en Figma"
-              className="rounded border border-[var(--border)] px-2 py-1 font-mono text-[10px] uppercase tracking-wider transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)] disabled:opacity-40"
-            >
+              className={`${MINI} rounded border border-[var(--border)] px-2 py-1 transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)] disabled:opacity-40`}>
               svg
             </button>
           </span>
@@ -378,271 +418,299 @@ export function Mapa({
 
         {esEstrategico && ejes.length < 2 ? (
           <p className="mt-4 rounded-md border border-dashed border-[var(--border)] p-8 text-center text-sm text-[var(--muted)]">
-            El mapa estratégico cruza dos ejes. Define al menos dos en la sección de arriba y
-            puntúa las marcas que quieras situar.
+            El mapa estratégico cruza dos ejes. Define al menos dos en Clasificación y puntúa las
+            marcas que quieras situar.
           </p>
         ) : visibles.length === 0 ? (
           <p className="mt-4 rounded-md border border-dashed border-[var(--border)] p-8 text-center text-sm text-[var(--muted)]">
-            {esEstrategico
-              ? 'Ninguna marca puntuada todavía en esos dos ejes.'
+            {hayFiltro ? 'Ningún punto cumple ese filtro.'
+              : esEstrategico ? 'Ninguna marca puntuada todavía en esos dos ejes.'
               : 'Ninguna marca con scan publicable.'}
           </p>
         ) : (
-          <div className="mt-3 overflow-x-auto">
+          <div className="mt-3">
             <svg
               ref={svgRef}
               viewBox={`0 0 ${W} ${H}`}
-              className="w-full"
-              style={{ minWidth: 560 }}
+              className="w-full select-none"
+              style={{ minWidth: 520, cursor: vista.escala > 1 ? 'grab' : 'default' }}
               role="img"
               aria-label={esEstrategico ? 'Mapa estratégico' : 'Mapa de madurez'}
+              onPointerDown={(e) => {
+                if (vista.escala <= 1) return;
+                (e.target as Element).setPointerCapture?.(e.pointerId);
+                arrastre.current = { x: e.clientX, y: e.clientY, vx: vista.x, vy: vista.y };
+              }}
+              onPointerMove={(e) => {
+                const a = arrastre.current;
+                if (!a || !svgRef.current) return;
+                const caja = svgRef.current.getBoundingClientRect();
+                const uX = (e.clientX - a.x) / caja.width * W / (vista.escala * CAJA.w);
+                const uY = (e.clientY - a.y) / caja.height * H / (vista.escala * CAJA.h);
+                const lado = 1 / vista.escala;
+                setVista((v) => ({
+                  ...v,
+                  x: acotar(a.vx - uX, 0, 1 - lado),
+                  y: acotar(a.vy + uY, 0, 1 - lado),
+                }));
+              }}
+              onPointerUp={() => { arrastre.current = null; }}
+              onPointerLeave={() => { arrastre.current = null; }}
             >
-              {/* Rejilla cada unidad. Sin ella, "Herbalife está en el 2" es un
-                  dato que hay que creerse; con ella se cuenta. Las líneas del
-                  5 van más marcadas porque son las que parten los cuadrantes:
-                  son la lectura, no una división más. */}
-              {UNIDADES.map((v) => (
-                <line key={`vx-${v}`} x1={px(v / 10)} y1={M.arriba} x2={px(v / 10)} y2={M.arriba + CAJA.h}
-                  stroke="var(--border)" strokeWidth={v === 5 ? 1 : 0.5}
-                  strokeOpacity={v === 5 ? 1 : 0.5}
-                  strokeDasharray={v === 5 ? '3 4' : undefined} />
-              ))}
-              {UNIDADES.map((v) => (
-                <line key={`vy-${v}`} x1={M.izquierda} y1={py(v / 10)} x2={M.izquierda + CAJA.w} y2={py(v / 10)}
-                  stroke="var(--border)" strokeWidth={v === 5 ? 1 : 0.5}
-                  strokeOpacity={v === 5 ? 1 : 0.5}
-                  strokeDasharray={v === 5 ? '3 4' : undefined} />
-              ))}
+              <defs>
+                {/* Nada se sale del plano al arrastrar. */}
+                <clipPath id="area-mapa">
+                  <rect x={M.izquierda} y={M.arriba} width={CAJA.w} height={CAJA.h} />
+                </clipPath>
+                {visibles.map((p) => (
+                  <clipPath key={p.dominio} id={clipId(p.dominio)}>
+                    <circle cx={px(p.x)} cy={py(p.y)} r={radio(p) - 3.5} />
+                  </clipPath>
+                ))}
+                {cliente.hoy && (
+                  <clipPath id="logo-cliente">
+                    <rect x={px(cliente.hoy.x) - 8} y={py(cliente.hoy.y) - 8} width="16" height="16"
+                      transform={`rotate(45 ${px(cliente.hoy.x)} ${py(cliente.hoy.y)})`} />
+                  </clipPath>
+                )}
+              </defs>
+
+              {/* Rejilla cada unidad, con la del 5 marcada: es la que parte
+                  los cuadrantes, o sea la lectura. */}
+              <g clipPath="url(#area-mapa)">
+                {UNIDADES.filter(dentro).map((v) => (
+                  <line key={`vx-${v}`} x1={px(v / 10)} y1={M.arriba} x2={px(v / 10)} y2={M.arriba + CAJA.h}
+                    stroke="var(--border)" strokeWidth={v === 5 ? 1 : 0.5} strokeOpacity={v === 5 ? 0.9 : 0.45}
+                    strokeDasharray={v === 5 ? '3 4' : undefined} />
+                ))}
+                {UNIDADES.filter(dentroY).map((v) => (
+                  <line key={`vy-${v}`} x1={M.izquierda} y1={py(v / 10)} x2={M.izquierda + CAJA.w} y2={py(v / 10)}
+                    stroke="var(--border)" strokeWidth={v === 5 ? 1 : 0.5} strokeOpacity={v === 5 ? 0.9 : 0.45}
+                    strokeDasharray={v === 5 ? '3 4' : undefined} />
+                ))}
+              </g>
               <rect x={M.izquierda} y={M.arriba} width={CAJA.w} height={CAJA.h}
                 fill="none" stroke="var(--border)" strokeWidth="1" />
 
-              {/* Los cuadrantes, dichos en voz baja dentro de su esquina. El
-                  cuadrante vacío es el argumento del estudio, y hasta ahora
-                  había que deducir de qué cuadrante se hablaba. */}
+              {/* Cada esquina nombrada por los dos extremos que la forman. */}
               {CUADRANTES.map((q) => (
                 <text key={q.clave}
-                  x={px(q.ax) + (q.anchor === 'start' ? 8 : -8)}
-                  y={py(q.ay) + (q.arriba ? 16 : -10)}
-                  fontSize="9" textAnchor={q.anchor} fill="var(--soft)"
-                  fontFamily="monospace" letterSpacing="0.5"
-                  style={{ pointerEvents: 'none' }}>
+                  x={M.izquierda + (q.ax === 0 ? 8 : CAJA.w - 8)}
+                  y={M.arriba + (q.arriba ? 14 : CAJA.h - 8)}
+                  fontSize={TIPO.cuadrante} textAnchor={q.anchor} fill="var(--soft)"
+                  fontFamily="monospace" style={{ pointerEvents: 'none' }}>
                   {q.texto}
                 </text>
               ))}
 
-              {/* Valores. Solo 0, mitad y tope: una escala se entiende con
-                  tres números y se ensucia con once. */}
-              {marcas0510.map((t) => (
-                <text key={`tx-${t.v}`} x={px(t.v / 10)} y={M.arriba + CAJA.h + 15}
-                  fontSize="10" textAnchor="middle" fill="var(--soft)" fontFamily="monospace">
-                  {t.x}
+              {/* Valores en los bordes, solo los que se están viendo. */}
+              {UNIDADES.filter((v) => dentro(v) && (vista.escala > 1 || v % 5 === 0)).map((v) => (
+                <text key={`tx-${v}`} x={px(v / 10)} y={M.arriba + CAJA.h + 15}
+                  fontSize={TIPO.numero} textAnchor="middle" fill="var(--soft)" fontFamily="monospace">
+                  {v}
                 </text>
               ))}
-              {marcas0510.map((t) => (
-                <text key={`ty-${t.v}`} x={M.izquierda - 8} y={py(t.v / 10)}
-                  fontSize="10" textAnchor="end" dominantBaseline="central"
+              {UNIDADES.filter((v) => dentroY(v) && (vista.escala > 1 || v % 5 === 0)).map((v) => (
+                <text key={`ty-${v}`} x={M.izquierda - 8} y={py(v / 10)}
+                  fontSize={TIPO.numero} textAnchor="end" dominantBaseline="central"
                   fill="var(--soft)" fontFamily="monospace">
-                  {t.y}
+                  {valorY(v)}
                 </text>
               ))}
 
               {/* Cada extremo pegado al SUYO: el del eje X en su punta del
                   borde de abajo, el del eje Y girado en su punta del borde
-                  izquierdo. Es lo que evita que "Habla de red" y "Modelo
-                  oculto" acaben uno encima del otro en la misma esquina. */}
-              <text x={M.izquierda} y={M.arriba + CAJA.h + 31} fontSize="11" fill="var(--muted)">
+                  izquierdo. */}
+              <text x={M.izquierda} y={M.arriba + CAJA.h + 32} fontSize={TIPO.extremo} fill="var(--muted)">
                 {etiquetas.izquierda}
               </text>
-              <text x={M.izquierda + CAJA.w} y={M.arriba + CAJA.h + 31} fontSize="11"
+              <text x={M.izquierda + CAJA.w} y={M.arriba + CAJA.h + 32} fontSize={TIPO.extremo}
                 fill="var(--muted)" textAnchor="end">
                 {etiquetas.derecha}
               </text>
-              <text x={M.izquierda - 26} y={M.arriba + CAJA.h} fontSize="11" fill="var(--muted)"
+              <text x={M.izquierda - 26} y={M.arriba + CAJA.h} fontSize={TIPO.extremo} fill="var(--muted)"
                 textAnchor="start" transform={`rotate(-90 ${M.izquierda - 26} ${M.arriba + CAJA.h})`}>
                 {etiquetas.abajo}
               </text>
-              <text x={M.izquierda - 26} y={M.arriba} fontSize="11" fill="var(--muted)"
+              <text x={M.izquierda - 26} y={M.arriba} fontSize={TIPO.extremo} fill="var(--muted)"
                 textAnchor="end" transform={`rotate(-90 ${M.izquierda - 26} ${M.arriba})`}>
                 {etiquetas.arriba}
               </text>
 
-              {/* El nombre del eje, SOLO en el archivo exportado.
-                  En pantalla sobra: los selectores de arriba ya dicen qué eje
-                  es cada uno, y con los extremos pegados y las esquinas
-                  nombradas las mismas cuatro palabras salían tres veces.
-                  Fuera de la app no hay selectores, y sin esto el mapa llega
-                  a Figma sin decir qué mide. Se dibuja invisible y el
-                  exportador lo enciende al clonar. */}
-              <text data-solo-export="1" opacity="0"
-                x={M.izquierda + CAJA.w / 2} y={M.arriba + CAJA.h + 50} fontSize="9"
-                textAnchor="middle" fill="var(--soft)" fontFamily="monospace" letterSpacing="1">
+              {/* El nombre del eje, SOLO en el archivo exportado: en pantalla
+                  lo dicen los selectores de arriba y repetirlo sacaba las
+                  mismas cuatro palabras tres veces. */}
+              <text data-solo-export="1" opacity="0" x={M.izquierda + CAJA.w / 2} y={M.arriba + CAJA.h + 50}
+                fontSize={TIPO.titulo} textAnchor="middle" fill="var(--soft)" fontFamily="monospace" letterSpacing="1">
                 {tituloX.toUpperCase()}
               </text>
-              <text data-solo-export="1" opacity="0"
-                x={M.izquierda - 44} y={M.arriba + CAJA.h / 2} fontSize="9"
-                textAnchor="middle" fill="var(--soft)" fontFamily="monospace" letterSpacing="1"
+              <text data-solo-export="1" opacity="0" x={M.izquierda - 44} y={M.arriba + CAJA.h / 2}
+                fontSize={TIPO.titulo} textAnchor="middle" fill="var(--soft)" fontFamily="monospace" letterSpacing="1"
                 transform={`rotate(-90 ${M.izquierda - 44} ${M.arriba + CAJA.h / 2})`}>
                 {tituloY.toUpperCase()}
               </text>
 
-              {/* El camino del cliente: de donde está a donde quiere ir. */}
-              {cliente.hoy && cliente.objetivo && (
-                <line x1={px(cliente.hoy.x)} y1={py(cliente.hoy.y)}
-                  x2={px(cliente.objetivo.x)} y2={py(cliente.objetivo.y)}
-                  stroke="var(--cta)" strokeWidth="1.5" strokeDasharray="5 4" />
-              )}
+              <g clipPath="url(#area-mapa)">
+                {/* El camino del cliente: de donde está a donde quiere ir. */}
+                {cliente.hoy && cliente.objetivo && (
+                  <line x1={px(cliente.hoy.x)} y1={py(cliente.hoy.y)}
+                    x2={px(cliente.objetivo.x)} y2={py(cliente.objetivo.y)}
+                    stroke="var(--cta)" strokeWidth="1.5" strokeDasharray="5 4" />
+                )}
 
-              {/* Las marcas: logo dentro, anillo de score alrededor. El anillo
-                  es el MISMO que el de las listas, geometría incluida, así que
-                  el arco significa lo mismo en las dos pantallas. */}
-              <defs>
-                {visibles.map((p) => (
-                  <clipPath key={p.dominio} id={clipId(p.dominio)}>
-                    <circle cx={px(p.x)} cy={py(p.y)} r={radio(p) - 5} />
-                  </clipPath>
-                ))}
-              </defs>
+                {visibles.map((p) => {
+                  const color = p.capa ? COLOR_CAPA[p.capa] : COLOR_SIN_CAPA;
+                  const cx = px(p.x);
+                  const cy = py(p.y);
+                  const anillo = anilloDeScore(p.score ?? 0, diametro(p.capa), 2.5);
+                  const hueco = radio(p) - 3.5;
+                  const fuentes = fuentesDeLogo(p.dominio, p.logoUrl);
+                  const logo = fuentes[logoIdx[p.dominio] ?? 0] ?? null;
+                  const lado = hueco * 2 * AIRE_LOGO;
+                  return (
+                    <g key={p.dominio}
+                      onMouseEnter={() => setEncima(p)}
+                      onMouseLeave={() => setEncima(null)}
+                      style={{ cursor: 'pointer' }}>
+                      <title>{`${p.nombre} · ${p.score ?? '—'}/100`}</title>
 
-              {visibles.map((p) => {
-                const color = p.capa ? COLOR_CAPA[p.capa] : COLOR_SIN_CAPA;
-                const cx = px(p.x);
-                const cy = py(p.y);
-                const d = diametro(p.capa);
-                const anillo = anilloDeScore(p.score ?? 0, d, 3);
-                const hueco = d / 2 - 5;
-                const fuentes = fuentesDeLogo(p.dominio, p.logoUrl);
-                const idx = logoFallido[p.dominio] ?? 0;
-                const logo = fuentes[idx] ?? null;
-                return (
-                  <g key={p.dominio}
-                    onMouseEnter={() => setEncima(p)}
-                    onMouseLeave={() => setEncima(null)}
-                    style={{ cursor: 'pointer' }}>
-                    <title>{`${p.nombre} · ${p.score ?? '—'}/100`}</title>
+                      {/* Fondo blanco: la mayoría de favicons dan por hecho
+                          un lienzo claro y con transparencia se mezclarían
+                          con la rejilla. */}
+                      <circle cx={cx} cy={cy} r={hueco} fill="#fff" />
+                      {!logoOk[p.dominio] && (
+                        <text x={cx} y={cy} fontSize={Math.round(hueco * 0.95)} textAnchor="middle"
+                          dominantBaseline="central" fill="var(--muted)" fontWeight="600"
+                          style={{ pointerEvents: 'none' }}>
+                          {iniciales(p.nombre)}
+                        </text>
+                      )}
+                      {logo && (
+                        // `meet` y no `slice`: recortando para llenar, un
+                        // logotipo ancho salía ampliadísimo y uno cuadrado a
+                        // tamaño real, y parecía que unas marcas eran más
+                        // grandes que otras. Así todos caben enteros y se
+                        // leen a la misma escala.
+                        <image href={logo} x={cx - lado / 2} y={cy - lado / 2}
+                          width={lado} height={lado} preserveAspectRatio="xMidYMid meet"
+                          clipPath={`url(#${clipId(p.dominio)})`}
+                          onLoad={() => setLogoOk((m) => (m[p.dominio] ? m : { ...m, [p.dominio]: true }))}
+                          onError={() => setLogoIdx((m) => ({ ...m, [p.dominio]: (m[p.dominio] ?? 0) + 1 }))}
+                          style={{ pointerEvents: 'none' }} />
+                      )}
 
-                    {/* Fondo del hueco: sin él, el logo se mezcla con la
-                        rejilla y con los puntos que tenga debajo. */}
-                    <circle cx={cx} cy={cy} r={hueco} fill="var(--surface)" />
-
-                    {/* Iniciales SIEMPRE debajo, como en CompanyLogo: si la
-                        imagen no llega nunca se ve un hueco roto. */}
-                    <text x={cx} y={cy} fontSize={Math.round(hueco * 0.9)} textAnchor="middle"
-                      dominantBaseline="central" fill="var(--muted)" fontWeight="600"
-                      style={{ pointerEvents: 'none' }}>
-                      {iniciales(p.nombre)}
-                    </text>
-                    {logo && (
-                      <image href={logo} x={cx - hueco} y={cy - hueco}
-                        width={hueco * 2} height={hueco * 2}
-                        preserveAspectRatio="xMidYMid slice"
-                        clipPath={`url(#${clipId(p.dominio)})`}
-                        // Misma cascada que en las listas: si una fuente falla
-                        // se prueba la siguiente y, agotadas, quedan las
-                        // iniciales.
-                        onError={() =>
-                          setLogoFallido((m) => ({ ...m, [p.dominio]: (m[p.dominio] ?? 0) + 1 }))
-                        }
-                        style={{ pointerEvents: 'none' }} />
-                    )}
-
-                    {/* El aro de fondo y el arco del score. Una marca sin
-                        lectura suficiente lleva el aro discontinuo y sin arco:
-                        el hueco es el mensaje. */}
-                    <circle cx={cx} cy={cy} r={anillo.radio} fill="none"
-                      stroke="var(--border)" strokeWidth={anillo.grosor}
-                      strokeDasharray={p.flojo ? '3 3' : undefined} />
-                    {p.score != null && !p.flojo && (
+                      {/* El aro de fondo dice la CAPA y el arco dice el score.
+                          Antes la capa iba en un punto suelto al borde que
+                          parecía un aviso. */}
                       <circle cx={cx} cy={cy} r={anillo.radio} fill="none"
-                        stroke={anillo.color} strokeWidth={anillo.grosor}
-                        strokeDasharray={`${anillo.relleno} ${anillo.circunferencia - anillo.relleno}`}
-                        strokeLinecap="butt"
-                        transform={`rotate(-90 ${cx} ${cy})`} />
-                    )}
-                    {/* La capa se dice con un punto pequeño al borde: el color
-                        del anillo ya está ocupado por el score. */}
-                    <circle cx={cx + anillo.radio * 0.72} cy={cy - anillo.radio * 0.72} r={3.5}
-                      fill={color} stroke="var(--surface)" strokeWidth="1.5" />
-                  </g>
-                );
-              })}
+                        stroke={color} strokeOpacity={0.35} strokeWidth={anillo.grosor}
+                        strokeDasharray={p.flojo ? '3 3' : undefined} />
+                      {p.score != null && !p.flojo && (
+                        <circle cx={cx} cy={cy} r={anillo.radio} fill="none"
+                          stroke={anillo.color} strokeWidth={anillo.grosor}
+                          strokeDasharray={`${anillo.relleno} ${anillo.circunferencia - anillo.relleno}`}
+                          strokeLinecap="butt" transform={`rotate(-90 ${cx} ${cy})`} />
+                      )}
+                    </g>
+                  );
+                })}
 
-              {verEtiquetas &&
-                etiquetadas.map(({ punto: p, lx, ly, anchor }) => (
-                  <text key={`t-${p.dominio}`} x={lx} y={ly}
-                    fontSize="11" textAnchor={anchor}
-                    fill={p.flojo ? 'var(--soft)' : 'var(--text)'}
-                    style={{ pointerEvents: 'none' }}>
+                {verEtiquetas && etiquetadas.map(({ punto: p, lx, ly, anchor }) => (
+                  <text key={`t-${p.dominio}`} x={lx} y={ly} fontSize={TIPO.marca} textAnchor={anchor}
+                    fill={p.flojo ? 'var(--soft)' : 'var(--text)'} style={{ pointerEvents: 'none' }}>
                     {p.nombre}
                   </text>
                 ))}
 
-              {/* El cliente en rombo: no es una marca más del estudio, y la
-                  forma lo dice antes que cualquier leyenda. "Hoy" lleva su
-                  anillo de score real, porque es una marca medida como las
-                  demás; "objetivo" no lleva ninguno, porque una posición
-                  deseada no tiene score que enseñar. */}
-              {cliente.hoy && (() => {
-                const cx = px(cliente.hoy.x);
-                const cy = py(cliente.hoy.y);
-                const a = clienteScore != null ? anilloDeScore(clienteScore, 40, 3) : null;
-                return (
+                {/* El cliente en rombo con su propio logo dentro: es la marca
+                    del estudio y hay que reconocerla de un vistazo. "Hoy"
+                    lleva su anillo de score real; "objetivo" no lleva ninguno
+                    porque una posición deseada no tiene score que enseñar. */}
+                {cliente.hoy && (() => {
+                  const cx = px(cliente.hoy.x);
+                  const cy = py(cliente.hoy.y);
+                  const a = clienteScore != null ? anilloDeScore(clienteScore, 30, 2.5) : null;
+                  const fuentes = fuentesDeLogo(clienteDominio, clienteLogo);
+                  const logo = fuentes[logoIdx['__cliente__'] ?? 0] ?? null;
+                  return (
+                    <g>
+                      {a && (
+                        <>
+                          <circle cx={cx} cy={cy} r={a.radio} fill="none" stroke="var(--cta)" strokeOpacity={0.35} strokeWidth={a.grosor} />
+                          <circle cx={cx} cy={cy} r={a.radio} fill="none" stroke={a.color} strokeWidth={a.grosor}
+                            strokeDasharray={`${a.relleno} ${a.circunferencia - a.relleno}`}
+                            strokeLinecap="butt" transform={`rotate(-90 ${cx} ${cy})`} />
+                        </>
+                      )}
+                      <rect x={cx - 8} y={cy - 8} width="16" height="16"
+                        transform={`rotate(45 ${cx} ${cy})`} fill="#fff" stroke="var(--cta)" strokeWidth="1.5" />
+                      {logo && (
+                        <image href={logo} x={cx - 8} y={cy - 8} width="16" height="16"
+                          preserveAspectRatio="xMidYMid meet" clipPath="url(#logo-cliente)"
+                          onError={() => setLogoIdx((m) => ({ ...m, __cliente__: (m.__cliente__ ?? 0) + 1 }))}
+                          style={{ pointerEvents: 'none' }} />
+                      )}
+                      {verEtiquetas && (
+                        <text x={cx} y={cy - (a ? a.radio + 6 : 16)} fontSize={TIPO.marca}
+                          textAnchor="middle" fill="var(--cta)" fontWeight="600">
+                          {clienteNombre}
+                        </text>
+                      )}
+                    </g>
+                  );
+                })()}
+                {cliente.objetivo && (
                   <g>
-                    {a && (
-                      <>
-                        <circle cx={cx} cy={cy} r={a.radio} fill="none" stroke="var(--border)" strokeWidth={a.grosor} />
-                        <circle cx={cx} cy={cy} r={a.radio} fill="none" stroke={a.color} strokeWidth={a.grosor}
-                          strokeDasharray={`${a.relleno} ${a.circunferencia - a.relleno}`}
-                          strokeLinecap="butt" transform={`rotate(-90 ${cx} ${cy})`} />
-                      </>
-                    )}
-                    <rect x={cx - 9} y={cy - 9} width="18" height="18"
-                      transform={`rotate(45 ${cx} ${cy})`} fill="var(--cta)" />
+                    <rect x={px(cliente.objetivo.x) - 8} y={py(cliente.objetivo.y) - 8} width="16" height="16"
+                      transform={`rotate(45 ${px(cliente.objetivo.x)} ${py(cliente.objetivo.y)})`}
+                      fill="none" stroke="var(--cta)" strokeWidth="1.5" strokeDasharray="4 3" />
                     {verEtiquetas && (
-                      <text x={cx} y={cy - (a ? a.radio + 8 : 18)} fontSize="11"
-                        textAnchor="middle" fill="var(--cta)" fontWeight="600">
-                        {clienteNombre}
+                      <text x={px(cliente.objetivo.x)} y={py(cliente.objetivo.y) - 16} fontSize={TIPO.marca}
+                        textAnchor="middle" fill="var(--cta)">
+                        objetivo
                       </text>
                     )}
                   </g>
-                );
-              })()}
-              {cliente.objetivo && (
-                <g>
-                  <rect x={px(cliente.objetivo.x) - 9} y={py(cliente.objetivo.y) - 9} width="18" height="18"
-                    transform={`rotate(45 ${px(cliente.objetivo.x)} ${py(cliente.objetivo.y)})`}
-                    fill="none" stroke="var(--cta)" strokeWidth="1.5" strokeDasharray="4 3" />
-                  {verEtiquetas && (
-                    <text x={px(cliente.objetivo.x)} y={py(cliente.objetivo.y) - 18} fontSize="11"
-                      textAnchor="middle" fill="var(--cta)">
-                      objetivo
-                    </text>
-                  )}
-                </g>
-              )}
+                )}
+              </g>
             </svg>
           </div>
         )}
 
-        {/* Leyenda y lo que el mapa NO está diciendo. */}
-        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[var(--border)] pt-3 text-xs text-[var(--muted)]">
-          {(['competitive', 'register', 'anti_reference'] as Capa[]).map((c) => (
-            <span key={c} className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ background: COLOR_CAPA[c] }} />
-              {CAPA_LABEL[c]}
+        {/* Leyenda: qué significa cada cosa del dibujo, en su propio bloque.
+            El tamaño ya no dice el score, así que decirlo aquí sería mentir. */}
+        <div className="mt-3 border-t border-[var(--border)] pt-3">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-[var(--muted)]">
+            {(['competitive', 'register', 'anti_reference'] as Capa[]).map((c) => (
+              <span key={c} className="flex items-center gap-2">
+                <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+                  <circle cx="10" cy="10" r="7" fill="none" stroke={COLOR_CAPA[c]} strokeOpacity={0.35} strokeWidth="2.5" />
+                  <circle cx="10" cy="10" r="7" fill="none" stroke="var(--linkedin-soft)" strokeWidth="2.5"
+                    strokeDasharray="31 13" transform="rotate(-90 10 10)" />
+                </svg>
+                {CAPA_LABEL[c]}
+              </span>
+            ))}
+            <span className="flex items-center gap-2">
+              <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+                <rect x="4" y="4" width="12" height="12" transform="rotate(45 10 10)" fill="#fff" stroke="var(--cta)" strokeWidth="1.5" />
+              </svg>
+              {clienteNombre} hoy
             </span>
-          ))}
-          <span className="text-[var(--soft)]">· el tamaño es el score</span>
-          {verEtiquetas && sinSitio > 0 && (
-            <span className="text-[var(--soft)]">
-              · {sinSitio} sin etiqueta por falta de sitio, el nombre sale al pasar por encima
+            <span className="flex items-center gap-2">
+              <svg width="26" height="20" viewBox="0 0 26 20" aria-hidden="true">
+                <line x1="1" y1="10" x2="16" y2="10" stroke="var(--cta)" strokeWidth="1.5" strokeDasharray="4 3" />
+                <rect x="17" y="6" width="8" height="8" transform="rotate(45 21 10)" fill="none" stroke="var(--cta)" strokeWidth="1.5" strokeDasharray="3 2" />
+              </svg>
+              hacia el objetivo
             </span>
-          )}
-          {flojas > 0 && (
-            <span className="text-[var(--soft)]">
-              · {flojas} {flojas === 1 ? 'marca hueca' : 'marcas huecas'}: lectura insuficiente, no
-              cuentan para leer el cuadrante
-            </span>
-          )}
+          </div>
+          <p className="mt-2 text-xs leading-relaxed text-[var(--soft)]">
+            El aro dice de qué tipo es la marca y el arco, su score. El tamaño va por tipo, no por
+            puntuación.
+            {verEtiquetas && sinSitio > 0 && ` · ${sinSitio} ${sinSitio === 1 ? 'nombre oculto' : 'nombres ocultos'} por falta de sitio: pasa por encima o acerca el mapa.`}
+            {flojas > 0 && ` · ${flojas} ${flojas === 1 ? 'marca con aro discontinuo' : 'marcas con aro discontinuo'}: lectura insuficiente, no cuentan para leer el cuadrante.`}
+          </p>
         </div>
 
         {encima && (
@@ -651,9 +719,7 @@ export function Mapa({
             <span className="ml-2 font-mono text-[var(--soft)]">{encima.dominio}</span>
             {encima.score != null && <span className="ml-2 font-mono">{encima.score}/100</span>}
             {encima.rol && <span className="ml-2 text-[var(--cta)]">{encima.rol}</span>}
-            {encima.motivoFlojo && (
-              <span className="ml-2 text-[var(--soft)]">· {encima.motivoFlojo}</span>
-            )}
+            {encima.motivoFlojo && <span className="ml-2 text-[var(--soft)]">· {encima.motivoFlojo}</span>}
             {encima.nota && <p className="mt-1 text-[var(--muted)]">{encima.nota}</p>}
           </div>
         )}
@@ -661,4 +727,3 @@ export function Mapa({
     </section>
   );
 }
-

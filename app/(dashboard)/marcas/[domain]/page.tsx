@@ -125,6 +125,9 @@ export default async function EstudioPage({ params, searchParams }: Props) {
   // El mapa de madurez sale del scan, así que se calcula aquí. Las marcas sin
   // lectura suficiente entran igual pero marcadas: se pintan huecas y no
   // cuentan para leer un cuadrante.
+  const grupoDe = new Map<string, string>();
+  for (const g of grupos) for (const d of g.dominios) if (!grupoDe.has(d)) grupoDe.set(d, g.nombre);
+
   const puntosMadurez: PuntoMapa[] = [];
   for (const d of new Set(dominios)) {
     const m = porDominio.get(d);
@@ -153,6 +156,7 @@ export default async function EstudioPage({ params, searchParams }: Props) {
       x: pos.x / 10,
       y: pos.y / 100,
       capa: ficha?.layer ?? null,
+      grupo: grupoDe.get(d) ?? null,
       rol: ficha?.role ? ROL_LABEL[ficha.role] : null,
       nota: ficha?.note ?? null,
       flojo: !pos.suficiente,
@@ -267,6 +271,8 @@ export default async function EstudioPage({ params, searchParams }: Props) {
                   clienteMadurez={clienteMadurez}
                   clienteNombre={nombre}
                   clienteScore={perfilCliente.score}
+                  clienteLogo={cliente.company.logo_url}
+                  clienteDominio={dom}
                 />
               ),
             },
