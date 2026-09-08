@@ -24,6 +24,7 @@ import { TablaClasificacion } from './tabla-clasificacion';
 import { SeccionEjes } from './seccion-ejes';
 import { Mapa, type PuntoMapa } from './mapa';
 import { PestanasEstudio } from './pestanas-estudio';
+import { ImportarEstudio } from './importar';
 import { Vocabulario } from './vocabulario';
 
 export const dynamic = 'force-dynamic';
@@ -183,6 +184,7 @@ export default async function EstudioPage({ params, searchParams }: Props) {
           >
             json ↓
           </a>
+          <ImportarEstudio cliente={dom} />
           {cliente.lead && (
             <Link href={`/companies/${dom}`} className="text-sm text-[var(--muted)] hover:underline">
               ver ficha ↗
