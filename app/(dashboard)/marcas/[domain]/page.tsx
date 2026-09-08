@@ -165,11 +165,22 @@ export default async function EstudioPage({ params, searchParams }: Props) {
             <h1 className="text-2xl font-bold tracking-tight">{nombre}</h1>
           </div>
         </div>
-        {cliente.lead && (
-          <Link href={`/companies/${dom}`} className="shrink-0 text-sm text-[var(--muted)] hover:underline">
-            ver ficha ↗
-          </Link>
-        )}
+        <div className="flex shrink-0 items-center gap-4">
+          {/* B3S es la fuente de los datos; el análisis se escribe en Notion y
+              la síntesis en Figma. Por eso exporta y no importa. */}
+          <a
+            href={`/api/estudio/export/csv?domain=${encodeURIComponent(dom)}${sp.g ? `&g=${encodeURIComponent(sp.g)}` : ''}`}
+            className="font-mono text-[11px] uppercase tracking-wider text-[var(--muted)] hover:text-[var(--text)]"
+            title="Una fila por marca con score, componentes, clasificación y ejes"
+          >
+            csv ↓
+          </a>
+          {cliente.lead && (
+            <Link href={`/companies/${dom}`} className="text-sm text-[var(--muted)] hover:underline">
+              ver ficha ↗
+            </Link>
+          )}
+        </div>
       </div>
 
       {perfilCliente.detectados < 8 && (

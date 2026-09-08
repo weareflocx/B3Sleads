@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Select } from '../../select';
 import { useEstudio } from './estudio-estado';
 import { CAPA_LABEL, type Capa } from '@/lib/battle-cards';
@@ -40,8 +40,11 @@ const COLOR_CAPA: Record<Capa, string> = {
 };
 const COLOR_SIN_CAPA = 'var(--muted)';
 
-const W = 720;
-const H = 520;
+// 16:10, para que el SVG exportado salga a 1600x1000 exactos sin deformar
+// nada. La spec pide ese tamaño y estirar un dibujo para cuadrarlo mueve
+// todos los puntos de sitio.
+const W = 800;
+const H = 500;
 const M = { arriba: 34, derecha: 30, abajo: 40, izquierda: 34 };
 const CAJA = { w: W - M.izquierda - M.derecha, h: H - M.arriba - M.abajo };
 
@@ -50,6 +53,54 @@ const CAJA = { w: W - M.izquierda - M.derecha, h: H - M.arriba - M.abajo };
 function radio(score: number | null): number {
   if (score == null) return 5;
   return 5 + (Math.min(100, Math.max(0, score)) / 100) * 8;
+}
+
+// Exporta el mapa que se está viendo como SVG para Figma.
+//
+// El SVG de la página usa variables CSS (var(--cta), var(--border)…), que
+// fuera del documento no existen: el archivo llegaría a Figma con todo en
+// negro. Así que se clona el dibujo y se sustituye cada color por el valor
+// ya calculado por el navegador. Sin rasterizar, sin librería y sin fondo.
+function descargarSvg(svg: SVGSVGElement, nombre: string) {
+  const copia = svg.cloneNode(true) as SVGSVGElement;
+  const origen = svg.querySelectorAll('*');
+  const destino = copia.querySelectorAll('*');
+
+  const PROPS = [
+    'fill', 'fill-opacity', 'stroke', 'stroke-width', 'stroke-dasharray',
+    'font-size', 'font-weight', 'text-anchor',
+  ] as const;
+
+  for (let i = 0; i < origen.length; i++) {
+    const calculado = getComputedStyle(origen[i]);
+    const el = destino[i] as SVGElement;
+    for (const prop of PROPS) {
+      const v = calculado.getPropertyValue(prop);
+      if (v && v !== 'none' && !v.includes('var(')) el.setAttribute(prop, v.trim());
+      else if (v === 'none') el.setAttribute(prop, 'none');
+    }
+    // La fuente se deja por nombre, no en trazos: en Figma el texto sigue
+    // siendo texto y se puede corregir. Si no está Geist, Figma avisa y
+    // sustituye, que es preferible a una curva que nadie puede editar.
+    if (el.tagName === 'text') el.setAttribute('font-family', 'Geist, Inter, Helvetica, Arial, sans-serif');
+    el.removeAttribute('style');
+    el.removeAttribute('class');
+  }
+
+  copia.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  // La spec pide 1600x1000 y el lienzo es 16:10, así que cuadra sin estirar.
+  copia.setAttribute('width', '1600');
+  copia.setAttribute('height', '1000');
+  copia.removeAttribute('class');
+  copia.removeAttribute('style');
+
+  const texto = new XMLSerializer().serializeToString(copia);
+  const url = URL.createObjectURL(new Blob([texto], { type: 'image/svg+xml;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${nombre}.svg`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export function Mapa({
@@ -73,6 +124,7 @@ export function Mapa({
   const [verEtiquetas, setVerEtiquetas] = useState(true);
   const [verDescartadas, setVerDescartadas] = useState(false);
   const [encima, setEncima] = useState<PuntoMapa | null>(null);
+  const svgRef = useRef<SVGSVGElement | null>(null);
 
   const x = ejes.find((e) => e.axis_id === ejeX) ?? ejes[0];
   const y = ejes.find((e) => e.axis_id === ejeY) ?? ejes[1];
@@ -224,6 +276,20 @@ export function Mapa({
               <input type="checkbox" checked={verDescartadas} onChange={(e) => setVerDescartadas(e.target.checked)} />
               descartadas
             </label>
+            <button
+              onClick={() =>
+                svgRef.current &&
+                descargarSvg(
+                  svgRef.current,
+                  `mapa-${esEstrategico ? 'estrategico' : 'madurez'}-${clienteNombre.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+                )
+              }
+              disabled={visibles.length === 0}
+              title="Descarga el mapa tal y como se ve, para abrirlo en Figma"
+              className="rounded border border-[var(--border)] px-2 py-1 font-mono text-[10px] uppercase tracking-wider transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)] disabled:opacity-40"
+            >
+              svg
+            </button>
           </span>
         </div>
 
@@ -241,6 +307,7 @@ export function Mapa({
         ) : (
           <div className="mt-3 overflow-x-auto">
             <svg
+              ref={svgRef}
               viewBox={`0 0 ${W} ${H}`}
               className="w-full"
               style={{ minWidth: 560 }}
