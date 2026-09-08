@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { getCorpusBrand, getCorpusBrands, getEstudio, getStartups } from '@/lib/data';
 import { companyLabel } from '@/lib/types';
 import {
+  COMPONENTES,
   compara,
   fusionaNotas,
   huecosDeCategoria,
@@ -132,10 +133,23 @@ export default async function EstudioPage({ params, searchParams }: Props) {
     const pos = posicionMadurez(perfil);
     if (!pos) continue;
     const ficha = guardado?.marcas?.[d];
+    const scanDeLaMarca = ultimoPublicable(m);
+    const sinRastro = new Set(perfil.sinRastro);
     puntosMadurez.push({
       dominio: d,
       nombre: perfil.name,
       score: perfil.score,
+      logoUrl: m.company.logo_url,
+      // Las diez en porcentaje, para las barras del panel. Un componente sin
+      // rastro va null y no 0: son cosas distintas y el panel las pinta
+      // distinto.
+      dimensiones: Object.fromEntries(
+        COMPONENTES.map((c) => [
+          c,
+          sinRastro.has(c) || perfil.ratios[c] == null ? null : Math.round(perfil.ratios[c]! * 100),
+        ]),
+      ),
+      informeUrl: scanDeLaMarca?.ui_url ?? null,
       x: pos.x / 10,
       y: pos.y / 100,
       capa: ficha?.layer ?? null,
@@ -252,6 +266,7 @@ export default async function EstudioPage({ params, searchParams }: Props) {
                   madurez={puntosMadurez}
                   clienteMadurez={clienteMadurez}
                   clienteNombre={nombre}
+                  clienteScore={perfilCliente.score}
                 />
               ),
             },

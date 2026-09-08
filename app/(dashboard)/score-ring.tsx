@@ -8,12 +8,38 @@ export function scoreColor(score: number): string {
   return 'var(--cta)';
 }
 
+// La geometría del anillo, aparte del componente.
+//
+// El mapa del estudio dibuja el mismo anillo pero DENTRO de su propio SVG, y
+// un <svg> anidado complica la exportación a Figma. Sacando los números aquí,
+// el arco del mapa y el de las listas no pueden desviarse el uno del otro: si
+// alguien cambia el grosor o la escala, cambian los dos.
+export interface AnilloDeScore {
+  radio: number;
+  circunferencia: number;
+  // Longitud del arco que corresponde al score.
+  relleno: number;
+  color: string;
+  grosor: number;
+}
+
+export function anilloDeScore(score: number, size: number, grosor = 2.5): AnilloDeScore {
+  const radio = (size - grosor) / 2;
+  const circunferencia = 2 * Math.PI * radio;
+  return {
+    radio,
+    circunferencia,
+    relleno: (Math.max(0, Math.min(100, score)) / 100) * circunferencia,
+    color: scoreColor(score),
+    grosor,
+  };
+}
+
 export function ScoreRing({ score, size = 34 }: { score: number; size?: number }) {
-  const stroke = 2.5;
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const filled = (Math.max(0, Math.min(100, score)) / 100) * c;
-  const color = scoreColor(score);
+  const { radio: r, circunferencia: c, relleno: filled, color, grosor: stroke } = anilloDeScore(
+    score,
+    size,
+  );
 
   return (
     <svg
