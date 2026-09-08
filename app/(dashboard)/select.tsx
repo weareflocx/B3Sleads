@@ -5,7 +5,10 @@ import { useEffect, useRef, useState } from 'react';
 // Selector propio, con el diseño del producto (superficie, borde, check en la
 // opción activa, chevron) en vez del <select> nativo que se ve "de sistema".
 // Accesible: teclado (flechas, Enter, Esc), cierre al hacer clic fuera.
-export type SelectOption = { value: string; label: string };
+// Un punto de color opcional junto a la opción. Nace para el mapa: la clave
+// de colores vivía en una leyenda aparte que nadie relacionaba con el filtro,
+// y ponerla DENTRO del selector la deja donde se actúa sobre ella.
+export type SelectOption = { value: string; label: string; dot?: string };
 
 export function Select({
   value,
@@ -85,7 +88,12 @@ export function Select({
         onKeyDown={onKey}
         className={`flex items-center justify-between gap-2 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 py-1.5 text-sm text-[var(--text)] transition-colors hover:border-[var(--muted)] focus:border-[var(--cta)] focus:outline-none disabled:opacity-50 ${className}`}
       >
-        <span className="truncate">{current?.label ?? '—'}</span>
+        <span className="flex min-w-0 items-center gap-1.5">
+          {current?.dot && (
+            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: current.dot }} />
+          )}
+          <span className="truncate">{current?.label ?? '—'}</span>
+        </span>
         <svg
           width="12"
           height="12"
@@ -122,6 +130,9 @@ export function Select({
                   } ${selected ? 'font-medium text-[var(--cta)]' : 'text-[var(--text)]'}`}
                 >
                   <span className="w-3 shrink-0 text-center">{selected ? '✓' : ''}</span>
+                  {o.dot && (
+                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: o.dot }} />
+                  )}
                   <span className="truncate whitespace-nowrap">{o.label}</span>
                 </button>
               </li>

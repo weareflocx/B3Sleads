@@ -81,6 +81,12 @@ const TIPO = { marca: 8.5, extremo: 9, numero: 8, cuadrante: 7.5, titulo: 7.5 };
 const AIRE_LOGO = 0.82;
 
 const UNIDADES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+// El cliente se dibuja como cualquier otra marca —logo dentro, anillo de
+// score alrededor— y se distingue por tamaño y por un aro exterior fino, no
+// por una forma distinta. El rombo obligaba a recortar el logo en diagonal y
+// no se parecía a nada del resto del producto.
+const CLIENTE = { diametro: 34, hueco: 34 / 2 - 4.5 };
 const ZOOM_MAX = 6;
 
 function diametro(capa: Capa | null): number {
@@ -189,8 +195,12 @@ export function Mapa({
   const [ejeX, setEjeX] = useState(ejes[0]?.axis_id ?? '');
   const [ejeY, setEjeY] = useState(ejes[1]?.axis_id ?? '');
   const [verEtiquetas, setVerEtiquetas] = useState(true);
-  const [encima, setEncima] = useState<PuntoMapa | null>(null);
+  // El hover pasa a llevar su posición: la tarjeta se pinta AL LADO del punto
+  // y no en un cajón debajo del mapa, donde había que apartar la vista del
+  // dibujo para leer de qué marca hablaba.
+  const [encima, setEncima] = useState<{ p: PuntoMapa; x: number; y: number } | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const cajaRef = useRef<HTMLDivElement | null>(null);
 
   // Los mismos filtros que la rejilla de Clasificación. Sin ellos, el mapa
   // enseña las cuarenta y cuatro marcas a la vez y no hay forma de mirar solo
@@ -346,7 +356,9 @@ export function Mapa({
   return (
     <section className="mt-4">
       <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
-        {/* Qué mapa y contra qué ejes. */}
+        {/* Arriba, qué se está mirando. Abajo a la izquierda, cómo se mira;
+            a la derecha, qué marcas entran. Los filtros estaban pegados a los
+            selectores de eje y se leían como parte de ellos. */}
         <div className="flex flex-wrap items-center gap-2">
           <Select value={tipo} onChange={(v) => setTipo(v as typeof tipo)} align="left" ariaLabel="Tipo de mapa"
             options={[
@@ -365,54 +377,57 @@ export function Mapa({
           )}
         </div>
 
-        {/* Los mismos filtros que la rejilla de Clasificación: mirar solo el
-            núcleo competitivo es la pregunta más frecuente y hasta ahora
-            había que salir del mapa para responderla. */}
-        <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-[var(--border)] pt-2">
-          <span className={`${MINI} text-[var(--soft)]`}>ver</span>
-          {grupos.length > 1 && (
-            <Select value={fGrupo} onChange={setFGrupo} align="left" ariaLabel="Filtrar por grupo"
-              options={[{ value: '', label: 'Todos los grupos' }, ...grupos.map((g) => ({ value: g, label: g }))]} />
-          )}
-          <Select value={fCapa} onChange={setFCapa} align="left" ariaLabel="Filtrar por capa"
-            options={[{ value: '', label: 'Cualquier capa' }, ...CAPAS.map((c) => ({ value: c, label: CAPA_LABEL[c] }))]} />
-          <Select value={fPrioridad} onChange={setFPrioridad} align="left" ariaLabel="Filtrar por prioridad"
-            options={[{ value: '', label: 'Sin las descartadas' }, ...PRIORIDADES.map((p) => ({ value: p, label: PRIORIDAD_LABEL[p] }))]} />
-          <Select value={fRol} onChange={setFRol} align="left" ariaLabel="Filtrar por rol"
-            options={[{ value: '', label: 'Cualquier rol' }, ...ROLES.map((r) => ({ value: r, label: ROL_LABEL[r] }))]} />
-          {hayFiltro && (
-            <button onClick={() => { setFGrupo(''); setFRol(''); setFCapa(''); setFPrioridad(''); }}
-              className="rounded border border-[var(--border)] px-2 py-1 font-mono text-[10px] text-[var(--muted)] transition-colors hover:border-[var(--muted)] hover:text-[var(--text)]">
-              quitar filtros
-            </button>
-          )}
-          <span className="ml-auto flex items-center gap-3">
-            <label className={`${MINI} flex cursor-pointer items-center gap-1.5 text-[var(--soft)]`}>
-              <input type="checkbox" checked={verEtiquetas} onChange={(e) => setVerEtiquetas(e.target.checked)} />
-              nombres
-            </label>
-            {/* Acercar separa los puntos sin agrandar las marcas: es lo único
-                que sirve cuando cuarenta caen en el mismo palmo. */}
-            <span className="flex items-center gap-1">
-              <button onClick={() => acercar(1 / 1.5)} disabled={vista.escala <= 1}
-                className="h-6 w-6 rounded border border-[var(--border)] font-mono text-xs text-[var(--muted)] transition-colors hover:border-[var(--muted)] hover:text-[var(--text)] disabled:opacity-30">−</button>
-              <span className={`${MINI} w-8 text-center text-[var(--soft)]`}>{vista.escala.toFixed(1)}×</span>
-              <button onClick={() => acercar(1.5)} disabled={vista.escala >= ZOOM_MAX}
-                className="h-6 w-6 rounded border border-[var(--border)] font-mono text-xs text-[var(--muted)] transition-colors hover:border-[var(--muted)] hover:text-[var(--text)] disabled:opacity-30">+</button>
-              {vista.escala > 1 && (
-                <button onClick={() => setVista({ escala: 1, x: 0, y: 0 })}
-                  className="ml-1 rounded border border-[var(--border)] px-2 py-1 font-mono text-[10px] text-[var(--muted)] hover:border-[var(--muted)] hover:text-[var(--text)]">
-                  todo
-                </button>
-              )}
-            </span>
-            <button
-              onClick={() => svgRef.current && descargarSvg(svgRef.current, `mapa-${esEstrategico ? 'estrategico' : 'madurez'}-${clienteNombre.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`)}
-              disabled={visibles.length === 0}
-              title="Descarga el mapa tal y como se ve, para abrirlo en Figma"
-              className={`${MINI} rounded border border-[var(--border)] px-2 py-1 transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)] disabled:opacity-40`}>
-              svg
-            </button>
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-[var(--border)] pt-2">
+          <label className={`${MINI} flex cursor-pointer items-center gap-1.5 text-[var(--soft)]`}>
+            <input type="checkbox" checked={verEtiquetas} onChange={(e) => setVerEtiquetas(e.target.checked)} />
+            nombres
+          </label>
+          {/* Acercar separa los puntos sin agrandar las marcas: es lo único
+              que sirve cuando cuarenta caen en el mismo palmo. */}
+          <span className="flex items-center gap-1">
+            <button onClick={() => acercar(1 / 1.5)} disabled={vista.escala <= 1}
+              className="h-6 w-6 rounded border border-[var(--border)] font-mono text-xs text-[var(--muted)] transition-colors hover:border-[var(--muted)] hover:text-[var(--text)] disabled:opacity-30">−</button>
+            <span className={`${MINI} w-8 text-center text-[var(--soft)]`}>{vista.escala.toFixed(1)}×</span>
+            <button onClick={() => acercar(1.5)} disabled={vista.escala >= ZOOM_MAX}
+              className="h-6 w-6 rounded border border-[var(--border)] font-mono text-xs text-[var(--muted)] transition-colors hover:border-[var(--muted)] hover:text-[var(--text)] disabled:opacity-30">+</button>
+            {vista.escala > 1 && (
+              <button onClick={() => setVista({ escala: 1, x: 0, y: 0 })}
+                className={`${MINI} ml-1 rounded border border-[var(--border)] px-2 py-1 text-[var(--muted)] hover:border-[var(--muted)] hover:text-[var(--text)]`}>
+                todo
+              </button>
+            )}
+          </span>
+          <button
+            onClick={() => svgRef.current && descargarSvg(svgRef.current, `mapa-${esEstrategico ? 'estrategico' : 'madurez'}-${clienteNombre.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`)}
+            disabled={visibles.length === 0}
+            title="Descarga el mapa tal y como se ve, para abrirlo en Figma"
+            className={`${MINI} rounded border border-[var(--border)] px-2 py-1 transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)] disabled:opacity-40`}>
+            svg
+          </button>
+
+          {/* Los filtros, al otro extremo. Y el color de cada capa va DENTRO
+              del selector: la clave vive donde se actúa sobre ella, en vez de
+              en una leyenda aparte que había que relacionar a ojo. */}
+          <span className="ml-auto flex flex-wrap items-center gap-2">
+            {hayFiltro && (
+              <button onClick={() => { setFGrupo(''); setFRol(''); setFCapa(''); setFPrioridad(''); }}
+                className={`${MINI} rounded border border-[var(--border)] px-2 py-1 text-[var(--muted)] transition-colors hover:border-[var(--muted)] hover:text-[var(--text)]`}>
+                quitar filtros
+              </button>
+            )}
+            {grupos.length > 1 && (
+              <Select value={fGrupo} onChange={setFGrupo} ariaLabel="Filtrar por grupo"
+                options={[{ value: '', label: 'Todos los grupos' }, ...grupos.map((g) => ({ value: g, label: g }))]} />
+            )}
+            <Select value={fCapa} onChange={setFCapa} ariaLabel="Filtrar por capa"
+              options={[
+                { value: '', label: 'Todas las capas' },
+                ...CAPAS.map((c) => ({ value: c, label: CAPA_LABEL[c], dot: COLOR_CAPA[c] })),
+              ]} />
+            <Select value={fPrioridad} onChange={setFPrioridad} ariaLabel="Filtrar por prioridad"
+              options={[{ value: '', label: 'Sin las descartadas' }, ...PRIORIDADES.map((p) => ({ value: p, label: PRIORIDAD_LABEL[p] }))]} />
+            <Select value={fRol} onChange={setFRol} ariaLabel="Filtrar por rol"
+              options={[{ value: '', label: 'Cualquier rol' }, ...ROLES.map((r) => ({ value: r, label: ROL_LABEL[r] }))]} />
           </span>
         </div>
 
@@ -428,7 +443,7 @@ export function Mapa({
               : 'Ninguna marca con scan publicable.'}
           </p>
         ) : (
-          <div className="mt-3">
+          <div className="relative mt-3" ref={cajaRef}>
             <svg
               ref={svgRef}
               viewBox={`0 0 ${W} ${H}`}
@@ -469,8 +484,12 @@ export function Mapa({
                 ))}
                 {cliente.hoy && (
                   <clipPath id="logo-cliente">
-                    <rect x={px(cliente.hoy.x) - 8} y={py(cliente.hoy.y) - 8} width="16" height="16"
-                      transform={`rotate(45 ${px(cliente.hoy.x)} ${py(cliente.hoy.y)})`} />
+                    <circle cx={px(cliente.hoy.x)} cy={py(cliente.hoy.y)} r={CLIENTE.hueco} />
+                  </clipPath>
+                )}
+                {cliente.objetivo && (
+                  <clipPath id="logo-objetivo">
+                    <circle cx={px(cliente.objetivo.x)} cy={py(cliente.objetivo.y)} r={CLIENTE.hueco} />
                   </clipPath>
                 )}
               </defs>
@@ -551,12 +570,23 @@ export function Mapa({
               </text>
 
               <g clipPath="url(#area-mapa)">
-                {/* El camino del cliente: de donde está a donde quiere ir. */}
-                {cliente.hoy && cliente.objetivo && (
-                  <line x1={px(cliente.hoy.x)} y1={py(cliente.hoy.y)}
-                    x2={px(cliente.objetivo.x)} y2={py(cliente.objetivo.y)}
-                    stroke="var(--cta)" strokeWidth="1.5" strokeDasharray="5 4" />
-                )}
+                {/* El camino del cliente. Punteado fino y al 45% en vez de
+                    una raya gruesa: es un propósito, no un dato medido, y
+                    tiene que pesar menos que las marcas. Se recorta contra el
+                    borde de los dos círculos para no cruzarlos por encima. */}
+                {cliente.hoy && cliente.objetivo && (() => {
+                  const x1 = px(cliente.hoy.x), y1 = py(cliente.hoy.y);
+                  const x2 = px(cliente.objetivo.x), y2 = py(cliente.objetivo.y);
+                  const largo = Math.hypot(x2 - x1, y2 - y1) || 1;
+                  const ux = (x2 - x1) / largo, uy = (y2 - y1) / largo;
+                  const margen = CLIENTE.diametro / 2 + 4;
+                  return (
+                    <line x1={x1 + ux * margen} y1={y1 + uy * margen}
+                      x2={x2 - ux * margen} y2={y2 - uy * margen}
+                      stroke="var(--cta)" strokeOpacity={0.45} strokeWidth="1"
+                      strokeDasharray="2 4" strokeLinecap="round" />
+                  );
+                })()}
 
                 {visibles.map((p) => {
                   const color = p.capa ? COLOR_CAPA[p.capa] : COLOR_SIN_CAPA;
@@ -569,10 +599,24 @@ export function Mapa({
                   const lado = hueco * 2 * AIRE_LOGO;
                   return (
                     <g key={p.dominio}
-                      onMouseEnter={() => setEncima(p)}
+                      role="img"
+                      aria-label={`${p.nombre}, score ${p.score ?? 'sin puntuación'}`}
+                      onMouseEnter={(e) => {
+                        // El <title> de SVG pintaba ADEMÁS el globo del
+                        // navegador, con la misma información y con su propio
+                        // retardo. Se quita y la posición se calcula respecto
+                        // a la caja del mapa.
+                        const caja = cajaRef.current?.getBoundingClientRect();
+                        if (!caja) return;
+                        setEncima({ p, x: e.clientX - caja.left, y: e.clientY - caja.top });
+                      }}
+                      onMouseMove={(e) => {
+                        const caja = cajaRef.current?.getBoundingClientRect();
+                        if (!caja) return;
+                        setEncima((v) => (v?.p.dominio === p.dominio ? { p, x: e.clientX - caja.left, y: e.clientY - caja.top } : v));
+                      }}
                       onMouseLeave={() => setEncima(null)}
                       style={{ cursor: 'pointer' }}>
-                      <title>{`${p.nombre} · ${p.score ?? '—'}/100`}</title>
 
                       {/* Fondo blanco: la mayoría de favicons dan por hecho
                           un lienzo claro y con transparencia se mezclarían
@@ -622,36 +666,64 @@ export function Mapa({
                   </text>
                 ))}
 
-                {/* El cliente en rombo con su propio logo dentro: es la marca
-                    del estudio y hay que reconocerla de un vistazo. "Hoy"
-                    lleva su anillo de score real; "objetivo" no lleva ninguno
+                {/* El cliente, dibujado como cualquier otra marca: su logo
+                    dentro y su anillo de score alrededor. Lo que lo distingue
+                    es el tamaño y un aro exterior fino, no una forma aparte.
+                    "Objetivo" es el mismo círculo en voz baja: sin anillo,
                     porque una posición deseada no tiene score que enseñar. */}
-                {cliente.hoy && (() => {
-                  const cx = px(cliente.hoy.x);
-                  const cy = py(cliente.hoy.y);
-                  const a = clienteScore != null ? anilloDeScore(clienteScore, 30, 2.5) : null;
+                {cliente.objetivo && (() => {
+                  const cx = px(cliente.objetivo.x), cy = py(cliente.objetivo.y);
                   const fuentes = fuentesDeLogo(clienteDominio, clienteLogo);
                   const logo = fuentes[logoIdx['__cliente__'] ?? 0] ?? null;
+                  const lado = CLIENTE.hueco * 2 * AIRE_LOGO;
+                  return (
+                    <g opacity={0.42}>
+                      <circle cx={cx} cy={cy} r={CLIENTE.hueco} fill="#fff" />
+                      {logo && (
+                        <image href={logo} x={cx - lado / 2} y={cy - lado / 2} width={lado} height={lado}
+                          preserveAspectRatio="xMidYMid meet" clipPath="url(#logo-objetivo)"
+                          style={{ pointerEvents: 'none' }} />
+                      )}
+                      <circle cx={cx} cy={cy} r={CLIENTE.diametro / 2 - 1} fill="none"
+                        stroke="var(--cta)" strokeWidth="1" strokeDasharray="2 3" />
+                      {verEtiquetas && (
+                        <text x={cx} y={cy - CLIENTE.diametro / 2 - 5} fontSize={TIPO.marca}
+                          textAnchor="middle" fill="var(--cta)">
+                          objetivo
+                        </text>
+                      )}
+                    </g>
+                  );
+                })()}
+
+                {cliente.hoy && (() => {
+                  const cx = px(cliente.hoy.x), cy = py(cliente.hoy.y);
+                  const a = clienteScore != null ? anilloDeScore(clienteScore, CLIENTE.diametro, 2.5) : null;
+                  const fuentes = fuentesDeLogo(clienteDominio, clienteLogo);
+                  const logo = fuentes[logoIdx['__cliente__'] ?? 0] ?? null;
+                  const lado = CLIENTE.hueco * 2 * AIRE_LOGO;
                   return (
                     <g>
+                      <circle cx={cx} cy={cy} r={CLIENTE.hueco} fill="#fff" />
+                      {logo && (
+                        <image href={logo} x={cx - lado / 2} y={cy - lado / 2} width={lado} height={lado}
+                          preserveAspectRatio="xMidYMid meet" clipPath="url(#logo-cliente)"
+                          onError={() => setLogoIdx((m) => ({ ...m, __cliente__: (m.__cliente__ ?? 0) + 1 }))}
+                          style={{ pointerEvents: 'none' }} />
+                      )}
                       {a && (
                         <>
-                          <circle cx={cx} cy={cy} r={a.radio} fill="none" stroke="var(--cta)" strokeOpacity={0.35} strokeWidth={a.grosor} />
+                          <circle cx={cx} cy={cy} r={a.radio} fill="none" stroke="var(--cta)" strokeOpacity={0.3} strokeWidth={a.grosor} />
                           <circle cx={cx} cy={cy} r={a.radio} fill="none" stroke={a.color} strokeWidth={a.grosor}
                             strokeDasharray={`${a.relleno} ${a.circunferencia - a.relleno}`}
                             strokeLinecap="butt" transform={`rotate(-90 ${cx} ${cy})`} />
                         </>
                       )}
-                      <rect x={cx - 8} y={cy - 8} width="16" height="16"
-                        transform={`rotate(45 ${cx} ${cy})`} fill="#fff" stroke="var(--cta)" strokeWidth="1.5" />
-                      {logo && (
-                        <image href={logo} x={cx - 8} y={cy - 8} width="16" height="16"
-                          preserveAspectRatio="xMidYMid meet" clipPath="url(#logo-cliente)"
-                          onError={() => setLogoIdx((m) => ({ ...m, __cliente__: (m.__cliente__ ?? 0) + 1 }))}
-                          style={{ pointerEvents: 'none' }} />
-                      )}
+                      {/* El aro exterior: lo único que lo separa del resto. */}
+                      <circle cx={cx} cy={cy} r={CLIENTE.diametro / 2 + 3} fill="none"
+                        stroke="var(--cta)" strokeOpacity={0.55} strokeWidth="1" />
                       {verEtiquetas && (
-                        <text x={cx} y={cy - (a ? a.radio + 6 : 16)} fontSize={TIPO.marca}
+                        <text x={cx} y={cy - CLIENTE.diametro / 2 - 8} fontSize={TIPO.marca}
                           textAnchor="middle" fill="var(--cta)" fontWeight="600">
                           {clienteNombre}
                         </text>
@@ -659,70 +731,76 @@ export function Mapa({
                     </g>
                   );
                 })()}
-                {cliente.objetivo && (
-                  <g>
-                    <rect x={px(cliente.objetivo.x) - 8} y={py(cliente.objetivo.y) - 8} width="16" height="16"
-                      transform={`rotate(45 ${px(cliente.objetivo.x)} ${py(cliente.objetivo.y)})`}
-                      fill="none" stroke="var(--cta)" strokeWidth="1.5" strokeDasharray="4 3" />
-                    {verEtiquetas && (
-                      <text x={px(cliente.objetivo.x)} y={py(cliente.objetivo.y) - 16} fontSize={TIPO.marca}
-                        textAnchor="middle" fill="var(--cta)">
-                        objetivo
-                      </text>
-                    )}
-                  </g>
-                )}
               </g>
             </svg>
+
+            {/* La tarjeta, junto al punto. Se voltea cerca de los bordes para
+                no salirse de la caja, y no captura el ratón: si lo hiciera,
+                aparecer debajo del cursor la haría parpadear. */}
+            {encima && (
+              <div
+                className="pointer-events-none absolute z-20 w-60 rounded-md border border-[var(--border)] bg-[var(--surface)] p-2.5 text-xs shadow-lg"
+                style={{
+                  left: encima.x > (cajaRef.current?.clientWidth ?? 0) - 260 ? encima.x - 250 : encima.x + 14,
+                  top: encima.y > (cajaRef.current?.clientHeight ?? 0) - 130 ? encima.y - 120 : encima.y + 14,
+                }}
+              >
+                <p className="flex items-baseline gap-2">
+                  <span className="min-w-0 truncate font-medium">{encima.p.nombre}</span>
+                  {encima.p.score != null && (
+                    <span className="ml-auto shrink-0 font-mono" style={{ color: anilloDeScore(encima.p.score, 10).color }}>
+                      {encima.p.score}
+                    </span>
+                  )}
+                </p>
+                <p className="font-mono text-[10px] text-[var(--soft)]">{encima.p.dominio}</p>
+                <p className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  {encima.p.capa && (
+                    <span className="inline-flex items-center gap-1 rounded border border-[var(--border)] px-1.5 py-0.5 text-[10px]">
+                      <span className="h-1.5 w-1.5 rounded-full" style={{ background: COLOR_CAPA[encima.p.capa] }} />
+                      {CAPA_LABEL[encima.p.capa]}
+                    </span>
+                  )}
+                  {encima.p.rol && (
+                    <span className="rounded border border-[var(--cta)]/40 px-1.5 py-0.5 text-[10px] text-[var(--cta)]">
+                      {encima.p.rol}
+                    </span>
+                  )}
+                  {marcas[encima.p.dominio]?.priority && (
+                    <span className="rounded border border-[var(--border)] px-1.5 py-0.5 text-[10px] text-[var(--muted)]">
+                      {PRIORIDAD_LABEL[marcas[encima.p.dominio]!.priority!]}
+                    </span>
+                  )}
+                </p>
+                {/* Dónde está en los ejes que se están cruzando. Es la razón
+                    de que el punto esté ahí y no en otro sitio. */}
+                {esEstrategico && x && y && (
+                  <p className="mt-1.5 font-mono text-[10px] text-[var(--muted)]">
+                    {x.label_left}–{x.label_right}: {marcas[encima.p.dominio]?.axis_scores?.[x.axis_id] ?? '—'}
+                    {' · '}
+                    {y.label_left}–{y.label_right}: {marcas[encima.p.dominio]?.axis_scores?.[y.axis_id] ?? '—'}
+                  </p>
+                )}
+                {encima.p.nota && (
+                  <p className="mt-1.5 leading-relaxed text-[var(--muted)]">{encima.p.nota}</p>
+                )}
+                {encima.p.motivoFlojo && (
+                  <p className="mt-1.5 text-[10px] leading-relaxed text-[var(--soft)]">{encima.p.motivoFlojo}</p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
-        {/* Leyenda: qué significa cada cosa del dibujo, en su propio bloque.
-            El tamaño ya no dice el score, así que decirlo aquí sería mentir. */}
-        <div className="mt-3 border-t border-[var(--border)] pt-3">
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-[var(--muted)]">
-            {(['competitive', 'register', 'anti_reference'] as Capa[]).map((c) => (
-              <span key={c} className="flex items-center gap-2">
-                <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
-                  <circle cx="10" cy="10" r="7" fill="none" stroke={COLOR_CAPA[c]} strokeOpacity={0.35} strokeWidth="2.5" />
-                  <circle cx="10" cy="10" r="7" fill="none" stroke="var(--linkedin-soft)" strokeWidth="2.5"
-                    strokeDasharray="31 13" transform="rotate(-90 10 10)" />
-                </svg>
-                {CAPA_LABEL[c]}
-              </span>
-            ))}
-            <span className="flex items-center gap-2">
-              <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
-                <rect x="4" y="4" width="12" height="12" transform="rotate(45 10 10)" fill="#fff" stroke="var(--cta)" strokeWidth="1.5" />
-              </svg>
-              {clienteNombre} hoy
-            </span>
-            <span className="flex items-center gap-2">
-              <svg width="26" height="20" viewBox="0 0 26 20" aria-hidden="true">
-                <line x1="1" y1="10" x2="16" y2="10" stroke="var(--cta)" strokeWidth="1.5" strokeDasharray="4 3" />
-                <rect x="17" y="6" width="8" height="8" transform="rotate(45 21 10)" fill="none" stroke="var(--cta)" strokeWidth="1.5" strokeDasharray="3 2" />
-              </svg>
-              hacia el objetivo
-            </span>
-          </div>
-          <p className="mt-2 text-xs leading-relaxed text-[var(--soft)]">
-            El aro dice de qué tipo es la marca y el arco, su score. El tamaño va por tipo, no por
-            puntuación.
-            {verEtiquetas && sinSitio > 0 && ` · ${sinSitio} ${sinSitio === 1 ? 'nombre oculto' : 'nombres ocultos'} por falta de sitio: pasa por encima o acerca el mapa.`}
-            {flojas > 0 && ` · ${flojas} ${flojas === 1 ? 'marca con aro discontinuo' : 'marcas con aro discontinuo'}: lectura insuficiente, no cuentan para leer el cuadrante.`}
-          </p>
-        </div>
+        {/* Sin leyenda de colores: la clave de capas vive ahora dentro de su
+            propio filtro. Aquí queda solo lo que ningún control explica. */}
+        <p className="mt-3 border-t border-[var(--border)] pt-3 text-xs leading-relaxed text-[var(--soft)]">
+          El aro dice de qué tipo es la marca y el arco, su score. {clienteNombre} lleva un aro
+          exterior, y el punteado va hasta dónde quiere estar.
+          {verEtiquetas && sinSitio > 0 && ` · ${sinSitio} ${sinSitio === 1 ? 'nombre oculto' : 'nombres ocultos'} por falta de sitio: pasa por encima o acerca el mapa.`}
+          {flojas > 0 && ` · ${flojas} ${flojas === 1 ? 'marca con aro discontinuo' : 'marcas con aro discontinuo'}: lectura insuficiente, no cuentan para leer el cuadrante.`}
+        </p>
 
-        {encima && (
-          <div className="mt-2 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs">
-            <span className="font-medium">{encima.nombre}</span>
-            <span className="ml-2 font-mono text-[var(--soft)]">{encima.dominio}</span>
-            {encima.score != null && <span className="ml-2 font-mono">{encima.score}/100</span>}
-            {encima.rol && <span className="ml-2 text-[var(--cta)]">{encima.rol}</span>}
-            {encima.motivoFlojo && <span className="ml-2 text-[var(--soft)]">· {encima.motivoFlojo}</span>}
-            {encima.nota && <p className="mt-1 text-[var(--muted)]">{encima.nota}</p>}
-          </div>
-        )}
       </div>
     </section>
   );
