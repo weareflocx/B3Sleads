@@ -297,7 +297,26 @@ export async function getEstudio(companyId: string): Promise<Study | null> {
     marcas: (fila.marcas as Study['marcas']) ?? {},
     axes: (fila.axes as Study['axes']) ?? [],
     client_positions: (fila.client_positions as Study['client_positions']) ?? {},
+    excluded_terms: (fila.excluded_terms as string[]) ?? [],
   };
+}
+
+// Excluir o recuperar un término del cruce de vocabulario.
+export async function excluirTermino(
+  companyId: string,
+  termino: string,
+  excluir: boolean,
+  email: string | null,
+): Promise<void> {
+  if (isDemoMode()) return;
+  const db = getServiceSupabase()!;
+  const { error } = await db.rpc('estudio_termino_excluir', {
+    p_company_id: companyId,
+    p_term: termino,
+    p_excluir: excluir,
+    p_email: email,
+  });
+  if (error) throw error;
 }
 
 // Los ejes del estudio y la posición del cliente en ellos. Se manda el

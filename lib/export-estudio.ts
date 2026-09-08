@@ -4,6 +4,7 @@ import type { MarcaCorpus } from './data';
 import type { Grupo, PerfilMarca } from './benchmark';
 import { COMPONENTES, perfilDeMarca, ultimoPublicable } from './benchmark';
 
+import type { TerminoCompartido as VocabTermino } from './vocabulario';
 import {
   CAPA_LABEL,
   PRIORIDAD_LABEL,
@@ -47,6 +48,39 @@ function fila(vs: unknown[]): string {
 function cabeceraEje(e: Eje): string {
   const t = `${e.label_left}-${e.label_right}`.trim();
   return t === '-' ? e.axis_id : t;
+}
+
+// El cruce de vocabulario en CSV: término, cuántas marcas, cuáles y la cita
+// de cada una. Es el material para escribir el apartado de códigos de
+// categoría sin volver a mirar la pantalla.
+export function csvDelVocabulario(
+  grupos: { nombre: string; marcasConTexto: number; terminos: VocabTermino[] }[],
+): string {
+  const filas: string[] = [
+    fila(['grupo', 'termino', 'marcas', 'de_marcas', 'fuera_pct', 'concentracion', 'usa_el_cliente', 'marca', 'cita']),
+  ];
+  for (const g of grupos) {
+    for (const t of g.terminos) {
+      // Una fila por marca y término: así la cita cabe en su celda en vez de
+      // amontonar cinco en una, que es lo que hace ilegible un CSV.
+      for (const m of t.marcas) {
+        filas.push(
+          fila([
+            g.nombre,
+            t.termino,
+            t.marcas.length,
+            g.marcasConTexto,
+            t.fuera,
+            t.concentracion,
+            t.clienteTambien ? 'si' : 'no',
+            m.nombre,
+            m.cita,
+          ]),
+        );
+      }
+    }
+  }
+  return '\ufeff' + filas.join('\r\n') + '\r\n';
 }
 
 export function csvDelEstudio({

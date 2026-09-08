@@ -24,6 +24,7 @@ import { TablaClasificacion } from './tabla-clasificacion';
 import { SeccionEjes } from './seccion-ejes';
 import { Mapa, type PuntoMapa } from './mapa';
 import { PestanasEstudio } from './pestanas-estudio';
+import { Vocabulario } from './vocabulario';
 
 export const dynamic = 'force-dynamic';
 
@@ -175,6 +176,13 @@ export default async function EstudioPage({ params, searchParams }: Props) {
           >
             csv ↓
           </a>
+          <a
+            href={`/api/estudio/export/json?domain=${encodeURIComponent(dom)}${sp.g ? `&g=${encodeURIComponent(sp.g)}` : ''}`}
+            className="font-mono text-[11px] uppercase tracking-wider text-[var(--muted)] hover:text-[var(--text)]"
+            title="El estudio entero, para automatizaciones"
+          >
+            json ↓
+          </a>
           {cliente.lead && (
             <Link href={`/companies/${dom}`} className="text-sm text-[var(--muted)] hover:underline">
               ver ficha ↗
@@ -243,6 +251,13 @@ export default async function EstudioPage({ params, searchParams }: Props) {
                   clienteMadurez={clienteMadurez}
                   clienteNombre={nombre}
                 />
+              ),
+            },
+            {
+              clave: 'vocabulario',
+              etiqueta: 'Vocabulario',
+              contenido: (
+                <Vocabulario cliente={dom} clienteNombre={nombre} query={sp.g ?? null} />
               ),
             },
             {

@@ -148,7 +148,12 @@ export function posicionMadurez(p: PerfilMarca): PosicionMadurez | null {
   return {
     // Sin datos en un lado la marca se queda en el centro, pero marcada como
     // insuficiente: el mapa la pinta hueca y no entra en ninguna lectura.
-    x: s != null && f != null ? Math.min(10, Math.max(0, 5 + (s - f) * 5)) : 5,
+    // Redondeado: este número sale por el export JSON y un 1.4999999999999996
+    // en un archivo que consume otra herramienta es ruido, no precisión.
+    x:
+      s != null && f != null
+        ? Math.round(Math.min(10, Math.max(0, 5 + (s - f) * 5)) * 100) / 100
+        : 5,
     y: p.score,
     usadosSignificado: sig.length,
     usadosFuncional: fun.length,

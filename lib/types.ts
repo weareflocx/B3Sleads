@@ -308,6 +308,8 @@ export interface Study {
   marcas: Record<string, MarcaEstudio>;
   axes: Eje[];
   client_positions: PosicionesCliente;
+  // Términos que alguien ha decidido que son idioma, no categoría.
+  excluded_terms: string[];
   updated_by_email: string | null;
   updated_at: string;
   created_at: string;
