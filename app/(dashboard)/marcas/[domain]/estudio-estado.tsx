@@ -49,7 +49,9 @@ interface Estudio {
   // Define los ejes y dónde está el cliente en ellos. Se manda el conjunto.
   definirEjes: (ejes: Eje[], posiciones: PosicionesCliente) => void;
   // Puntúa una marca en un eje. null borra la puntuación; 0 es el extremo.
-  puntuar: (dominio: string, eje: string, valor: number | null) => void;
+  // Con persistir a false solo mueve el estado: es lo que permite arrastrar
+  // un deslizador sin mandar una petición por cada píxel.
+  puntuar: (dominio: string, eje: string, valor: number | null, persistir?: boolean) => void;
   eliminarEje: (eje: string) => void;
   // Para enlazar a la ficha de una marca sin perder el estudio.
   query: string;
@@ -232,7 +234,7 @@ export function EstudioProvider({
   );
 
   const puntuar = useCallback(
-    (marca: string, eje: string, valor: number | null) => {
+    (marca: string, eje: string, valor: number | null, persistir = true) => {
       const d = marca.toLowerCase();
       const ficha: MarcaEstudio = { ...(fichas.current[d] ?? {}) };
       const scores = { ...(ficha.axis_scores ?? {}) };
@@ -243,7 +245,8 @@ export function EstudioProvider({
       fichas.current = mapa;
       setMarcas(mapa);
       setError(null);
-      void mandar('/api/estudio/ejes', 'PATCH', { domain: dominio, marca: d, eje, valor });
+      // Arrastrando se pinta y no se guarda; al soltar se guarda una vez.
+      if (persistir) void mandar('/api/estudio/ejes', 'PATCH', { domain: dominio, marca: d, eje, valor });
     },
     [dominio, mandar],
   );
@@ -292,27 +295,52 @@ export function EstudioProvider({
     void persistir();
   }, [queryInicial, persistir]);
 
-  // El servidor manda cuando aquí no hay nada a medias: así se ve lo que
-  // cambió otra persona del equipo, o el resultado de dar de alta una marca.
-  // Con cambios sin sincronizar, mandan los de aquí.
+  // Reconciliación con el servidor.
+  //
+  // La regla NO puede ser "si lo de aquí difiere de lo del servidor, gana el
+  // servidor". Eso es lo que hacía antes y deshacía cada cambio: al terminar
+  // la petición, el efecto volvía a correr, comparaba el estado nuevo con
+  // unas props que el servidor todavía no había vuelto a mandar, y las daba
+  // por buenas. Puntuar una marca la movía y la devolvía a su sitio sola.
+  //
+  // La regla correcta es "gana el servidor cuando el servidor ha CAMBIADO":
+  // se guarda lo último que llegó de él y solo se adopta cuando lo nuevo
+  // difiere de eso. Así entra lo que tocó otra persona del equipo, o el alta
+  // de una marca, y no se pisa lo que se acaba de escribir aquí.
+  const visto = useRef({
+    grupos: JSON.stringify(inicial),
+    marcas: JSON.stringify(marcasIniciales),
+    ejes: JSON.stringify(ejesIniciales),
+    posiciones: JSON.stringify(posicionesIniciales),
+  });
+
   useEffect(() => {
     if (temporizador.current || enVuelo.current || pendiente.current) return;
-    if (JSON.stringify(inicial) === JSON.stringify(actual.current)) return;
+    const llega = JSON.stringify(inicial);
+    if (llega === visto.current.grupos) return;
+    visto.current.grupos = llega;
     actual.current = inicial;
     setGrupos(inicial);
   }, [inicial]);
 
   useEffect(() => {
     if (enCurso > 0) return;
-    if (JSON.stringify(marcasIniciales) !== JSON.stringify(fichas.current)) {
+
+    const m = JSON.stringify(marcasIniciales);
+    if (m !== visto.current.marcas) {
+      visto.current.marcas = m;
       fichas.current = marcasIniciales;
       setMarcas(marcasIniciales);
     }
-    if (JSON.stringify(ejesIniciales) !== JSON.stringify(ejesRef.current)) {
+    const e = JSON.stringify(ejesIniciales);
+    if (e !== visto.current.ejes) {
+      visto.current.ejes = e;
       ejesRef.current = ejesIniciales;
       setEjes(ejesIniciales);
     }
-    if (JSON.stringify(posicionesIniciales) !== JSON.stringify(posicionesRef.current)) {
+    const pos = JSON.stringify(posicionesIniciales);
+    if (pos !== visto.current.posiciones) {
+      visto.current.posiciones = pos;
       posicionesRef.current = posicionesIniciales;
       setPosiciones(posicionesIniciales);
     }
