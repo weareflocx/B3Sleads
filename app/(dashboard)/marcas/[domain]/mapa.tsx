@@ -51,7 +51,11 @@ const COLOR_SIN_CAPA = 'var(--muted)';
 // todos los puntos de sitio.
 const W = 800;
 const H = 500;
-const M = { arriba: 34, derecha: 30, abajo: 40, izquierda: 34 };
+// Los márgenes crecen abajo y a la izquierda: ahí van los números, los
+// extremos de cada eje y el nombre del eje, en tres alturas distintas. Antes
+// los extremos del eje Y y los del X caían los dos en la esquina inferior
+// izquierda, uno encima de otro, y no se sabía cuál era de qué eje.
+const M = { arriba: 30, derecha: 30, abajo: 62, izquierda: 62 };
 const CAJA = { w: W - M.izquierda - M.derecha, h: H - M.arriba - M.abajo };
 
 // El tamaño dice la CAPA, no el score. Antes el radio codificaba el score y
@@ -64,6 +68,10 @@ const DIAMETRO_CAPA: Record<Capa, number> = {
   anti_reference: 26,
 };
 const DIAMETRO_SIN_CAPA = 28;
+
+// Las once líneas de la rejilla. La del 5 se dibuja distinta: es la que
+// parte los cuadrantes.
+const UNIDADES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 function diametro(capa: Capa | null): number {
   return capa ? DIAMETRO_CAPA[capa] : DIAMETRO_SIN_CAPA;
@@ -128,6 +136,13 @@ function descargarSvg(svg: SVGSVGElement, nombre: string) {
     if (el.tagName === 'text') el.setAttribute('font-family', 'Geist, Inter, Helvetica, Arial, sans-serif');
     el.removeAttribute('style');
     el.removeAttribute('class');
+  }
+
+  // Lo que solo tiene sentido fuera de la app: el nombre de cada eje. Dentro
+  // lo dicen los selectores; en el archivo no hay selectores.
+  for (const el of copia.querySelectorAll('[data-solo-export]')) {
+    el.setAttribute('opacity', '1');
+    el.removeAttribute('data-solo-export');
   }
 
   copia.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
@@ -206,6 +221,26 @@ export function Mapa({
     abajo: esEstrategico ? (y?.label_left ?? '') : 'Score bajo',
     arriba: esEstrategico ? (y?.label_right ?? '') : 'Score alto',
   };
+
+  const tituloX = `${etiquetas.izquierda} → ${etiquetas.derecha}`;
+  const tituloY = `${etiquetas.abajo} → ${etiquetas.arriba}`;
+
+  // En el mapa de madurez el eje vertical NO es un 0-10: es el Brand3 Score.
+  // Poner ahí un 5 sería mentir sobre la escala.
+  const marcas0510 = [0, 5, 10].map((v) => ({
+    v,
+    x: String(v),
+    y: esEstrategico ? String(v) : String(v * 10),
+  }));
+
+  // Cada esquina, nombrada por los dos extremos que la forman. Es la lectura
+  // que antes había que reconstruir mirando los cuatro bordes.
+  const CUADRANTES = [
+    { clave: 'ai', ax: 0, ay: 1, anchor: 'start' as const, arriba: true, texto: `${etiquetas.izquierda} · ${etiquetas.arriba}` },
+    { clave: 'ad', ax: 1, ay: 1, anchor: 'end' as const, arriba: true, texto: `${etiquetas.derecha} · ${etiquetas.arriba}` },
+    { clave: 'bi', ax: 0, ay: 0, anchor: 'start' as const, arriba: false, texto: `${etiquetas.izquierda} · ${etiquetas.abajo}` },
+    { clave: 'bd', ax: 1, ay: 0, anchor: 'end' as const, arriba: false, texto: `${etiquetas.derecha} · ${etiquetas.abajo}` },
+  ];
 
   const px = (v: number) => M.izquierda + v * CAJA.w;
   const py = (v: number) => M.arriba + (1 - v) * CAJA.h;
@@ -362,28 +397,92 @@ export function Mapa({
               role="img"
               aria-label={esEstrategico ? 'Mapa estratégico' : 'Mapa de madurez'}
             >
-              {/* Los cuatro cuadrantes. La cruz central es lo que convierte
-                  una nube de puntos en una lectura. */}
+              {/* Rejilla cada unidad. Sin ella, "Herbalife está en el 2" es un
+                  dato que hay que creerse; con ella se cuenta. Las líneas del
+                  5 van más marcadas porque son las que parten los cuadrantes:
+                  son la lectura, no una división más. */}
+              {UNIDADES.map((v) => (
+                <line key={`vx-${v}`} x1={px(v / 10)} y1={M.arriba} x2={px(v / 10)} y2={M.arriba + CAJA.h}
+                  stroke="var(--border)" strokeWidth={v === 5 ? 1 : 0.5}
+                  strokeOpacity={v === 5 ? 1 : 0.5}
+                  strokeDasharray={v === 5 ? '3 4' : undefined} />
+              ))}
+              {UNIDADES.map((v) => (
+                <line key={`vy-${v}`} x1={M.izquierda} y1={py(v / 10)} x2={M.izquierda + CAJA.w} y2={py(v / 10)}
+                  stroke="var(--border)" strokeWidth={v === 5 ? 1 : 0.5}
+                  strokeOpacity={v === 5 ? 1 : 0.5}
+                  strokeDasharray={v === 5 ? '3 4' : undefined} />
+              ))}
               <rect x={M.izquierda} y={M.arriba} width={CAJA.w} height={CAJA.h}
                 fill="none" stroke="var(--border)" strokeWidth="1" />
-              <line x1={M.izquierda + CAJA.w / 2} y1={M.arriba} x2={M.izquierda + CAJA.w / 2} y2={M.arriba + CAJA.h}
-                stroke="var(--border)" strokeWidth="1" strokeDasharray="3 4" />
-              <line x1={M.izquierda} y1={M.arriba + CAJA.h / 2} x2={M.izquierda + CAJA.w} y2={M.arriba + CAJA.h / 2}
-                stroke="var(--border)" strokeWidth="1" strokeDasharray="3 4" />
 
-              {/* Los extremos, en los cuatro bordes. */}
-              <text x={M.izquierda} y={M.arriba + CAJA.h + 26} fontSize="11" fill="var(--muted)" fontFamily="monospace">
+              {/* Los cuadrantes, dichos en voz baja dentro de su esquina. El
+                  cuadrante vacío es el argumento del estudio, y hasta ahora
+                  había que deducir de qué cuadrante se hablaba. */}
+              {CUADRANTES.map((q) => (
+                <text key={q.clave}
+                  x={px(q.ax) + (q.anchor === 'start' ? 8 : -8)}
+                  y={py(q.ay) + (q.arriba ? 16 : -10)}
+                  fontSize="9" textAnchor={q.anchor} fill="var(--soft)"
+                  fontFamily="monospace" letterSpacing="0.5"
+                  style={{ pointerEvents: 'none' }}>
+                  {q.texto}
+                </text>
+              ))}
+
+              {/* Valores. Solo 0, mitad y tope: una escala se entiende con
+                  tres números y se ensucia con once. */}
+              {marcas0510.map((t) => (
+                <text key={`tx-${t.v}`} x={px(t.v / 10)} y={M.arriba + CAJA.h + 15}
+                  fontSize="10" textAnchor="middle" fill="var(--soft)" fontFamily="monospace">
+                  {t.x}
+                </text>
+              ))}
+              {marcas0510.map((t) => (
+                <text key={`ty-${t.v}`} x={M.izquierda - 8} y={py(t.v / 10)}
+                  fontSize="10" textAnchor="end" dominantBaseline="central"
+                  fill="var(--soft)" fontFamily="monospace">
+                  {t.y}
+                </text>
+              ))}
+
+              {/* Cada extremo pegado al SUYO: el del eje X en su punta del
+                  borde de abajo, el del eje Y girado en su punta del borde
+                  izquierdo. Es lo que evita que "Habla de red" y "Modelo
+                  oculto" acaben uno encima del otro en la misma esquina. */}
+              <text x={M.izquierda} y={M.arriba + CAJA.h + 31} fontSize="11" fill="var(--muted)">
                 {etiquetas.izquierda}
               </text>
-              <text x={M.izquierda + CAJA.w} y={M.arriba + CAJA.h + 26} fontSize="11" fill="var(--muted)"
-                fontFamily="monospace" textAnchor="end">
+              <text x={M.izquierda + CAJA.w} y={M.arriba + CAJA.h + 31} fontSize="11"
+                fill="var(--muted)" textAnchor="end">
                 {etiquetas.derecha}
               </text>
-              <text x={M.izquierda} y={M.arriba - 14} fontSize="11" fill="var(--muted)" fontFamily="monospace">
+              <text x={M.izquierda - 26} y={M.arriba + CAJA.h} fontSize="11" fill="var(--muted)"
+                textAnchor="start" transform={`rotate(-90 ${M.izquierda - 26} ${M.arriba + CAJA.h})`}>
+                {etiquetas.abajo}
+              </text>
+              <text x={M.izquierda - 26} y={M.arriba} fontSize="11" fill="var(--muted)"
+                textAnchor="end" transform={`rotate(-90 ${M.izquierda - 26} ${M.arriba})`}>
                 {etiquetas.arriba}
               </text>
-              <text x={M.izquierda} y={M.arriba + CAJA.h + 12} fontSize="11" fill="var(--soft)" fontFamily="monospace">
-                {etiquetas.abajo}
+
+              {/* El nombre del eje, SOLO en el archivo exportado.
+                  En pantalla sobra: los selectores de arriba ya dicen qué eje
+                  es cada uno, y con los extremos pegados y las esquinas
+                  nombradas las mismas cuatro palabras salían tres veces.
+                  Fuera de la app no hay selectores, y sin esto el mapa llega
+                  a Figma sin decir qué mide. Se dibuja invisible y el
+                  exportador lo enciende al clonar. */}
+              <text data-solo-export="1" opacity="0"
+                x={M.izquierda + CAJA.w / 2} y={M.arriba + CAJA.h + 50} fontSize="9"
+                textAnchor="middle" fill="var(--soft)" fontFamily="monospace" letterSpacing="1">
+                {tituloX.toUpperCase()}
+              </text>
+              <text data-solo-export="1" opacity="0"
+                x={M.izquierda - 44} y={M.arriba + CAJA.h / 2} fontSize="9"
+                textAnchor="middle" fill="var(--soft)" fontFamily="monospace" letterSpacing="1"
+                transform={`rotate(-90 ${M.izquierda - 44} ${M.arriba + CAJA.h / 2})`}>
+                {tituloY.toUpperCase()}
               </text>
 
               {/* El camino del cliente: de donde está a donde quiere ir. */}
