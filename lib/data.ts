@@ -1,5 +1,6 @@
 // Capa de acceso a datos. Con Supabase configurado lee de la BD;
 // sin credenciales, sirve datos demo para desarrollo de UI.
+import { cache } from 'react';
 import { getServiceSupabase, isDemoMode } from './supabase';
 import { DEMO_LEADS } from './demo-data';
 import { mergeSectorVocabulary, parseSectorList } from './sectors';
@@ -19,7 +20,34 @@ export async function getSectorVocabulary(): Promise<string[]> {
   return mergeSectorVocabulary(inUse);
 }
 
-export async function getBriefingLeads(): Promise<BriefingLead[]> {
+// Un scan sin su informe. `result_raw` es el informe entero del Scanner y
+// pesa: los 173 scans del corpus suman 8,5 MB, y cada pantalla de lista los
+// descargaba enteros para enseñar un número y una frase. Las listas piden
+// solo esto; la ficha y el redactor, que sí leen el informe, piden el scan
+// completo.
+const SCAN_LIGERO = 'id, company_id, scanner_job_id, status, score, tldr, ui_url, created_at, completed_at';
+
+// Un scan que lleva más de esto "en marcha" no está en marcha: el Scanner
+// tarda minutos, no días. Se enseña como fallido en vez de "escaneando…"
+// para siempre, y el sync puede cerrarlo de verdad si el informe existe.
+const SCAN_COLGADO_MS = 6 * 60 * 60 * 1000;
+function saneaScan(s: Scan): Scan {
+  if (
+    (s.status === 'queued' || s.status === 'running') &&
+    Date.now() - new Date(s.created_at).getTime() > SCAN_COLGADO_MS
+  ) {
+    return { ...s, status: 'failed' };
+  }
+  return s;
+}
+
+// Todos los leads, hidratados. Se memoriza por petición (React `cache`): la
+// home la pide dos veces (directa y vía getStartups), Founders tres, y sin
+// esto cada una era otra vuelta completa a la base de datos.
+//
+// `conInforme` trae el informe del scan. Solo lo necesitan quienes redactan
+// (Founders, regenerar mensaje): el resto lee score, estado y tldr.
+export const getBriefingLeads = cache(async (conInforme = false): Promise<BriefingLead[]> => {
   if (isDemoMode()) {
     return [...DEMO_LEADS].sort(
       (a, b) => (b.lead.priority_score ?? 0) - (a.lead.priority_score ?? 0),
@@ -31,52 +59,97 @@ export async function getBriefingLeads(): Promise<BriefingLead[]> {
     .select('*')
     .order('priority_score', { ascending: false, nullsFirst: false });
   if (error) throw error;
-  return hydrateLeads(leads as Lead[]);
-}
+  return hydrateLeads(leads as Lead[], conInforme);
+});
 
-async function hydrateLeads(leads: Lead[]): Promise<BriefingLead[]> {
+async function hydrateLeads(leads: Lead[], conInforme: boolean): Promise<BriefingLead[]> {
+  if (!leads.length) return [];
   const db = getServiceSupabase()!;
   // Filtramos nulls: un founder sin empresa tiene company_id null y su
   // contacto se carga por contact_id (no por company_id), o desaparecería.
   const companyIds = [...new Set(leads.map((l) => l.company_id).filter(Boolean))];
   const contactIds = [...new Set(leads.map((l) => l.contact_id).filter(Boolean))];
+  const scanIds = [...new Set(leads.map((l) => l.scan_id).filter(Boolean))];
   const leadIds = leads.map((l) => l.id);
 
+  // Solo el scan al que apunta cada lead, no el histórico entero de la
+  // empresa: el histórico lo pide la ficha por su cuenta.
   const [companies, signals, scans, contacts, messages] = await Promise.all([
     db.from('companies').select('*').in('id', companyIds),
     db.from('signals').select('*').in('company_id', companyIds).order('detected_at', { ascending: false }),
-    db.from('scans').select('*').in('company_id', companyIds),
+    db.from('scans').select(conInforme ? '*' : SCAN_LIGERO).in('id', scanIds),
     db.from('contacts').select('*').in('id', contactIds),
     db.from('messages').select('*').in('lead_id', leadIds).order('created_at', { ascending: false }),
   ]);
 
   const companyById = new Map((companies.data as Company[] | null)?.map((c) => [c.id, c]));
-  const scanById = new Map((scans.data as Scan[] | null)?.map((s) => [s.id, s]));
+  const scanById = new Map(
+    ((scans.data as unknown as Scan[] | null) ?? []).map((s) => [
+      s.id,
+      saneaScan(conInforme ? s : { ...s, evidence: null, result_raw: null }),
+    ]),
+  );
   const contactById = new Map((contacts.data as Contact[] | null)?.map((c) => [c.id, c]));
+  // Señales agrupadas una vez, no un `filter` por lead.
+  const signalsByCompany = new Map<string, Signal[]>();
+  for (const s of (signals.data as Signal[] | null) ?? []) {
+    if (!s.company_id) continue;
+    const arr = signalsByCompany.get(s.company_id);
+    if (arr) arr.push(s);
+    else signalsByCompany.set(s.company_id, [s]);
+  }
+  const messageByLead = new Map<string, Message>();
+  for (const m of (messages.data as Message[] | null) ?? []) {
+    if (!messageByLead.has(m.lead_id)) messageByLead.set(m.lead_id, m);
+  }
 
   // No descartamos leads sin empresa: un founder suelto (solo LinkedIn) es
   // válido y debe aparecer en su cola. company queda null hasta tener dominio.
-  return leads.map((lead) => ({
-    lead,
-    company: lead.company_id ? (companyById.get(lead.company_id) ?? null) : null,
-    signal: lead.company_id
-      ? ((signals.data as Signal[] | null)?.find((s) => s.company_id === lead.company_id) ?? null)
-      : null,
-    // El radar necesita TODAS las señales para quedarse con la de más valor
-    // viva (máximo, no la última ni la suma).
-    signals: lead.company_id
-      ? ((signals.data as Signal[] | null)?.filter((s) => s.company_id === lead.company_id) ?? [])
-      : [],
-    scan: lead.scan_id ? (scanById.get(lead.scan_id) ?? null) : null,
-    contact: lead.contact_id ? (contactById.get(lead.contact_id) ?? null) : null,
-    message: (messages.data as Message[] | null)?.find((m) => m.lead_id === lead.id) ?? null,
-  }));
+  return leads.map((lead) => {
+    const senales = lead.company_id ? (signalsByCompany.get(lead.company_id) ?? []) : [];
+    return {
+      lead,
+      company: lead.company_id ? (companyById.get(lead.company_id) ?? null) : null,
+      signal: senales[0] ?? null,
+      // El radar necesita TODAS las señales para quedarse con la de más valor
+      // viva (máximo, no la última ni la suma).
+      signals: senales,
+      scan: lead.scan_id ? (scanById.get(lead.scan_id) ?? null) : null,
+      contact: lead.contact_id ? (contactById.get(lead.contact_id) ?? null) : null,
+      message: messageByLead.get(lead.id) ?? null,
+    };
+  });
+}
+
+// Un lead concreto, con informe: lo que necesita quien redacta o regenera un
+// mensaje. Antes se cargaba la cola entera para quedarse con una fila.
+export async function getLeadFiche(leadId: string): Promise<BriefingLead | null> {
+  if (isDemoMode()) return DEMO_LEADS.find((l) => l.lead.id === leadId) ?? null;
+  const db = getServiceSupabase()!;
+  const { data } = await db.from('leads').select('*').eq('id', leadId).maybeSingle();
+  if (!data) return null;
+  const [bl] = await hydrateLeads([data as Lead], true);
+  return bl ?? null;
 }
 
 // Ficha completa de una compañía por dominio (estilo Explee explore).
+// Va directa a la empresa y a sus leads: la ficha de una marca no debería
+// costar lo que cuesta la cola entera. Con varios leads manda el de más
+// prioridad, como en la cola.
 export async function getCompanyFiche(domain: string): Promise<BriefingLead | null> {
-  const all = await getBriefingLeads();
-  return all.find((l) => l.company?.domain === domain) ?? null;
+  const dom = domain.toLowerCase();
+  if (isDemoMode()) return DEMO_LEADS.find((l) => l.company?.domain === dom) ?? null;
+  const db = getServiceSupabase()!;
+  const { data: company } = await db.from('companies').select('id').eq('domain', dom).maybeSingle();
+  if (!company) return null;
+  const { data: leads } = await db
+    .from('leads')
+    .select('*')
+    .eq('company_id', company.id)
+    .order('priority_score', { ascending: false, nullsFirst: false });
+  if (!leads?.length) return null;
+  const [bl] = await hydrateLeads(leads as Lead[], true);
+  return bl ?? null;
 }
 
 // Todas las señales de una compañía, la más reciente primero.
@@ -118,8 +191,8 @@ export async function getCompanyScans(companyId: string): Promise<Scan[]> {
 }
 
 // Founders en outreach en frío: con LinkedIn, aún sin contactar.
-export async function getFounderQueue(): Promise<BriefingLead[]> {
-  const all = await getBriefingLeads();
+export async function getFounderQueue(conInforme = false): Promise<BriefingLead[]> {
+  const all = await getBriefingLeads(conInforme);
   return all.filter(
     (l) => l.contact?.linkedin_url && ['detected', 'briefed'].includes(l.lead.stage),
   );
@@ -127,8 +200,8 @@ export async function getFounderQueue(): Promise<BriefingLead[]> {
 
 // Conversaciones abiertas: founders que ya respondieron por privado. La
 // señal más fuerte del embudo y la métrica de éxito del proyecto.
-export async function getConversations(): Promise<BriefingLead[]> {
-  const all = await getBriefingLeads();
+export async function getConversations(conInforme = false): Promise<BriefingLead[]> {
+  const all = await getBriefingLeads(conInforme);
   return all.filter(
     (l) => l.contact?.linkedin_url && ['conversation', 'call', 'proposal'].includes(l.lead.stage),
   );
@@ -172,7 +245,7 @@ export async function getCompanyContacts(companyId: string): Promise<Contact[]> 
 // vista brand-first (score B3S, sector, ronda, founder), independiente del
 // stage; el trabajo por etapa sigue en Pipeline. De cada marca se elige el
 // lead más informativo (scan listo primero, luego con founder).
-export async function getStartups(): Promise<BriefingLead[]> {
+export const getStartups = cache(async (): Promise<BriefingLead[]> => {
   const all = await getBriefingLeads();
   const rank = (x: BriefingLead) =>
     (x.scan?.status === 'ready' ? 2 : 0) + (x.contact?.linkedin_url ? 1 : 0);
@@ -183,7 +256,7 @@ export async function getStartups(): Promise<BriefingLead[]> {
     if (!cur || rank(bl) > rank(cur)) byDomain.set(bl.company.domain, bl);
   }
   return [...byDomain.values()];
-}
+});
 
 export async function updateLeadStage(
   leadId: string,
@@ -267,7 +340,7 @@ export async function getCorpusBrands(domains: string[]): Promise<MarcaCorpus[]>
       return {
         company,
         scans: mine.filter((s) => s.status === 'ready'),
-        activo: mine.find((s) => ['queued', 'running', 'blocked'].includes(s.status)) ?? null,
+        activo: mine.map(saneaScan).find((s) => ['queued', 'running', 'blocked'].includes(s.status)) ?? null,
         lead: allLeads.find((l) => l.company_id === company.id) ?? null,
         selections: allSels.filter((x) => x.company_id === company.id),
       };

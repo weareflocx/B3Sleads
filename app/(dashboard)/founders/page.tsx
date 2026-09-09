@@ -19,10 +19,12 @@ function opener(bl: BriefingLead): string | null {
 // La pantalla del canal: founders con LinkedIn, listos para que Sergio
 // escriba a mano. El envío nunca es automático (spec §9).
 export default async function FoundersPage() {
+  // Con informe: el argumentario y el prompt se escriben sobre los hallazgos
+  // del Scanner. Las tres comparten la misma carga memorizada.
   const [queue, conversations, all] = await Promise.all([
-    getFounderQueue(),
-    getConversations(),
-    getBriefingLeads(),
+    getFounderQueue(true),
+    getConversations(true),
+    getBriefingLeads(true),
   ]);
   // Empresas detectadas (pipeline) a las que aún no les hemos encontrado el
   // founder en LinkedIn. Tienen empresa pero contacto sin perfil.

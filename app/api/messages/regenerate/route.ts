@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getBriefingLeads } from '@/lib/data';
+import { getLeadFiche } from '@/lib/data';
 import { generateDraft, draftInputFromLead } from '@/lib/claude';
 import { getSupabase, isDemoMode } from '@/lib/supabase';
 
@@ -7,8 +7,7 @@ import { getSupabase, isDemoMode } from '@/lib/supabase';
 export async function POST(req: NextRequest) {
   try {
     const { leadId } = await req.json();
-    const leads = await getBriefingLeads();
-    const bl = leads.find((l) => l.lead.id === leadId);
+    const bl = await getLeadFiche(leadId);
     if (!bl) return NextResponse.json({ error: 'Lead no encontrado' }, { status: 404 });
 
     const draft = await generateDraft(draftInputFromLead(bl));

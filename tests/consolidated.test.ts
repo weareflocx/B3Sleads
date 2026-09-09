@@ -35,17 +35,21 @@ test('sin selecciones manuales, consolidado === automático (criterio #9)', () =
   assert.equal(consolidatedScore(66, AUTO, out.dimensions), 66);
 });
 
-test('curar una dimensión base aplica su delta con peso 6/8', () => {
-  // La misión pasa de no detectada (0) a 5/5 (10 normalizado): +7.5 → redondea.
+// Los puntos ya llegan pesados desde el informe: Magnetismo y Coherencia
+// valen 20 y el resto 10, y el score global es su suma exacta. Por eso el
+// consolidado es un delta de puntos sin volver a ponderar nada.
+test('curar una dimensión aplica su delta de puntos, sin volver a pesar', () => {
+  // La misión pasa de no detectada (0) a 5/5: +5 puntos.
   const consolidated = AUTO.map((d) => (d.name === 'Misión' ? dim('Misión', 5, 5) : d));
-  assert.equal(consolidatedScore(66, AUTO, consolidated), 74); // 66 + 7.5 → 74
+  assert.equal(consolidatedScore(66, AUTO, consolidated), 71);
 });
 
-test('Magnetismo y Coherencia pesan ×2 y el resultado se acota a 0-100', () => {
-  const consolidated = AUTO.map((d) => (d.name === 'Magnetismo' ? dim('Magnetismo', 9) : d));
-  assert.equal(consolidatedScore(66, AUTO, consolidated), 72); // 66 + (9-6)×2
-  const maxed = AUTO.map((d) => (d.name === 'Magnetismo' ? dim('Magnetismo', 10) : d));
-  assert.equal(consolidatedScore(98, AUTO, maxed), 100); // nunca por encima de 100
+test('Magnetismo suma sus puntos sobre 20 y el resultado se acota a 0-100', () => {
+  const base = AUTO.map((d) => (d.name === 'Magnetismo' ? dim('Magnetismo', 12, 20) : d));
+  const consolidated = base.map((d) => (d.name === 'Magnetismo' ? dim('Magnetismo', 18, 20) : d));
+  assert.equal(consolidatedScore(66, base, consolidated), 72); // 66 + (18-12)
+  const maxed = base.map((d) => (d.name === 'Magnetismo' ? dim('Magnetismo', 20, 20) : d));
+  assert.equal(consolidatedScore(98, base, maxed), 100); // nunca por encima de 100
 });
 
 test('una selección a un scan inexistente cae al automático sin romper', () => {

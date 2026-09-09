@@ -1,4 +1,4 @@
-import { getBriefingLeads, getLeadNotes } from '@/lib/data';
+import { getBriefingLeads, getLeadFiche, getLeadNotes } from '@/lib/data';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import type { BriefingLead, Lead } from '@/lib/types';
 import type { LeadListQuery, LeadPatch } from './contracts';
@@ -6,8 +6,7 @@ import { AgentApiError } from './errors';
 import { leadDetail, leadSummary } from './serializers';
 
 export async function findLead(leadId: string): Promise<BriefingLead> {
-  const leads = await getBriefingLeads();
-  const lead = leads.find((item) => item.lead.id === leadId);
+  const lead = await getLeadFiche(leadId);
   if (!lead) {
     throw new AgentApiError(404, 'lead_not_found', 'Lead no encontrado.');
   }
