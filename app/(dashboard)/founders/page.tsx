@@ -34,9 +34,13 @@ export default async function FoundersPage() {
 
   // Precalcula lo que la card necesita (opener/prompt/temp) para pasarlo al
   // board cliente, que ordena y elige la vista.
+  //
+  // El informe del scan se usa AQUÍ, en el servidor, para el argumentario y
+  // el prompt; a la tarjeta no le hace falta y mandárselo serializaba los
+  // informes enteros en el HTML: la página pesaba 3,2 MB.
   const toItem = (bl: BriefingLead): FounderItem => ({
     key: bl.lead.id,
-    initial: bl,
+    initial: { ...bl, scan: bl.scan ? { ...bl.scan, result_raw: null, evidence: null } : null },
     opener: opener(bl),
     draftPrompt: buildDraftPrompt(bl),
     temp: leadTemperature(bl),

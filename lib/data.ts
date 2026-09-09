@@ -180,14 +180,23 @@ export async function getLeadNotes(leadId: string): Promise<Note[]> {
 
 export async function getCompanyScans(companyId: string): Promise<Scan[]> {
   if (isDemoMode()) return [];
+  return scansConInforme((q) => q.eq('company_id', companyId).eq('status', 'ready'));
+}
+
+// Los scans con informe, por la vista `scans_ligeros` (el informe sin el
+// rastro de adquisición, que es más de la mitad de cada uno y no se lee).
+// Si la vista aún no está aplicada se cae a la tabla, con el informe entero:
+// el resultado es el mismo, solo pesa más.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type FiltroScans = (q: any) => any;
+async function scansConInforme(filtra: FiltroScans): Promise<Scan[]> {
   const db = getServiceSupabase()!;
-  const { data } = await db
-    .from('scans')
-    .select('*')
-    .eq('company_id', companyId)
-    .eq('status', 'ready')
-    .order('created_at', { ascending: true });
-  return (data as Scan[] | null) ?? [];
+  const consulta = (tabla: string) =>
+    filtra(db.from(tabla).select('*')).order('created_at', { ascending: true });
+  const { data, error } = await consulta('scans_ligeros');
+  if (!error && data) return data as Scan[];
+  const { data: entero } = await consulta('scans');
+  return (entero as Scan[] | null) ?? [];
 }
 
 // Founders en outreach en frío: con LinkedIn, aún sin contactar.
@@ -317,15 +326,15 @@ export async function getCorpusBrands(domains: string[]): Promise<MarcaCorpus[]>
   const comps = (companies as Company[] | null) ?? [];
   if (!comps.length) return [];
   const ids = comps.map((c) => c.id);
-  const [{ data: scans }, { data: leads }, { data: sels }] = await Promise.all([
-    db.from('scans').select('*').in('company_id', ids).order('created_at', { ascending: true }),
+  const [scans, { data: leads }, { data: sels }] = await Promise.all([
+    scansConInforme((q) => q.in('company_id', ids)),
     db.from('leads').select('*').in('company_id', ids),
     db
       .from('component_selections')
       .select('company_id, dimension, scan_id, is_manual, selected_by_email, note, selected_at')
       .in('company_id', ids),
   ]);
-  const allScans = (scans as Scan[] | null) ?? [];
+  const allScans = scans;
   const allLeads = (leads as Lead[] | null) ?? [];
   type Sel = import('./consolidated').ComponentSelection & { company_id: string };
   const allSels = (sels as Sel[] | null) ?? [];
