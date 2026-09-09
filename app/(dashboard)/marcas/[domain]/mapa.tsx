@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react';
 import { Select } from '../../select';
+import { logoUrl } from '../../company-logo';
 import { anilloDeScore } from '../../score-ring';
 import { useEstudio } from './estudio-estado';
 import {
@@ -96,15 +97,11 @@ function radio(p: { capa: Capa | null }): number {
   return diametro(p.capa) / 2;
 }
 
-// Las mismas fuentes y el mismo orden que CompanyLogo. Se repiten aquí porque
-// aquel es un componente con <img> y dentro de un SVG exportable hace falta
-// <image>. Lo que se comparte es el criterio, no el marcado.
+// Las mismas fuentes que CompanyLogo: el logo pegado a mano y, si no, el
+// que elige el servidor. Se repite aquí porque aquel es un componente con
+// <img> y dentro de un SVG exportable hace falta <image>.
 function fuentesDeLogo(dominio: string, manual?: string | null): string[] {
-  return [
-    manual?.trim() || null,
-    `https://icons.duckduckgo.com/ip3/${dominio}.ico`,
-    `https://www.google.com/s2/favicons?sz=128&domain=${dominio}`,
-  ].filter(Boolean) as string[];
+  return [manual?.trim() || null, logoUrl(dominio)].filter(Boolean) as string[];
 }
 
 function iniciales(nombre: string): string {
@@ -123,7 +120,27 @@ const acotar = (v: number, min: number, max: number) => Math.min(max, Math.max(m
 // fuera del documento no existen: el archivo llegaría a Figma con todo en
 // negro. Se clona el dibujo y se sustituye cada color por el valor ya
 // calculado por el navegador. Sin rasterizar y sin fondo.
-function descargarSvg(svg: SVGSVGElement, nombre: string) {
+// Una imagen como data URL, para que el archivo lleve los logos DENTRO. Un
+// SVG con <image href="https://…"> se abre en Figma sin logos: no los va a
+// buscar. Si una no se puede leer (CORS de un logo pegado a mano), se
+// devuelve null y esa marca sale con sus iniciales.
+async function comoDataUrl(url: string): Promise<string | null> {
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    if (!r.ok) return null;
+    const blob = await r.blob();
+    return await new Promise<string | null>((resolve) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(typeof fr.result === 'string' ? fr.result : null);
+      fr.onerror = () => resolve(null);
+      fr.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function descargarSvg(svg: SVGSVGElement, nombre: string) {
   const copia = svg.cloneNode(true) as SVGSVGElement;
   const origen = svg.querySelectorAll('*');
   const destino = copia.querySelectorAll('*');
@@ -154,6 +171,23 @@ function descargarSvg(svg: SVGSVGElement, nombre: string) {
     el.setAttribute('opacity', '1');
     el.removeAttribute('data-solo-export');
   }
+
+  // Los logos, embebidos. Los que no se puedan leer se quitan y quedan las
+  // iniciales, que en el archivo se pintan siempre (data-iniciales).
+  const imagenes = [...copia.querySelectorAll('image')];
+  await Promise.all(
+    imagenes.map(async (img) => {
+      const href = img.getAttribute('href') ?? '';
+      const data = href.startsWith('data:') ? href : await comoDataUrl(href);
+      if (data) {
+        img.setAttribute('href', data);
+        img.removeAttribute('xlink:href');
+      } else {
+        img.remove();
+      }
+    }),
+  );
+  copia.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
 
   copia.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   copia.setAttribute('width', '1600');

@@ -3,14 +3,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 // Logo de la empresa. El monograma (iniciales, sin datos externos) SIEMPRE va
-// debajo como base fiable; encima se intentan las fuentes externas por orden y
-// solo se enseña la que carga de verdad. Así nunca se ve una imagen rota.
+// debajo como base fiable; encima, el logo pegado a mano si lo hay y, si no,
+// el que elige /api/logo/[dominio] entre varias fuentes públicas. Solo se
+// enseña la imagen que carga de verdad, así que nunca se ve un hueco roto.
 //
-// Antes había una sola fuente, logo.clearbit.com, y Clearbit cerró su API
-// pública de logos: hoy el dominio ni siquiera resuelve. Por eso desaparecieron
-// de golpe todos los logos salvo los subidos a mano. La lección es que una
-// única fuente externa es un punto de fallo, así que ahora son varias y se
-// prueban en cascada: ninguna cubre el catálogo entera por sí sola.
+// Antes la cascada de fuentes vivía aquí, en el navegador: cada tarjeta
+// probaba DuckDuckGo y luego Google, con sus 404 en la consola y sus favicons
+// de 16 píxeles estirados. Ahora la elección (la imagen más grande de todas
+// las fuentes) se hace una vez en el servidor y se cachea una semana.
+// La URL del logo por dominio, la misma para tarjetas, mapa y exportación.
+export function logoUrl(domain: string): string {
+  return `/api/logo/${encodeURIComponent(domain.trim().toLowerCase())}`;
+}
+
 function hueFromName(s: string): number {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
@@ -32,12 +37,8 @@ export function CompanyLogo({
 }) {
   const fuentes = useMemo(() => {
     const manual = src?.trim();
-    const d = domain?.trim();
-    return [
-      manual || null,
-      d ? `https://icons.duckduckgo.com/ip3/${d}.ico` : null,
-      d ? `https://www.google.com/s2/favicons?sz=128&domain=${d}` : null,
-    ].filter(Boolean) as string[];
+    const d = domain?.trim().toLowerCase();
+    return [manual || null, d ? logoUrl(d) : null].filter(Boolean) as string[];
   }, [src, domain]);
 
   const [i, setI] = useState(0);
