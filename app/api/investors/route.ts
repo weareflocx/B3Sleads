@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { normalizarDominio } from '@/lib/dominio';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import type { Company, Investor } from '@/lib/types';
 
@@ -8,13 +9,7 @@ import type { Company, Investor } from '@/lib/types';
 // PATCH { slug, name?, website?, thesis?, hq?, linkedinUrl?, notes?, logoUrl? }
 
 function normalizeDomain(raw: string): string {
-  return raw
-    .trim()
-    .toLowerCase()
-    .replace(/^https?:\/\//, '')
-    .replace(/^www\./, '')
-    .split('/')[0]
-    .trim();
+  return normalizarDominio(raw) ?? raw.trim().toLowerCase();
 }
 
 export async function PATCH(req: NextRequest) {

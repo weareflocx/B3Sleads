@@ -115,17 +115,7 @@ export function demoEclipseResult(domain: string): EclipseResult {
   };
 }
 
-export function normalizarDominio(raw: string): string | null {
-  const d = raw
-    .toLowerCase()
-    .trim()
-    .replace(/^https?:\/\//, '')
-    .replace(/^www\./, '')
-    .split(/[/?#]/)[0];
-  // Un dominio de verdad: algo.tld, sin espacios.
-  if (!/^[a-z0-9][a-z0-9.-]{1,60}\.[a-z]{2,}$/.test(d)) return null;
-  return d;
-}
+export { normalizarDominio } from './dominio';
 
 export function emailValido(raw: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(raw.trim());

@@ -10,6 +10,8 @@
 // De cada línea saca: handle de LinkedIn, dominio de la marca, nombre y nota.
 // Si una línea trae varias URLs de LinkedIn y nada más, sale una entrada por URL.
 
+import { normalizarDominio } from './dominio';
+
 import { parseLinkedInHandle, humanizeHandle } from './types';
 
 export interface ParsedEntry {
@@ -30,12 +32,7 @@ const DOMAIN_RE =
   /\b(?:https?:\/\/)?(?:www\.)?((?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,})(?:\/[^\s|]*)?/gi;
 
 function normalizeDomain(d: string): string {
-  return d
-    .toLowerCase()
-    .replace(/^https?:\/\//, '')
-    .replace(/^www\./, '')
-    .split('/')[0]
-    .replace(/[.,;]+$/, '');
+  return normalizarDominio(d) ?? '';
 }
 
 function entryFromParts(raw: string, handle?: string, domain?: string, text?: string): ParsedEntry {

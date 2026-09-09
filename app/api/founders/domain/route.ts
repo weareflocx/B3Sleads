@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { normalizarDominio } from '@/lib/dominio';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import { getBrandProfile } from '@/lib/brand3';
 import { persistImportedScan } from '@/lib/b3s-scan-storage';
@@ -15,13 +16,8 @@ export async function POST(req: NextRequest) {
     if (!leadId || !rawDomain) {
       return NextResponse.json({ error: 'leadId y domain requeridos' }, { status: 400 });
     }
-    const domain = String(rawDomain)
-      .toLowerCase()
-      .replace(/^https?:\/\//, '')
-      .replace(/^www\./, '')
-      .split('/')[0]
-      .trim();
-    if (!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(domain)) {
+    const domain = normalizarDominio(String(rawDomain));
+    if (!domain) {
       return NextResponse.json({ error: 'Dominio no válido' }, { status: 400 });
     }
 

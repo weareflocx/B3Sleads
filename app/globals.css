@@ -148,6 +148,23 @@ body {
   color: #fff;
 }
 
+/* Todo lo que se pulsa responde al pulsarlo: se encoge un 3% mientras el
+   botón está apretado y vuelve en 160 ms. Es la señal de que la interfaz ha
+   oído el clic, antes de que llegue la respuesta del servidor. Solo
+   transform, que no relanza layout ni pintura. */
+button:not(:disabled),
+a[role="button"],
+[role="tab"] {
+  transition-property: transform, color, background-color, border-color, opacity;
+  transition-duration: 160ms;
+  transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+}
+button:not(:disabled):active,
+a[role="button"]:active,
+[role="tab"]:active {
+  transform: scale(0.97);
+}
+
 /* Estilo desk: bordes rectos en todo lo que use el radio de Tailwind. */
 .rounded-md,
 .rounded-lg {

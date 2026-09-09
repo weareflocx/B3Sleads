@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { normalizarDominio } from '@/lib/dominio';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import { getBrandProfile } from '@/lib/brand3';
 import { persistImportedScan } from '@/lib/b3s-scan-storage';
@@ -48,11 +49,17 @@ export async function POST(req: NextRequest) {
 
     for (const e of entries) {
       const handle = parseLinkedInHandle(e.linkedin ?? '');
-      const domain = (e.domain ?? '')
-        .toLowerCase()
-        .replace(/^https?:\/\//, '')
-        .replace(/^www\./, '')
-        .split('/')[0];
+      // Un dominio que no lo es (un nombre con espacios, por ejemplo) no
+      // entra: antes se guardaba tal cual y rompía logo, ficha y scan.
+      if (e.domain?.trim() && !normalizarDominio(e.domain)) {
+        results.push({
+          input: e.domain,
+          status: 'error',
+          detail: 'Eso no es un dominio. Pon la web de la marca (marca.com).',
+        });
+        continue;
+      }
+      const domain = normalizarDominio(e.domain) ?? '';
 
       // Vale con founder, con marca, o con ambos. Sin ninguno, error.
       if (!handle && !domain) {

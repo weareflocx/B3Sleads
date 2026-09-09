@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { normalizarDominio } from '@/lib/dominio';
 import { absoluteB3SUrl, createScan, storedScanStatus } from '@/lib/brand3';
 import { syncStoredScan } from '@/lib/b3s-scan-storage';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
@@ -12,10 +13,8 @@ export async function POST(req: NextRequest) {
     const { url, name, source = 'manual' } = await req.json();
     if (!url) return NextResponse.json({ error: 'url requerida' }, { status: 400 });
 
-    const domain = new URL(url.startsWith('http') ? url : `https://${url}`).hostname.replace(
-      /^www\./,
-      '',
-    );
+    const domain = normalizarDominio(String(url));
+    if (!domain) return NextResponse.json({ error: 'Eso no es un dominio.' }, { status: 400 });
 
     if (isDemoMode()) {
       return NextResponse.json({

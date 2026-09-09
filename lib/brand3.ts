@@ -2,6 +2,8 @@
 // El navegador siempre llama a Route Handlers de B3Sleads: el Bearer token
 // nunca se serializa ni se expone mediante variables NEXT_PUBLIC_*.
 
+import { normalizarDominio } from './dominio';
+
 const DEFAULT_POLL_INTERVAL_MS = 5_000;
 const DEFAULT_POLL_TIMEOUT_MS = 10 * 60 * 1_000;
 
@@ -374,12 +376,7 @@ export interface ImportedScan {
 }
 
 function normalizeDomain(rawDomain: string): string {
-  return rawDomain
-    .toLowerCase()
-    .replace(/^https?:\/\//, '')
-    .replace(/^www\./, '')
-    .split('/')[0]
-    .trim();
+  return normalizarDominio(rawDomain) ?? rawDomain.trim().toLowerCase();
 }
 
 export function absoluteB3SUrl(path: string): string {

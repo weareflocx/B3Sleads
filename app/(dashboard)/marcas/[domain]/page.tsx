@@ -205,15 +205,17 @@ export default async function EstudioPage({ params, searchParams }: Props) {
 
   return (
     <main className={PAGE_XL}>
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-4">
+      {/* En móvil los enlaces de exportación bajan a su propia línea: en
+          una sola fila se salían de la pantalla. */}
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+        <div className="flex min-w-0 items-center gap-4">
           <CompanyLogo domain={dom} name={nombre} size={54} src={cliente.company.logo_url} />
-          <div>
+          <div className="min-w-0">
             <p className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">Estudio de marca</p>
-            <h1 className="text-2xl font-bold tracking-tight">{nombre}</h1>
+            <h1 className="truncate text-2xl font-bold tracking-tight">{nombre}</h1>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-4">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           {/* B3S es la fuente de los datos; el análisis se escribe en Notion y
               la síntesis en Figma. Por eso exporta y no importa. */}
           <a
