@@ -27,6 +27,8 @@ import { Mapa, type PuntoMapa } from './mapa';
 import { PestanasEstudio } from './pestanas-estudio';
 import { ImportarEstudio } from './importar';
 import { Vocabulario } from './vocabulario';
+import { Dimensiones } from './dimensiones';
+import type { PerfilDimensiones } from '@/lib/dimensiones';
 
 export const dynamic = 'force-dynamic';
 
@@ -165,6 +167,32 @@ export default async function EstudioPage({ params, searchParams }: Props) {
         : `lectura insuficiente: ${pos.usadosSignificado} de 3 componentes de significado y ${pos.usadosFuncional} de 2 de lo funcional`,
     });
   }
+  // Perfiles para la pestaña Dimensiones. Van sin filtrar: el filtro por capa
+  // y prioridad se aplica en el cliente, contra el estado del estudio, para
+  // que reclasificar una marca mueva las medias sin recargar la página.
+  const perfilesDimensiones: PerfilDimensiones[] = [];
+  for (const g of grupos) {
+    for (const d of g.dominios) {
+      const m = porDominio.get(d);
+      if (!m || !ultimoPublicable(m)) continue;
+      const p = perfilDeMarca(m);
+      perfilesDimensiones.push({
+        dominio: d,
+        nombre: p.name,
+        grupo: g.nombre,
+        ratios: p.ratios,
+        sinRastro: p.sinRastro,
+      });
+    }
+  }
+  const clienteDimensiones: PerfilDimensiones = {
+    dominio: dom,
+    nombre: nombre,
+    grupo: '',
+    ratios: perfilCliente.ratios,
+    sinRastro: perfilCliente.sinRastro,
+  };
+
   const posCliente = posicionMadurez(perfilCliente);
   const clienteMadurez =
     posCliente && posCliente.suficiente ? { x: posCliente.x / 10, y: posCliente.y / 100 } : null;
@@ -273,6 +301,17 @@ export default async function EstudioPage({ params, searchParams }: Props) {
                   clienteScore={perfilCliente.score}
                   clienteLogo={cliente.company.logo_url}
                   clienteDominio={dom}
+                />
+              ),
+            },
+            {
+              clave: 'dimensiones',
+              etiqueta: 'Dimensiones',
+              contenido: (
+                <Dimensiones
+                  perfiles={perfilesDimensiones}
+                  cliente={clienteDimensiones}
+                  clienteNombre={nombre}
                 />
               ),
             },
