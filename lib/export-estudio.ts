@@ -5,6 +5,7 @@ import type { Grupo, PerfilMarca } from './benchmark';
 import { COMPONENTES, perfilDeMarca, ultimoPublicable } from './benchmark';
 
 import type { TerminoCompartido as VocabTermino } from './vocabulario';
+import { SIN_CLASIFICAR, type Claim, type TipoClaim } from './claims';
 import {
   CAPA_LABEL,
   PRIORIDAD_LABEL,
@@ -79,6 +80,44 @@ export function csvDelVocabulario(
         );
       }
     }
+  }
+  return '\ufeff' + filas.join('\r\n') + '\r\n';
+}
+
+// Los claims, uno por fila. Se exporta TODO lo que se ve en pantalla,
+// incluida la procedencia y el dato que hace comprobable una promesa: un CSV
+// que solo dijera "verificable: sí" obligaría a volver a la app para saber
+// por qué.
+export function csvDeClaims(claims: Claim[], tipos: TipoClaim[]): string {
+  const nombreTipo = new Map([
+    ...tipos.map((t) => [t.clave, t.nombre] as const),
+    [SIN_CLASIFICAR, 'Sin clasificar'] as const,
+  ]);
+  const filas: string[] = [
+    fila([
+      'marca', 'dominio', 'grupo', 'tipo', 'tipo_decidido_por',
+      'prueba', 'clase_de_prueba', 'dato', 'procedencia', 'url',
+      'componente_del_scan', 'claim',
+    ]),
+  ];
+  for (const c of claims) {
+    if (c.oculto) continue;
+    filas.push(
+      fila([
+        c.nombre,
+        c.dominio,
+        c.grupo ?? '',
+        nombreTipo.get(c.tipo) ?? c.tipo,
+        c.tipoOrigen === 'humano' ? 'persona' : 'lexico',
+        c.prueba ? 'si' : 'no',
+        c.prueba?.clase ?? '',
+        c.prueba?.dato ?? '',
+        c.procedencia,
+        c.url ?? '',
+        c.componente ?? '',
+        c.texto,
+      ]),
+    );
   }
   return '\ufeff' + filas.join('\r\n') + '\r\n';
 }

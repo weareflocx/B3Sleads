@@ -380,7 +380,44 @@ export async function getEstudio(companyId: string): Promise<Study | null> {
     axes: (fila.axes as Study['axes']) ?? [],
     client_positions: (fila.client_positions as Study['client_positions']) ?? {},
     excluded_terms: (fila.excluded_terms as string[]) ?? [],
+    claim_types: (fila.claim_types as Study['claim_types']) ?? [],
+    claim_overrides: (fila.claim_overrides as Study['claim_overrides']) ?? {},
   };
+}
+
+// Lo que una persona decide sobre UN claim: su tipo, o esconderlo. Un parche
+// vacío lo devuelve a lo que diga el léxico.
+export async function marcarClaim(
+  companyId: string,
+  claimId: string,
+  parche: Record<string, unknown>,
+  email: string | null,
+): Promise<void> {
+  if (isDemoMode()) return;
+  const db = getServiceSupabase()!;
+  const { error } = await db.rpc('estudio_claim_marcar', {
+    p_company_id: companyId,
+    p_claim_id: claimId,
+    p_patch: parche,
+    p_email: email,
+  });
+  if (error) throw error;
+}
+
+// El vocabulario de tipos del estudio, entero.
+export async function guardarTiposDeClaim(
+  companyId: string,
+  tipos: unknown,
+  email: string | null,
+): Promise<void> {
+  if (isDemoMode()) return;
+  const db = getServiceSupabase()!;
+  const { error } = await db.rpc('estudio_claim_tipos', {
+    p_company_id: companyId,
+    p_tipos: tipos,
+    p_email: email,
+  });
+  if (error) throw error;
 }
 
 // Excluir o recuperar un término del cruce de vocabulario.

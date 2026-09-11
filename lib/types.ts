@@ -310,6 +310,10 @@ export interface Study {
   client_positions: PosicionesCliente;
   // Términos que alguien ha decidido que son idioma, no categoría.
   excluded_terms: string[];
+  // El vocabulario de tipos de claim de este estudio (vacío = los de por
+  // defecto) y lo que una persona ha decidido sobre cada claim.
+  claim_types: { clave: string; nombre: string }[];
+  claim_overrides: Record<string, { tipo?: string; oculto?: boolean }>;
   updated_by_email: string | null;
   updated_at: string;
   created_at: string;

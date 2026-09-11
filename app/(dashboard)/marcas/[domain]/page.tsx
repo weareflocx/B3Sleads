@@ -27,6 +27,7 @@ import { Mapa, type PuntoMapa } from './mapa';
 import { PestanasEstudio } from './pestanas-estudio';
 import { ImportarEstudio } from './importar';
 import { Vocabulario } from './vocabulario';
+import { Claims } from './claims';
 import { Dimensiones } from './dimensiones';
 import type { PerfilDimensiones } from '@/lib/dimensiones';
 
@@ -320,8 +321,17 @@ export default async function EstudioPage({ params, searchParams }: Props) {
             {
               clave: 'vocabulario',
               etiqueta: 'Vocabulario',
+              // Dos bloques separados y en este orden: primero los términos
+              // (qué palabras comparte todo el mundo) y debajo los claims
+              // (qué promesas hace todo el mundo y quién las demuestra). Son
+              // dos preguntas distintas y se responden por separado.
               contenido: (
-                <Vocabulario cliente={dom} clienteNombre={nombre} query={sp.g ?? null} />
+                <div className="space-y-8">
+                  <Vocabulario cliente={dom} clienteNombre={nombre} query={sp.g ?? null} />
+                  <div className="border-t border-[var(--border)] pt-6">
+                    <Claims cliente={dom} clienteNombre={nombre} query={sp.g ?? null} />
+                  </div>
+                </div>
               ),
             },
             {
