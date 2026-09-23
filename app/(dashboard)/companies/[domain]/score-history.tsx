@@ -27,13 +27,21 @@ export function ScoreHistory({ scans }: { scans: Scan[] }) {
   const x = (i: number) => (n === 1 ? W / 2 : padX + (i / (n - 1)) * (W - 2 * padX));
   const y = (score: number) => H - padY - (score / 100) * (H - 2 * padY);
 
+  // Puede no haber NINGÚN scan con nota: dos pasadas seguidas retenidas es un
+  // estado normal (le pasó a FLOC*). Entonces no hay línea que dibujar, pero
+  // la lista de abajo sigue siendo lo más útil de la caja, así que se pinta
+  // igual. Antes esto se calculaba siempre y `pts[pts.length - 1]` era
+  // `pts[-1]`: la ficha entera se caía con un error de servidor.
   const pts = withScore.map((s, i) => ({ px: x(i), py: y(Number(s.score)), scan: s }));
   const line = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.px.toFixed(1)},${p.py.toFixed(1)}`).join(' ');
-  const area = `${line} L${pts[pts.length - 1].px.toFixed(1)},${H} L${pts[0].px.toFixed(1)},${H} Z`;
+  const area = pts.length
+    ? `${line} L${pts[pts.length - 1].px.toFixed(1)},${H} L${pts[0].px.toFixed(1)},${H} Z`
+    : '';
 
-  const first = Number(withScore[0].score);
-  const last = Number(withScore[withScore.length - 1].score);
-  const delta = Math.round((last - first) * 10) / 10;
+  const delta =
+    n > 1
+      ? Math.round((Number(withScore[n - 1].score) - Number(withScore[0].score)) * 10) / 10
+      : 0;
 
   return (
     <div>
@@ -56,6 +64,12 @@ export function ScoreHistory({ scans }: { scans: Scan[] }) {
         )}
       </h2>
       <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
+        {n === 0 && (
+          <p className="mb-2 text-xs leading-relaxed text-[var(--soft)]">
+            Ninguna pasada tiene nota publicable todavía, así que no hay evolución que dibujar. La
+            lectura de cada una sí está.
+          </p>
+        )}
         {n > 1 && (
           <svg viewBox={`0 0 ${W} ${H}`} className="w-full" preserveAspectRatio="none" role="img" aria-label="Evolución del score">
             <path d={area} fill="var(--accent)" fillOpacity="0.07" />

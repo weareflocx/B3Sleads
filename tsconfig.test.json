@@ -1,0 +1,8 @@
+{
+  "//": "Los tests corren fuera de Next, así que necesitan que el JSX se transforme de verdad. Next quiere 'preserve' porque lo compila él; aquí lo hace el runner.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "react"
+  }
+}

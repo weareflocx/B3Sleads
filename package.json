@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "tsx --test tests/*.test.ts",
+    "test": "tsx --tsconfig tsconfig.test.json --test tests/*.test.ts tests/*.test.tsx",
     "supabase:start": "supabase start -x vector",
     "supabase:stop": "supabase stop",
     "supabase:status": "supabase status",
