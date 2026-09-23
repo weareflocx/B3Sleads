@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { displayName, companyLabel, STAGES } from '@/lib/types';
+import { displayName, companyLabel, esScanRetenido, STAGES } from '@/lib/types';
 import type { BriefingLead, LeadStage } from '@/lib/types';
 import { Select } from '../select';
 import type { Temperature } from '@/lib/scoring';
@@ -101,6 +101,9 @@ export function FounderRow({
   const hasCompany = bl.company != null;
   const score = bl.scan?.status === 'ready' ? bl.scan.score : null;
   const scanning = bl.scan?.status === 'queued' || bl.scan?.status === 'running';
+  // Terminado pero sin nota publicada. No es "sin scan": hay lectura.
+  const retenido = esScanRetenido(bl.scan);
+  const sinNota = scanning ? 'escaneando…' : retenido ? 'retenido' : 'sin scan';
   const borderCls = conversation ? 'border-[var(--success)]/50' : 'border-[var(--border)]';
 
   // Acciones compartidas por las vistas compactas (list/grid).
@@ -157,7 +160,7 @@ export function FounderRow({
         {score != null ? (
           <ScoreRing score={score} size={26} />
         ) : hasCompany ? (
-          <span className="shrink-0 text-xs text-[var(--muted)]">{scanning ? '…' : 'sin scan'}</span>
+          <span className="shrink-0 text-xs" style={{ color: retenido ? 'var(--warning)' : 'var(--muted)' }}>{scanning ? '…' : retenido ? 'ret.' : 'sin scan'}</span>
         ) : null}
         <span className="hidden shrink-0 items-center gap-2 sm:flex">
           {fichaBtn}
@@ -198,7 +201,7 @@ export function FounderRow({
               <ScoreRing score={score} size={28} />
             </>
           ) : hasCompany ? (
-            <span className="text-xs text-[var(--muted)]">{scanning ? 'escaneando…' : 'sin scan'}</span>
+            <span className="text-xs" style={{ color: retenido ? 'var(--warning)' : 'var(--muted)' }}>{sinNota}</span>
           ) : null}
         </div>
         <div className="mt-auto flex flex-col gap-2 pt-3">
@@ -275,7 +278,7 @@ export function FounderRow({
               <ScoreRing score={score} size={34} />
             </div>
           ) : hasCompany ? (
-            <span className="text-xs text-[var(--muted)]">{scanning ? 'escaneando…' : 'sin scan'}</span>
+            <span className="text-xs" style={{ color: retenido ? 'var(--warning)' : 'var(--muted)' }}>{sinNota}</span>
           ) : null}
         </div>
       </div>

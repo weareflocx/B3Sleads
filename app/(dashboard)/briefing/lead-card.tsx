@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import type { BriefingLead } from '@/lib/types';
-import { DISCARD_REASONS, displayName, companyLabel } from '@/lib/types';
+import { DISCARD_REASONS, displayName, companyLabel, esScanRetenido } from '@/lib/types';
 import { CompanyLogo } from '../company-logo';
 import { agoLabel, computeRadar, type Radar } from '@/lib/radar';
 
@@ -199,7 +199,13 @@ export function LeadCard({ initial }: { initial: BriefingLead }) {
         <div className="mt-4 text-sm">
           {bl.scan.status === 'ready' ? (
             <>
-              <span className="font-mono">Brand3: {bl.scan.score ?? '—'}/100</span>
+              {/* Un scan sin nota no es un scan vacío: el Scanner la retuvo.
+                  Se dice, y la ficha explica por qué. */}
+              {esScanRetenido(bl.scan) ? (
+                <span className="font-mono text-[var(--warning)]">Brand3: lectura retenida</span>
+              ) : (
+                <span className="font-mono">Brand3: {bl.scan.score ?? '—'}/100</span>
+              )}
               {tldr && <span className="text-[var(--muted)]"> · “{tldr}”</span>}{' '}
               {bl.scan.ui_url && (
                 <a

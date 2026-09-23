@@ -111,6 +111,16 @@ export interface Scan {
   completed_at: string | null;
 }
 
+// Un scan que terminó y al que el Scanner NO publicó nota. Mira solo estado y
+// nota, así que vale también en las listas, que traen el scan sin su informe.
+// No es lo mismo que "sin scan": hay lectura por componente, lo que no hay es
+// aval, y decir "sin scan" de una marca escaneada esta mañana es mentir.
+export function esScanRetenido(
+  scan: { status: ScanStatus; score: number | null } | null | undefined,
+): boolean {
+  return scan?.status === 'ready' && scan.score == null;
+}
+
 // El founder. linkedin_url es el canal: por ahí se le escribe (a mano).
 export interface Contact {
   id: string;

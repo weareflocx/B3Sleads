@@ -116,7 +116,14 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
   const scanVisible = publicable(scan)
     ? scan
     : ([...scanHistory].reverse().find(publicable) ?? scan);
-  const scanRetenido = scanVisible?.id !== scan?.id ? scan : null;
+  // Un scan está retenido cuando NO trae puntuación publicable, haya o no una
+  // pasada anterior a la que caerse. Antes esto se deducía de "estoy pintando
+  // otro scan", y por eso la primera marca escaneada cuyo estreno salía
+  // retenido se quedaba sin nota Y sin explicación: la ficha decía "sin
+  // escanear" de un scan que había corrido esa misma mañana.
+  const scanRetenido = scan != null && scan.status === 'ready' && !publicable(scan) ? scan : null;
+  // ¿Se está enseñando una pasada anterior, o no hay ninguna?
+  const hayAnterior = scanVisible != null && scanVisible.id !== scan?.id;
   const retencion = scanRetenido ? retencionDeScan(scanRetenido.result_raw) : null;
   const notaRetenidaVal = scanRetenido ? notaRetenida(scanRetenido.result_raw) : null;
 
@@ -419,14 +426,18 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                         materia para abrir conversación con el founder. */}
                     {retencion && (
                       <p className="mb-3 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs leading-relaxed text-[var(--muted)]">
-                        Hay un scan más reciente sin puntuación publicable:{' '}
+                        {hayAnterior
+                          ? 'Hay un scan más reciente sin puntuación publicable: '
+                          : 'El scan terminó, pero el Scanner no publicó su puntuación: '}
                         {retencion.motivo}
-                        {retencion.detalle ? `, porque ${retencion.detalle}` : ''}. Se muestra el
-                        último con datos.
+                        {retencion.detalle ? `, porque ${retencion.detalle}` : ''}.{' '}
+                        {hayAnterior
+                          ? 'Se muestra el último con datos.'
+                          : 'Sus componentes sí se leyeron y son los que salen abajo.'}
                         {retencion.matiz && (
                           <span className="mt-1.5 block text-[var(--soft)]">{retencion.matiz}</span>
                         )}
-                        {notaRetenidaVal != null && (
+                        {notaRetenidaVal != null && hayAnterior && (
                           <span className="mt-1.5 block">
                             Esa pasada la leyó en{' '}
                             <span className="font-mono text-[var(--text)]">{notaRetenidaVal}</span>.
@@ -513,6 +524,24 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                           </ul>
                         )}
                       </>
+                    ) : notaRetenidaVal != null ? (
+                      /* Retenido y sin pasada anterior. La nota bruta existe y
+                         se enseña, pero en gris y con su nombre: es una lectura
+                         del Scanner, no una puntuación que él haya publicado.
+                         Callarla dejaba la ficha diciendo "sin escanear". */
+                      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                        <span className="font-mono text-2xl text-[var(--muted)]">
+                          {notaRetenidaVal}
+                        </span>
+                        <span className="font-mono text-sm text-[var(--soft)]">/100</span>
+                        <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--warning)]">
+                          lectura retenida · sin publicar
+                        </span>
+                      </div>
+                    ) : scan && scan.status !== 'ready' ? (
+                      <p className="text-sm text-[var(--muted)]">
+                        Scan en marcha. Al terminar aparece aquí la puntuación.
+                      </p>
                     ) : (
                       <p className="text-sm text-[var(--muted)]">
                         Sin escanear. El scan es lo que hace irrepetible el mensaje.

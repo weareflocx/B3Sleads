@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { companyLabel, displayName, stageLabel } from '@/lib/types';
+import { companyLabel, displayName, esScanRetenido, stageLabel } from '@/lib/types';
 import type { BriefingLead } from '@/lib/types';
 import { ScoreRing } from '../score-ring';
 import { Heat } from '../heat';
@@ -117,6 +117,7 @@ function StartupCard({
   const name = companyLabel(c.name, c.domain);
   const score = bl.scan?.status === 'ready' && bl.scan.score != null ? Number(bl.scan.score) : null;
   const scanning = bl.scan?.status === 'queued' || bl.scan?.status === 'running';
+  const retenido = esScanRetenido(bl.scan);
   const sectors = (c.sector ?? '')
     .split(/\s*·\s*|\s*,\s*/)
     .map((s) => s.trim())
@@ -136,8 +137,16 @@ function StartupCard({
       {score != null ? (
         <ScoreRing score={score} size={variant === 'lista' ? 26 : 30} />
       ) : (
-        <span className="text-xs text-[var(--muted)]">
-          {scanning ? 'escaneando…' : 'sin scan'}
+        <span
+          className="text-xs"
+          style={{ color: retenido ? 'var(--warning)' : 'var(--muted)' }}
+          title={
+            retenido
+              ? 'El scan terminó pero el Scanner no publicó su nota. Entra en la ficha para ver por qué'
+              : undefined
+          }
+        >
+          {scanning ? 'escaneando…' : retenido ? 'retenido' : 'sin scan'}
         </span>
       )}
     </span>

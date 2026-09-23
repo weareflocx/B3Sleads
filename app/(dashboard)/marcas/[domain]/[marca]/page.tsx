@@ -96,6 +96,10 @@ export default async function MarcaCorpusPage({ params, searchParams }: Props) {
   const scanVisible = ultimoPublicable(m);
   const ultimo = m.scans[m.scans.length - 1] ?? null;
   const scanRetenido = ultimo && ultimo.id !== scanVisible?.id ? ultimo : null;
+  // ¿Hay una pasada anterior con nota, o el retenido es el único scan? Cambia
+  // lo que se puede decir: sin anterior no se está "mostrando el último con
+  // datos", no hay ninguno.
+  const hayAnterior = scanVisible != null;
   const retencion = scanRetenido ? retencionDeScan(scanRetenido.result_raw) : null;
   const notaRetenidaVal = scanRetenido ? notaRetenida(scanRetenido.result_raw) : null;
   const adoptada =
@@ -252,13 +256,18 @@ export default async function MarcaCorpusPage({ params, searchParams }: Props) {
                 <div className="min-w-0">
                   {retencion && (
                     <p className="mb-3 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs leading-relaxed text-[var(--muted)]">
-                      Hay un scan más reciente sin puntuación publicable: {retencion.motivo}
-                      {retencion.detalle ? `, porque ${retencion.detalle}` : ''}. Se muestra el
-                      último con datos.
+                      {hayAnterior
+                        ? 'Hay un scan más reciente sin puntuación publicable: '
+                        : 'El scan terminó, pero el Scanner no publicó su puntuación: '}
+                      {retencion.motivo}
+                      {retencion.detalle ? `, porque ${retencion.detalle}` : ''}.{' '}
+                      {hayAnterior
+                        ? 'Se muestra el último con datos.'
+                        : 'Sus componentes sí se leyeron y son los que salen abajo.'}
                       {retencion.matiz && (
                         <span className="mt-1.5 block text-[var(--soft)]">{retencion.matiz}</span>
                       )}
-                      {notaRetenidaVal != null && (
+                      {notaRetenidaVal != null && hayAnterior && (
                         <span className="mt-1.5 block">
                           Esa pasada la leyó en{' '}
                           <span className="font-mono text-[var(--text)]">{notaRetenidaVal}</span>. Su
@@ -316,6 +325,24 @@ export default async function MarcaCorpusPage({ params, searchParams }: Props) {
                           </span>
                         </p>
                       )}
+                    </>
+                  ) : notaRetenidaVal != null ? (
+                    /* El único scan salió retenido. Su nota bruta se enseña en
+                       gris y con su nombre: existe, pero el Scanner no la
+                       publicó, así que no entra en las medias del estudio. */
+                    <>
+                      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                        <span className="font-mono text-2xl text-[var(--muted)]">
+                          {notaRetenidaVal}
+                        </span>
+                        <span className="font-mono text-sm text-[var(--soft)]">/100</span>
+                        <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--warning)]">
+                          lectura retenida · sin publicar
+                        </span>
+                      </div>
+                      <p className="mt-2 text-sm text-[var(--muted)]">
+                        Sin nota publicable no entra en la comparación del grupo.
+                      </p>
                     </>
                   ) : (
                     <p className="text-sm text-[var(--muted)]">
