@@ -186,23 +186,24 @@ function PiezaConversacion() {
 }
 
 // Una categoría en un mapa: la marca que interesa, con su anillo, entre sus
-// competidores. Es la forma de B3S Studio, sin datos de nadie.
+// competidores. Es la forma de B3S Studio, sin datos de nadie. Apaisada y
+// con puntos pequeños, para que pese lo mismo que las otras piezas.
 function PiezaStudio() {
   const puntos: [number, number][] = [
-    [22, 30], [38, 62], [55, 24], [68, 70], [80, 42], [30, 78], [62, 48],
+    [18, 8], [31, 15], [44, 5.5], [60, 13.5], [71, 8.5], [83, 16], [26, 18.5], [56, 17.5], [88, 6],
   ];
   return (
-    <div className="border border-[var(--l-paper-line)] bg-[var(--l-paper-2)] p-2.5">
-      <svg viewBox="0 0 100 60" className="block w-full" aria-hidden="true">
-        <line x1="50" y1="4" x2="50" y2="56" stroke="var(--l-paper-line)" strokeWidth="0.6" />
-        <line x1="4" y1="30" x2="96" y2="30" stroke="var(--l-paper-line)" strokeWidth="0.6" />
+    <div className="border border-[var(--l-paper-line)] bg-[var(--l-paper-2)] px-2.5 pb-2 pt-2.5">
+      <svg viewBox="0 0 100 22" className="block w-full" aria-hidden="true">
+        <line x1="50" y1="1" x2="50" y2="21" stroke="var(--l-paper-line)" strokeWidth="0.35" />
+        <line x1="2" y1="11" x2="98" y2="11" stroke="var(--l-paper-line)" strokeWidth="0.35" />
         {puntos.map(([x, y], i) => (
-          <circle key={i} cx={x} cy={y * 0.6 + 2} r="2.4" fill="var(--l-paper-soft)" />
+          <circle key={i} cx={x} cy={y} r="1.1" fill="var(--l-paper-soft)" fillOpacity="0.55" />
         ))}
-        <circle cx="44" cy="16" r="3" fill="var(--l-blue)" />
-        <circle cx="44" cy="16" r="5.6" fill="none" stroke="var(--l-blue)" strokeWidth="0.7" />
+        <circle cx="38" cy="7" r="2.6" fill="none" stroke="var(--l-blue)" strokeWidth="0.35" />
+        <circle cx="38" cy="7" r="1.3" fill="var(--l-blue)" />
       </svg>
-      <p className="mt-1.5 flex justify-between font-mono text-[9px] uppercase tracking-wider text-[var(--l-paper-soft)]">
+      <p className="mt-1 flex justify-between font-mono text-[9px] uppercase tracking-wider text-[var(--l-paper-soft)]">
         <span>funcional</span>
         <span>emocional</span>
       </p>
@@ -245,23 +246,24 @@ const CANALES: { color: string; canal: string; titulo: string; texto: string; pi
   },
 ];
 
-// Lo que la web tiene que enseñar nada más entrar: las tres cosas que una
-// agencia no puede hacer a mano con cada marca que le interesa.
+// Lo que la web tiene que enseñar nada más entrar, en tres verbos: lo que
+// hace el Scanner, lo que hace B3S Studio y lo que hace B3S Leads. El color
+// de cada uno es el de su fila más abajo, para que se reconozcan.
 const CAPACIDADES: { color: string; titulo: string; texto: string }[] = [
   {
-    color: 'var(--l-red-on-ink)',
-    titulo: 'Qué le falta',
-    texto: 'Los componentes de marca que no aparecen o suenan como los de todos, con la frase que lo demuestra.',
-  },
-  {
     color: 'var(--l-green-on-ink)',
-    titulo: 'Contra quién compite',
-    texto: 'Sus competidores, leídos con el mismo método y en la misma escala.',
+    titulo: 'Analiza su estado actual',
+    texto: 'Qué comunica su marca, qué no y qué suena como la de todos. Cada punto, con la frase que lo demuestra.',
   },
   {
     color: 'var(--l-blue-on-ink)',
-    titulo: 'Benchmark en B3S Studio',
-    texto: 'Mapas de posicionamiento, medias por categoría y qué promete cada marca.',
+    titulo: 'Compara con su competencia',
+    texto: 'Sus competidores, leídos con el mismo método en B3S Studio: posicionamiento, medias por categoría y qué promete cada uno.',
+  },
+  {
+    color: 'var(--l-red-on-ink)',
+    titulo: 'Gestiona la captación',
+    texto: 'Señales, seguimientos y borradores de mensaje en un solo sitio. El envío lo haces tú.',
   },
 ];
 
@@ -338,8 +340,8 @@ export default function LandingPage() {
           <span className="block text-[var(--l-ink-soft)]">para ganar los proyectos que quieres hacer.</span>
         </h1>
         <p className="mt-7 max-w-[48ch] text-[17px] leading-relaxed text-[var(--l-ink-muted)]">
-          B3S Leads detecta marcas con las que puedes trabajar, lee qué les falta y las compara con
-          su competencia. Llegas a la primera conversación sabiendo dónde puedes ayudar.
+          B3S Leads detecta las marcas con las que puedes trabajar y te dice, con datos, dónde
+          puedes ayudar.
         </p>
         <div className="mt-9 flex flex-wrap items-center gap-3">
           <Link href="/login" className={`${BTN} bg-[var(--l-ink-text)] text-[var(--l-ink)] hover:opacity-90`}>
@@ -353,15 +355,19 @@ export default function LandingPage() {
           </Link>
         </div>
 
-        <ul className="mt-16 grid border-t border-[var(--l-ink-line)] sm:grid-cols-3">
+        {/* La promesa, y debajo las tres formas de cumplirla. */}
+        <p className="mt-20 max-w-[30ch] text-[22px] font-medium leading-snug tracking-[-0.02em] text-balance sm:text-[28px]">
+          Imagina llegar a la primera reunión con las pruebas que necesita su negocio.
+        </p>
+        <ul className="mt-8 grid border-t border-[var(--l-ink-line)] sm:grid-cols-3">
           {CAPACIDADES.map((c, i) => (
             <li
               key={c.titulo}
-              className={`pt-6 sm:pr-8 ${i > 0 ? 'mt-6 border-t border-[var(--l-ink-line)] sm:mt-0 sm:border-l sm:border-t-0 sm:pl-8' : ''}`}
+              className={`pt-6 sm:pb-2 ${i > 0 ? 'mt-6 border-t border-[var(--l-ink-line)] sm:mt-0 sm:border-l sm:border-t-0 sm:pl-8' : ''} ${i < 2 ? 'sm:pr-8' : ''}`}
             >
               <span className="block h-1 w-8" style={{ background: c.color }} aria-hidden="true" />
-              <p className="mt-4 text-[17px] font-medium tracking-[-0.01em]">{c.titulo}</p>
-              <p className="mt-1.5 max-w-[34ch] text-sm leading-relaxed text-[var(--l-ink-muted)]">{c.texto}</p>
+              <p className="mt-4 text-[17px] font-medium tracking-[-0.01em] lg:text-[18px]">{c.titulo}</p>
+              <p className="mt-2 text-sm leading-relaxed text-[var(--l-ink-muted)]">{c.texto}</p>
             </li>
           ))}
         </ul>
@@ -420,7 +426,7 @@ export default function LandingPage() {
       <Franja tono="paper" divisor className="py-20 sm:py-24">
         <Etiqueta tono="paper">De la señal a la conversación</Etiqueta>
         <h2 className="mt-4 max-w-[22ch] text-[32px] font-medium leading-[1.08] tracking-[-0.03em] text-balance sm:text-[44px]">
-          Llega sabiendo dónde puedes ayudar
+          Cuatro pasos, ninguno a ciegas
         </h2>
         <div className="mt-12 divide-y divide-[var(--l-paper-line)] border-y border-[var(--l-paper-line)]">
           {CANALES.map((c) => (
