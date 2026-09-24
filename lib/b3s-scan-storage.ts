@@ -81,7 +81,11 @@ export async function persistImportedScan(
     evidence: profile.evidence,
     result_raw: profile.raw,
     ui_url: profile.uiUrl,
-    completed_at: new Date().toISOString(),
+    // Con la fecha REAL del scan: el orden de las pasadas decide cuál es la
+    // última publicable y cuál la retenida, y un informe viejo importado hoy
+    // no puede pasar por el más reciente.
+    ...(profile.scannedAt ? { created_at: profile.scannedAt } : {}),
+    completed_at: profile.scannedAt ?? new Date().toISOString(),
   };
   const { data: existing } = await db
     .from('scans')

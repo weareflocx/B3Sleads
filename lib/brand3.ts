@@ -373,6 +373,10 @@ export interface ImportedScan {
   uiUrl: string | null;
   scanId: string | null;
   raw: Record<string, unknown>;
+  // Cuándo se hizo el scan en el Scanner, no cuándo se importa. Importar hoy
+  // un informe de julio y fecharlo hoy lo convertía en «el más reciente»: la
+  // ficha escondía las pasadas posteriores y enseñaba su nota como actual.
+  scannedAt: string | null;
 }
 
 function normalizeDomain(rawDomain: string): string {
@@ -402,7 +406,17 @@ function importedScan(result: B3SScanResult, evidence: B3SScanEvidence): Importe
     uiUrl: absoluteB3SUrl(result.links.report),
     scanId: result.id,
     raw: result as unknown as Record<string, unknown>,
+    scannedAt: fechaDelScan(result as unknown as Record<string, unknown>),
   };
+}
+
+// La fecha del scan en un resultado de la API: la del informe generado, y si
+// no, la de su registro de estabilidad.
+function fechaDelScan(r: Record<string, unknown>): string | null {
+  const meta = r.metadata as Record<string, unknown> | undefined;
+  const est = r.stability as Record<string, unknown> | undefined;
+  const v = (meta?.generated_at ?? est?.created_at) as string | undefined;
+  return v && !Number.isNaN(Date.parse(v)) ? v : null;
 }
 
 function emptyImport(): ImportedScan {
@@ -416,6 +430,7 @@ function emptyImport(): ImportedScan {
     uiUrl: null,
     scanId: null,
     raw: {},
+    scannedAt: null,
   };
 }
 
@@ -479,6 +494,10 @@ async function publicReportImport(scanId: string): Promise<ImportedScan> {
     uiUrl: `${PUBLIC_BASE}/report/${scanId}`,
     scanId,
     raw: { markdown, source: 'public_report' },
+    scannedAt: (() => {
+      const f = markdown.match(/Escaneado:\s*([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.+\-Z]+)/)?.[1];
+      return f && !Number.isNaN(Date.parse(f)) ? f : null;
+    })(),
   };
 }
 

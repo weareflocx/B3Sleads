@@ -4,6 +4,7 @@ import {
   B3SApiError,
   createScan,
   getBrandProfile,
+  getReportByUrl,
   reportScanIdFromUrl,
   type B3SScanEvidence,
   type B3SScanResult,
@@ -196,6 +197,36 @@ test('getBrandProfile importa resultado y evidencia estructurados por dominio', 
   assert.equal(profile.score, 64);
   assert.equal(profile.uiUrl, 'https://scanner.test/report/scan123');
   assert.deepEqual(profile.tldr.gaps, ['Prueba social']);
+  // La fecha es la del scan, no la de hoy.
+  assert.equal(profile.scannedAt, '2026-07-20T10:01:00Z');
+});
+
+// Saffron, 24/09: el único informe con nota era de julio. Importado sin su
+// fecha, pasaba por el más reciente y escondía tres pasadas posteriores.
+test('un informe público importado conserva la fecha en que se escaneó', async () => {
+  delete process.env.B3S_SCANNER_API_TOKEN; // sin token: se lee el Markdown público
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.endsWith('/report/35995dca4d68.md')) {
+      return new Response(
+        [
+          '# Brand3 Scanner — Saffron',
+          '',
+          '- URL: https://saffron-consultants.com',
+          '- Brand3 Score: **58/100**',
+          '- Escaneado: 2026-07-14T09:44:39.896715+00:00',
+          '',
+          '> Lectura de prueba lo bastante larga para pasar el filtro de informes vacíos.'.repeat(4),
+        ].join('\n'),
+        { headers: { 'Content-Type': 'text/markdown' } },
+      );
+    }
+    return new Response('no', { status: 404 });
+  };
+  const profile = await getReportByUrl('https://b3s.fly.dev/report/35995dca4d68');
+  assert.equal(profile.found, true);
+  assert.equal(profile.score, 58);
+  assert.equal(profile.scannedAt, '2026-07-14T09:44:39.896715+00:00');
 });
 
 test('extrae scan_id de informes y endpoints v1', () => {
