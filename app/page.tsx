@@ -337,7 +337,7 @@ export default function LandingPage() {
             la otra mitad en gris. */}
         <h1 className="text-[42px] font-medium leading-[1.03] tracking-[-0.035em] text-balance sm:text-[60px] lg:text-[76px]">
           <span className="block">Inteligencia de marca</span>
-          <span className="block text-[var(--l-ink-soft)]">para ganar los proyectos que quieres hacer.</span>
+          <span className="block text-[var(--l-ink-soft)]">para ganar nuevos proyectos.</span>
         </h1>
         <p className="mt-7 max-w-[48ch] text-[17px] leading-relaxed text-[var(--l-ink-muted)]">
           B3S Leads detecta las marcas con las que puedes trabajar y te dice, con datos, dónde
