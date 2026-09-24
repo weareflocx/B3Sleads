@@ -7,7 +7,7 @@ import { storedScanReport, retencionDeScan, notaRetenida } from '@/lib/scan-repo
 import { componentVersions } from '@/lib/scan-versions';
 import { consolidateReport, consolidatedScore } from '@/lib/consolidated';
 import { cardBand } from '@/lib/brand-card';
-import { fusionaNotas, parseGrupos, perfilDeMarca, ultimoPublicable, visibles } from '@/lib/benchmark';
+import { fusionaNotas, perfilDeMarca, ultimoPublicable, visibles } from '@/lib/benchmark';
 import {
   CAPA_LABEL,
   PRIORIDAD_LABEL,
@@ -60,12 +60,13 @@ function Chip({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default async function MarcaCorpusPage({ params, searchParams }: Props) {
+export default async function MarcaCorpusPage({ params }: Props) {
   const { domain, marca } = await params;
   const cliente = decodeURIComponent(domain);
   const dom = decodeURIComponent(marca);
-  const sp = await searchParams;
-  const volver = `/marcas/${cliente}${sp.g ? `?g=${sp.g}` : ''}`;
+  // Volver SIN ?g=: volver con la foto de la composición de cuando se abrió
+  // esta ficha pisaba lo que otra persona hubiera añadido mientras tanto.
+  const volver = `/marcas/${cliente}`;
 
   const m = await getCorpusBrand(dom);
   if (!m) notFound();
@@ -76,7 +77,7 @@ export default async function MarcaCorpusPage({ params, searchParams }: Props) {
   const marcaCliente = await getCorpusBrand(cliente);
   const guardado = marcaCliente ? await getEstudio(marcaCliente.company.id) : null;
   const grupos = fusionaNotas(
-    sp.g !== undefined ? parseGrupos(sp.g) : (guardado?.grupos ?? []),
+    guardado?.grupos ?? [],
     guardado?.grupos,
   );
   const grupo = grupos.find((g) => g.dominios.includes(dom)) ?? null;
@@ -467,7 +468,7 @@ export default async function MarcaCorpusPage({ params, searchParams }: Props) {
                         return (
                           <li key={h.company.id} className="py-2 first:pt-0 last:pb-0">
                             <Link
-                              href={`/marcas/${cliente}/${h.company.domain}${sp.g ? `?g=${sp.g}` : ''}`}
+                              href={`/marcas/${cliente}/${h.company.domain}`}
                               className="flex items-center gap-2.5 group"
                             >
                               <CompanyLogo

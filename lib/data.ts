@@ -521,6 +521,92 @@ export async function guardarMarcaEstudio(
   if (error) throw error;
 }
 
+// Guarda la composición de un estudio SIN pisar lo que otra persona haya
+// guardado mientras tanto.
+//
+// Quien escribe dice de qué versión partió (`base`) y cuál es la suya; aquí se
+// lee lo guardado, se aplica solo lo que esa persona cambió
+// (lib/composicion.ts) y se escribe con una condición: que lo guardado siga
+// siendo lo que se leyó. Si alguien escribió en esos milisegundos, la
+// escritura no entra y se repite sobre lo nuevo. Sin columna de versión ni
+// migración: la condición es la propia fecha de última escritura.
+//
+// Sin `base` (una pestaña abierta antes de este cambio) se usa la base
+// segura: esa copia puede añadir, mover y ocultar, pero no borrar.
+export async function guardarComposicion(
+  companyId: string,
+  nuestra: Study['grupos'],
+  base: Study['grupos'] | null,
+  email: string | null,
+): Promise<Study['grupos']> {
+  const { fusionaComposicion, baseSegura } = await import('./composicion');
+  if (isDemoMode()) return nuestra;
+  const db = getServiceSupabase()!;
+
+  for (let intento = 0; intento < 10; intento++) {
+    // Tras chocar, una espera corta y AL AZAR: si todas las escrituras que
+    // chocaron reintentan al mismo ritmo, vuelven a chocar entre ellas.
+    // Medido con diez escrituras simultáneas: sin esto una se quedaba fuera.
+    if (intento > 0) await new Promise((r) => setTimeout(r, 15 + Math.random() * 60 * intento));
+    const { data: fila } = await db
+      .from('studies')
+      .select('grupos, updated_at')
+      .eq('company_id', companyId)
+      .maybeSingle();
+
+    // Primera escritura: no hay nada que fusionar.
+    if (!fila) {
+      const { error } = await db.from('studies').insert({
+        company_id: companyId,
+        grupos: nuestra,
+        updated_by_email: email,
+        updated_at: new Date().toISOString(),
+      });
+      if (!error) return nuestra;
+      // Otra persona creó el estudio a la vez: se vuelve a leer y se fusiona.
+      continue;
+    }
+
+    const guardada = ((fila.grupos as Study['grupos']) ?? []);
+    const fusion = fusionaComposicion(base ?? baseSegura(nuestra, guardada), nuestra, guardada);
+    // Las notas antiguas que aún vivan en la composición se conservan tal
+    // cual estaban: esta escritura no es quién para borrarlas.
+    const notasGuardadas = new Map(guardada.map((g) => [g.nombre, g.notas]));
+    const resultado = fusion.map((g) => {
+      const notas = notasGuardadas.get(g.nombre);
+      if (!notas) return g;
+      const dentro = Object.fromEntries(Object.entries(notas).filter(([d]) => g.dominios.includes(d)));
+      return Object.keys(dentro).length ? { ...g, notas: dentro } : g;
+    });
+
+    const { data: escrita, error } = await db
+      .from('studies')
+      .update({ grupos: resultado, updated_by_email: email, updated_at: new Date().toISOString() })
+      .eq('company_id', companyId)
+      .eq('updated_at', fila.updated_at)
+      .select('company_id');
+    if (error) throw error;
+    if (escrita && escrita.length > 0) return resultado;
+    // Alguien escribió entre la lectura y la escritura: otra vuelta.
+  }
+  throw new Error('El estudio está cambiando muy deprisa; vuelve a intentarlo');
+}
+
+// La composición guardada, sin nada más. Para que una pestaña abierta se
+// entere de lo que ha cambiado otra persona sin volver a pintar la página.
+export async function getComposicion(
+  companyId: string,
+): Promise<{ grupos: Study['grupos']; updated_at: string } | null> {
+  if (isDemoMode()) return null;
+  const db = getServiceSupabase()!;
+  const { data } = await db
+    .from('studies')
+    .select('grupos, updated_at')
+    .eq('company_id', companyId)
+    .maybeSingle();
+  return data ? { grupos: (data.grupos as Study['grupos']) ?? [], updated_at: data.updated_at as string } : null;
+}
+
 export async function guardarEstudio(
   companyId: string,
   grupos: Study['grupos'],

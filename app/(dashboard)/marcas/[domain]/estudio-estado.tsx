@@ -10,15 +10,20 @@ import {
   type ReactNode,
 } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { serializeGrupos, type Grupo } from '@/lib/benchmark';
+import type { Grupo } from '@/lib/benchmark';
+import { faltanEnElEstudio, fusionaComposicion, sinNotas } from '@/lib/composicion';
 import type { Eje, MarcaEstudio, PosicionesCliente } from '@/lib/battle-cards';
 
 // El estado del estudio, en un solo sitio. Tiene dos mitades que se guardan
 // de forma distinta porque no se parecen en nada:
 //
 //  - COMPOSICIÓN (`grupos`): qué marcas, en qué grupo, en qué orden, cuáles
-//    apartadas. Es un documento pequeño que se manda entero, viaja en la URL
-//    para poder compartirlo y se agrupa antes de escribir.
+//    apartadas. Se agrupa antes de escribir y se manda junto a la versión de
+//    la que partió esta pestaña, para que el servidor aplique solo lo que
+//    cambió aquí y no pise lo que otra persona guardó mientras tanto (ver
+//    lib/composicion.ts). Ya NO viaja en la URL: la URL era una foto, y
+//    abrir una foto vieja o volver de la ficha de una marca pisaba lo que
+//    otra persona había añadido desde entonces.
 //
 //  - CRITERIO (`marcas`): rol, capa, prioridad, porqué, puntuación por eje.
 //    Se escribe marca a marca contra una función de base que mezcla por
@@ -53,8 +58,11 @@ interface Estudio {
   // un deslizador sin mandar una petición por cada píxel.
   puntuar: (dominio: string, eje: string, valor: number | null, persistir?: boolean) => void;
   eliminarEje: (eje: string) => void;
-  // Para enlazar a la ficha de una marca sin perder el estudio.
-  query: string;
+  // Marcas que traía un enlace viejo con ?g= y no están en el estudio. Un
+  // enlace ya no escribe al abrirse: se enseñan y se añaden si se quiere.
+  delEnlace: { grupo: string; dominio: string }[];
+  importarEnlace: () => void;
+  descartarEnlace: () => void;
   guardando: boolean;
   error: string | null;
 }
@@ -67,13 +75,19 @@ export function useEstudio(): Estudio {
   return v;
 }
 
+// Para piezas que se usan dentro y fuera del estudio (la nota sale también en
+// la ficha de cada marca, que no monta el estado entero).
+export function useEstudioOpcional(): Estudio | null {
+  return useContext(Ctx);
+}
+
 export function EstudioProvider({
   dominio,
   inicial,
   marcasIniciales,
   ejesIniciales,
   posicionesIniciales,
-  queryInicial,
+  enlace,
   children,
 }: {
   dominio: string; // dominio del cliente del estudio
@@ -81,10 +95,9 @@ export function EstudioProvider({
   marcasIniciales: Record<string, MarcaEstudio>;
   ejesIniciales: Eje[];
   posicionesIniciales: PosicionesCliente;
-  // La query con la que se entró, o null si se entró sin ?g=. Llegar con
-  // grupos explícitos guarda: abrir un enlace compartido deja el estudio como
-  // lo mandó quien lo compartió.
-  queryInicial: string | null;
+  // La composición de un enlace con ?g=, si se entró por uno. No se guarda
+  // sola: se ofrece añadir lo que traiga de más.
+  enlace: Grupo[] | null;
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -97,6 +110,10 @@ export function EstudioProvider({
   const [error, setError] = useState<string | null>(null);
 
   const actual = useRef<Grupo[]>(inicial);
+  // La última versión que confirmó el servidor: de ella parte esta pestaña,
+  // y es lo que permite al servidor saber qué cambió AQUÍ.
+  const base = useRef<Grupo[]>(sinNotas(inicial));
+  const [delEnlace, setDelEnlace] = useState(() => (enlace ? faltanEnElEstudio(enlace, inicial) : []));
   const fichas = useRef<Record<string, MarcaEstudio>>(marcasIniciales);
   const ejesRef = useRef<Eje[]>(ejesIniciales);
   const posicionesRef = useRef<PosicionesCliente>(posicionesIniciales);
@@ -115,15 +132,37 @@ export function EstudioProvider({
     }
     enVuelo.current = true;
     setEnCurso((n) => n + 1);
+    const enviado = sinNotas(actual.current);
     try {
-      await fetch('/api/estudio/grupos', {
+      const res = await fetch('/api/estudio/grupos', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain: dominio, grupos: actual.current }),
+        body: JSON.stringify({ domain: dominio, base: base.current, grupos: enviado }),
       });
+      const j = (await res.json().catch(() => ({}))) as { grupos?: Grupo[]; error?: string };
+      if (!res.ok || !j.grupos) {
+        setError(j.error ?? 'No se pudo guardar el estudio');
+        return;
+      }
+      // Lo guardado trae lo de los demás. Si aquí no se ha tocado nada
+      // mientras viajaba la petición, se adopta tal cual; si sí, lo tocado se
+      // aplica encima, igual que haría el servidor.
+      const guardado = j.grupos;
+      const ahora = sinNotas(actual.current);
+      const siguiente =
+        JSON.stringify(ahora) === JSON.stringify(enviado)
+          ? guardado
+          : fusionaComposicion(enviado, ahora, guardado);
+      base.current = guardado;
+      visto.current.grupos = JSON.stringify(guardado);
+      if (JSON.stringify(siguiente) !== JSON.stringify(ahora)) {
+        actual.current = siguiente;
+        setGrupos(siguiente);
+      }
     } catch {
-      // Sin conexión el estudio sigue en pantalla y en la URL; el siguiente
-      // cambio lo reintenta con el estado completo.
+      // Sin conexión el estudio sigue en pantalla; el siguiente cambio lo
+      // reintenta, y como manda su base, no pisa nada al llegar tarde.
+      setError('Sin conexión: el último cambio del estudio no se ha guardado');
     } finally {
       enVuelo.current = false;
       setEnCurso((n) => n - 1);
@@ -136,10 +175,8 @@ export function EstudioProvider({
 
   const sincronizar = useCallback(() => {
     temporizador.current = null;
-    const q = serializeGrupos(actual.current);
-    router.replace(q ? `${pathname}?g=${q}` : pathname, { scroll: false });
     void persistir();
-  }, [pathname, persistir, router]);
+  }, [persistir]);
 
   const editar = useCallback(
     (fn: (gs: Grupo[]) => Grupo[]) => {
@@ -286,14 +323,38 @@ export function EstudioProvider({
 
   // ---------- entrada y reconciliación ----------
 
-  // Al llegar con ?g= explícito se guarda una vez, para que abrir un enlace
-  // compartido deje el estudio como venía en él.
-  const yaGuardadoAlEntrar = useRef(false);
+  // Se entró por un enlace con ?g=. Antes eso GUARDABA la composición del
+  // enlace, y un enlace es una foto: si era de ayer, borraba lo añadido hoy.
+  // Ahora se quita de la barra en el acto y, si traía marcas que no están,
+  // se ofrecen.
   useEffect(() => {
-    if (queryInicial === null || yaGuardadoAlEntrar.current) return;
-    yaGuardadoAlEntrar.current = true;
-    void persistir();
-  }, [queryInicial, persistir]);
+    if (!enlace) return;
+    router.replace(pathname, { scroll: false });
+    // Solo al entrar: la URL limpia no vuelve a pasar por aquí.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const importarEnlace = useCallback(() => {
+    const faltan = delEnlace;
+    setDelEnlace([]);
+    if (!faltan.length) return;
+    editar((gs) => {
+      const siguiente = gs.map((g) => ({ ...g, dominios: [...g.dominios] }));
+      for (const { grupo, dominio } of faltan) {
+        let g = siguiente.find((x) => x.nombre === grupo);
+        if (!g) {
+          g = { nombre: grupo, dominios: [] };
+          siguiente.push(g);
+        }
+        if (!g.dominios.includes(dominio)) g.dominios.push(dominio);
+      }
+      return siguiente;
+    });
+    // Las nuevas necesitan sus datos (score, logo): los trae el servidor.
+    setTimeout(() => router.refresh(), RETARDO_SYNC + 600);
+  }, [delEnlace, editar, router]);
+
+  const descartarEnlace = useCallback(() => setDelEnlace([]), []);
 
   // Reconciliación con el servidor.
   //
@@ -319,9 +380,43 @@ export function EstudioProvider({
     const llega = JSON.stringify(inicial);
     if (llega === visto.current.grupos) return;
     visto.current.grupos = llega;
+    base.current = sinNotas(inicial);
     actual.current = inicial;
     setGrupos(inicial);
   }, [inicial]);
+
+  // Lo que añade otra persona tiene que llegar sin recargar a mano. Cada
+  // pocos segundos, con la pestaña a la vista y nada a medio guardar, se
+  // pregunta por la composición (una consulta pequeña) y, si ha cambiado,
+  // se vuelve a pintar la página, que trae las marcas nuevas con sus datos.
+  useEffect(() => {
+    let vivo = true;
+    const mirar = async () => {
+      if (document.visibilityState !== 'visible') return;
+      if (temporizador.current || enVuelo.current || pendiente.current) return;
+      try {
+        const r = await fetch(`/api/estudio/grupos?domain=${encodeURIComponent(dominio)}`, {
+          cache: 'no-store',
+        });
+        if (!r.ok || !vivo) return;
+        const j = (await r.json()) as { grupos?: Grupo[] };
+        if (!j.grupos) return;
+        if (JSON.stringify(sinNotas(j.grupos)) !== JSON.stringify(base.current)) router.refresh();
+      } catch {
+        // Sin red no hay nada que mirar; se vuelve a intentar en la siguiente.
+      }
+    };
+    const cada = setInterval(mirar, 15_000);
+    const alVolver = () => void mirar();
+    document.addEventListener('visibilitychange', alVolver);
+    window.addEventListener('focus', alVolver);
+    return () => {
+      vivo = false;
+      clearInterval(cada);
+      document.removeEventListener('visibilitychange', alVolver);
+      window.removeEventListener('focus', alVolver);
+    };
+  }, [dominio, router]);
 
   useEffect(() => {
     if (enCurso > 0) return;
@@ -356,7 +451,7 @@ export function EstudioProvider({
       temporizador.current = null;
       navigator.sendBeacon?.(
         '/api/estudio/grupos',
-        new Blob([JSON.stringify({ domain: dominio, grupos: actual.current })], {
+        new Blob([JSON.stringify({ domain: dominio, base: base.current, grupos: sinNotas(actual.current) })], {
           type: 'application/json',
         }),
       );
@@ -380,7 +475,9 @@ export function EstudioProvider({
         definirEjes,
         puntuar,
         eliminarEje,
-        query: serializeGrupos(grupos),
+        delEnlace,
+        importarEnlace,
+        descartarEnlace,
         guardando: enCurso > 0,
         error,
       }}

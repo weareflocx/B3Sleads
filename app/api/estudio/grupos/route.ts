@@ -1,72 +1,107 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { guardarEstudio } from '@/lib/data';
+import { getComposicion, guardarComposicion } from '@/lib/data';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import { currentUserEmail } from '@/lib/auth';
+import type { Grupo } from '@/lib/benchmark';
 
-// Guarda los grupos de un estudio. PUT { domain, grupos }.
-// El cliente manda el estado completo y no parches: un estudio son unos pocos
-// grupos con unos pocos dominios, y mandarlo entero evita toda una familia de
-// bugs de sincronización a cambio de nada de peso.
+// La composición de un estudio: qué marcas hay, en qué grupo y en qué orden.
+//
+//   GET  ?domain=        lo guardado ahora mismo, para que una pestaña abierta
+//                        vea lo que añade otra persona
+//   PUT  { domain, base, grupos }   guarda SIN pisar a nadie: se aplica lo que
+//                        cambió quien escribe desde `base`, no su copia entera
+//   POST (igual)         sendBeacon solo sabe mandar POST, y se usa al salir
+//
+// Antes esto guardaba la copia entera de quien escribiera último, y así el
+// 24/09 las altas de Victor borraron las de Sergio. Ver lib/composicion.ts.
+
+async function empresa(domain: string) {
+  const db = getServiceSupabase()!;
+  const { data } = await db
+    .from('companies')
+    .select('id')
+    .eq('domain', domain.toLowerCase())
+    .maybeSingle();
+  return data as { id: string } | null;
+}
+
+export async function GET(req: NextRequest) {
+  const domain = req.nextUrl.searchParams.get('domain') ?? '';
+  if (!domain) return NextResponse.json({ error: 'domain requerido' }, { status: 400 });
+  if (isDemoMode()) return NextResponse.json({ grupos: [], updated_at: null });
+  const c = await empresa(domain);
+  if (!c) return NextResponse.json({ error: 'Marca no encontrada' }, { status: 404 });
+  const comp = await getComposicion(c.id);
+  return NextResponse.json(comp ?? { grupos: [], updated_at: null }, {
+    headers: { 'Cache-Control': 'no-store' },
+  });
+}
+
 export async function PUT(req: NextRequest) {
   return guardar(req);
 }
 
-// sendBeacon solo sabe mandar POST. Se usa al salir de la página para que un
-// cambio hecho dentro de la ventana de agrupación no se quede sin guardar.
 export async function POST(req: NextRequest) {
   return guardar(req);
 }
 
+// Nombres con contenido, dominios en minúsculas y sin repetir, y ocultas
+// solo de marcas que estén en su grupo. Las notas ya no viajan aquí: viven
+// en la ficha de cada marca.
+function sanea(gs: unknown): Grupo[] {
+  if (!Array.isArray(gs)) return [];
+  const vistos = new Set<string>();
+  return gs
+    .map((g: { nombre?: unknown; dominios?: unknown; ocultas?: unknown }) => {
+      const dominios = [
+        ...new Set(
+          (Array.isArray(g?.dominios) ? g.dominios : [])
+            .map((d: unknown) => String(d).trim().toLowerCase())
+            .filter(Boolean),
+        ),
+      ].filter((d) => {
+        // Una marca, un grupo: si llega en dos, se queda en el primero.
+        if (vistos.has(d)) return false;
+        vistos.add(d);
+        return true;
+      });
+      const dentro = new Set(dominios);
+      const ocultas = [
+        ...new Set(
+          (Array.isArray(g?.ocultas) ? g.ocultas : [])
+            .map((d: unknown) => String(d).trim().toLowerCase())
+            .filter((d: string) => dentro.has(d)),
+        ),
+      ];
+      return {
+        nombre: String(g?.nombre ?? '').trim().slice(0, 60),
+        dominios,
+        ...(ocultas.length ? { ocultas } : {}),
+      };
+    })
+    .filter((g) => g.nombre);
+}
+
 async function guardar(req: NextRequest) {
   try {
-    const { domain, grupos } = (await req.json()) as {
-      domain?: string;
-      grupos?: { nombre: string; dominios: string[]; ocultas?: string[]; notas?: Record<string, string> }[];
-    };
-    if (!domain || !Array.isArray(grupos)) {
+    const cuerpo = (await req.json()) as { domain?: string; grupos?: unknown; base?: unknown };
+    if (!cuerpo.domain || !Array.isArray(cuerpo.grupos)) {
       return NextResponse.json({ error: 'domain y grupos requeridos' }, { status: 400 });
     }
     if (isDemoMode()) return NextResponse.json({ ok: true, demo: true });
 
-    const db = getServiceSupabase()!;
-    const { data: company } = await db
-      .from('companies')
-      .select('id')
-      .eq('domain', domain.toLowerCase())
-      .maybeSingle();
-    if (!company) return NextResponse.json({ error: 'Marca no encontrada' }, { status: 404 });
+    const c = await empresa(cuerpo.domain);
+    if (!c) return NextResponse.json({ error: 'Marca no encontrada' }, { status: 404 });
 
-    // Se sanea lo que llega: nombres con contenido y dominios en minúsculas
-    // sin repetir. Es un endpoint autenticado, pero el saneado evita que un
-    // grupo vacío o un dominio duplicado se quede guardado para siempre.
-    const limpios = grupos
-      .map((g) => {
-        const dominios = [
-          ...new Set((g?.dominios ?? []).map((d) => String(d).trim().toLowerCase()).filter(Boolean)),
-        ];
-        const dentro = new Set(dominios);
-        // Ocultas y notas solo de marcas que estén en el grupo: una nota
-        // huérfana no se ve nunca y una oculta fantasma no se puede mostrar.
-        const ocultas = [
-          ...new Set((g?.ocultas ?? []).map((d) => String(d).trim().toLowerCase()).filter((d) => dentro.has(d))),
-        ];
-        const notas: Record<string, string> = {};
-        for (const [d, n] of Object.entries(g?.notas ?? {})) {
-          const k = String(d).trim().toLowerCase();
-          const v = String(n ?? '').trim().slice(0, 600);
-          if (dentro.has(k) && v) notas[k] = v;
-        }
-        return {
-          nombre: String(g?.nombre ?? '').trim().slice(0, 60),
-          dominios,
-          ...(ocultas.length ? { ocultas } : {}),
-          ...(Object.keys(notas).length ? { notas } : {}),
-        };
-      })
-      .filter((g) => g.nombre);
-
-    await guardarEstudio(company.id, limpios, await currentUserEmail());
-    return NextResponse.json({ ok: true, grupos: limpios });
+    const grupos = await guardarComposicion(
+      c.id,
+      sanea(cuerpo.grupos),
+      Array.isArray(cuerpo.base) ? sanea(cuerpo.base) : null,
+      await currentUserEmail(),
+    );
+    // Se devuelve lo que quedó guardado de verdad, con lo de los demás
+    // dentro: quien escribe lo adopta y ve al instante lo que no tenía.
+    return NextResponse.json({ ok: true, grupos });
   } catch (e) {
     console.error('[estudio/grupos]', e);
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });

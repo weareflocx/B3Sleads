@@ -65,7 +65,7 @@ export function TablaClasificacion({
   datos: Record<string, DatosMarca>;
   hrefBase: string;
 }) {
-  const { grupos, marcas, clasificar, query } = useEstudio();
+  const { grupos, marcas, clasificar } = useEstudio();
   const [abierta, setAbierta] = useState(false);
   const [fRol, setFRol] = useState('');
   const [fCapa, setFCapa] = useState('');
@@ -216,7 +216,7 @@ export function TablaClasificacion({
                         />
                         <CompanyLogo domain={f.dominio} name={f.datos.name} size={22} src={f.datos.logoUrl} />
                         <Link
-                          href={`${hrefBase}/${f.dominio}${query ? `?g=${query}` : ''}`}
+                          href={`${hrefBase}/${f.dominio}`}
                           className="min-w-0 truncate text-sm hover:underline"
                           title={f.dominio}
                         >

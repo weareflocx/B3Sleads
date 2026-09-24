@@ -52,17 +52,15 @@ export default async function EstudioPage({ params, searchParams }: Props) {
   const cliente = await getCorpusBrand(dom);
   if (!cliente) notFound();
 
-  // El estudio guardado es la fuente de verdad. La URL sigue mandando cuando
-  // viene explícita, para poder compartir un estado concreto o volver a uno
-  // anterior, y al llegar así se guarda: compartir un enlace y abrirlo deja
-  // el estudio como lo mandó quien lo compartió.
+  // El estudio guardado es la ÚNICA fuente de verdad. La URL mandaba cuando
+  // traía ?g=, y abrirla guardaba esa composición: una foto de ayer borraba
+  // lo que otra persona había añadido hoy. Un enlace con ?g= ya no manda ni
+  // escribe; si trae marcas que no están, el estudio las ofrece.
   const guardado = await getEstudio(cliente.company.id);
-  // Las notas nunca viajan en la URL: se funden desde lo guardado, por
-  // dominio, para que sigan a la marca aunque cambie de grupo.
-  const grupos = fusionaNotas(
-    sp.g !== undefined ? parseGrupos(sp.g) : (guardado?.grupos ?? []),
-    guardado?.grupos,
-  );
+  // Las notas viejas que aún vivan en la composición se funden por dominio,
+  // para que sigan a la marca aunque cambie de grupo.
+  const grupos = fusionaNotas(guardado?.grupos ?? [], guardado?.grupos);
+  const enlace = sp.g !== undefined ? parseGrupos(sp.g) : null;
 
   const dominios = grupos.flatMap((g) => g.dominios);
   const [marcas, corpus] = await Promise.all([getCorpusBrands(dominios), getStartups()]);
@@ -220,14 +218,14 @@ export default async function EstudioPage({ params, searchParams }: Props) {
           {/* B3S es la fuente de los datos; el análisis se escribe en Notion y
               la síntesis en Figma. Por eso exporta y no importa. */}
           <a
-            href={`/api/estudio/export/csv?domain=${encodeURIComponent(dom)}${sp.g ? `&g=${encodeURIComponent(sp.g)}` : ''}`}
+            href={`/api/estudio/export/csv?domain=${encodeURIComponent(dom)}`}
             className="font-mono text-[11px] uppercase tracking-wider text-[var(--muted)] hover:text-[var(--text)]"
             title="Una fila por marca con score, componentes, clasificación y ejes"
           >
             csv ↓
           </a>
           <a
-            href={`/api/estudio/export/json?domain=${encodeURIComponent(dom)}${sp.g ? `&g=${encodeURIComponent(sp.g)}` : ''}`}
+            href={`/api/estudio/export/json?domain=${encodeURIComponent(dom)}`}
             className="font-mono text-[11px] uppercase tracking-wider text-[var(--muted)] hover:text-[var(--text)]"
             title="El estudio entero, para automatizaciones"
           >
@@ -257,7 +255,7 @@ export default async function EstudioPage({ params, searchParams }: Props) {
         marcasIniciales={guardado?.marcas ?? {}}
         ejesIniciales={guardado?.axes ?? []}
         posicionesIniciales={guardado?.client_positions ?? {}}
-        queryInicial={sp.g ?? null}
+        enlace={enlace}
       >
         <PestanasEstudio
           pestanas={[
@@ -327,9 +325,9 @@ export default async function EstudioPage({ params, searchParams }: Props) {
               // dos preguntas distintas y se responden por separado.
               contenido: (
                 <div className="space-y-8">
-                  <Vocabulario cliente={dom} clienteNombre={nombre} query={sp.g ?? null} />
+                  <Vocabulario cliente={dom} clienteNombre={nombre} query={null} />
                   <div className="border-t border-[var(--border)] pt-6">
-                    <Claims cliente={dom} clienteNombre={nombre} query={sp.g ?? null} />
+                    <Claims cliente={dom} clienteNombre={nombre} query={null} />
                   </div>
                 </div>
               ),
