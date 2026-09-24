@@ -60,6 +60,15 @@ const d = (ms: number) => ({ '--d': `${ms}ms` }) as CSSProperties;
 
 // ---------- la rejilla ----------
 
+// El ancho de la columna, por tramos. Crece con la pantalla pero deja
+// siempre aire fuera de los raíles: en un portátil de 1728 px ocupa el 83 %,
+// en un monitor de 2560 px, el 69 %. Antes era 1200 px en todas, y en una
+// pantalla grande el contenido se quedaba en menos de la mitad. Todos los
+// tramos van en px arbitrarios: mezclados con `xl`, Tailwind los ordenaba
+// mal y el de `xl` ganaba siempre.
+const COLUMNA =
+  'mx-auto w-full max-w-[1200px] min-[1280px]:max-w-[min(1320px,calc(100vw-96px))] min-[1600px]:max-w-[1440px] min-[1920px]:max-w-[1600px] min-[2400px]:max-w-[1760px] px-6 sm:px-12 min-[1280px]:px-16';
+
 // Una franja a todo lo ancho con su columna central. Los raíles de los lados
 // son discontinuos y siguen de una franja a la siguiente: es la rejilla de
 // arquitecto de Doss, y sale sola porque todas las franjas comparten ancho.
@@ -68,6 +77,7 @@ function Franja({
   id,
   divisor = false,
   transparente = false,
+  llena = false,
   children,
   className = '',
 }: {
@@ -75,6 +85,8 @@ function Franja({
   id?: string;
   // Sin fondo propio: el hero deja ver el vídeo que tiene detrás.
   transparente?: boolean;
+  // Ocupa todo el alto que le quede al contenedor, con el contenido centrado.
+  llena?: boolean;
   // Una línea continua de lado a lado sobre la franja. Los raíles son
   // discontinuos; las divisiones, no: así se lee qué es guía y qué es corte.
   divisor?: boolean;
@@ -87,12 +99,12 @@ function Franja({
       id={id}
       className={`${transparente ? '' : ink ? 'bg-[var(--l-ink)]' : 'bg-[var(--l-paper)]'} ${ink ? 'text-[var(--l-ink-text)]' : 'text-[var(--l-paper-text)]'} ${
         divisor ? `border-t ${ink ? 'border-[var(--l-ink-line)]' : 'border-[var(--l-paper-line)]'}` : ''
-      } scroll-mt-4`}
+      } ${llena ? 'flex flex-1 flex-col' : ''} scroll-mt-4`}
     >
       <div
-        className={`relative mx-auto w-full max-w-[1200px] border-x border-dashed px-6 sm:px-12 ${
+        className={`relative ${COLUMNA} border-x border-dashed ${
           ink ? 'border-[var(--l-ink-line)]' : 'border-[var(--l-paper-line)]'
-        } ${className}`}
+        } ${llena ? 'flex flex-1 flex-col justify-center' : ''} ${className}`}
       >
         {/* Las marcas de las esquinas, donde el raíl cruza la línea de la
             franja. Un detalle de plano que ordena sin decir nada. */}
@@ -372,12 +384,14 @@ export default function LandingPage() {
         </span>
       </Link>
 
-      {/* Cabecera y hero comparten fondo: el bucle de B3Scan, a pantalla
-          completa y a media opacidad. */}
-      <div className="relative isolate">
+      {/* El primer pantallazo: cabecera y hero, con el bucle de B3Scan
+          detrás, y nada más. Mide lo que mide la pantalla (svh: en móvil
+          descuenta la barra del navegador); lo demás llega con el primer
+          scroll. */}
+      <div className="relative isolate flex min-h-[calc(100svh-2.3rem)] flex-col">
         <FondoHero />
       <header>
-        <div className="mx-auto flex w-full max-w-[1200px] items-center justify-between border-x border-dashed border-[var(--l-ink-line)] px-6 py-4 sm:px-12">
+        <div className={`${COLUMNA} flex items-center justify-between border-x border-dashed border-[var(--l-ink-line)] py-4`}>
           <span className="flex items-center gap-2 text-[var(--l-ink-text)]">
             <Logo />
             <span className="font-mono text-xs font-semibold text-[var(--l-ink-muted)]">Leads</span>
@@ -402,10 +416,10 @@ export default function LandingPage() {
       </header>
 
       {/* ── Hero ── */}
-      <Franja tono="ink" transparente className="pb-14 pt-16 sm:pb-20 sm:pt-24">
+      <Franja tono="ink" transparente llena className="pb-[12vh] pt-10 sm:pt-12">
         {/* Dos tonos, como el titular de Doss: lo que se promete en claro y
             la otra mitad en gris. */}
-        <h1 className="[text-shadow:0_0_24px_rgba(11,13,14,0.85),0_0_2px_rgba(11,13,14,0.6)] text-[36px] font-medium leading-[1.04] tracking-[-0.035em] text-balance sm:text-[50px] lg:text-[62px]">
+        <h1 className="[text-shadow:0_0_24px_rgba(11,13,14,0.85),0_0_2px_rgba(11,13,14,0.6)] text-[36px] font-medium leading-[1.04] tracking-[-0.035em] text-balance min-[640px]:text-[50px] min-[1024px]:text-[62px] min-[1920px]:text-[72px]">
           <span className="l-linea block" style={d(0)}>Inteligencia de marca</span>
           <span className="l-linea block text-[var(--l-ink-muted)]" style={d(120)}>para ganar nuevos proyectos.</span>
         </h1>
@@ -427,28 +441,32 @@ export default function LandingPage() {
             Ver cómo funciona ↓
           </Link>
         </div>
-
-        {/* La promesa, y debajo las tres formas de cumplirla. */}
-        <p className="[text-shadow:0_0_24px_rgba(11,13,14,0.85),0_0_2px_rgba(11,13,14,0.6)] l-linea mt-20 max-w-[30ch] text-[22px] font-medium leading-snug tracking-[-0.02em] text-balance sm:text-[28px]" style={d(950)}>
-          Imagina llegar a la primera reunión con las pruebas que necesita su negocio.
-        </p>
-        <ul className="[text-shadow:0_0_24px_rgba(11,13,14,0.85),0_0_2px_rgba(11,13,14,0.6)] l-sube mt-8 grid border-t border-[var(--l-ink-line)] sm:grid-cols-3" style={d(1050)}>
-          {CAPACIDADES.map((c, i) => (
-            <li
-              key={c.titulo}
-              style={d(1120 + i * 90)}
-              className={`l-sube pt-6 sm:pb-2 ${i > 0 ? 'mt-6 border-t border-[var(--l-ink-line)] sm:mt-0 sm:border-l sm:border-t-0 sm:pl-8' : ''} ${i < 2 ? 'sm:pr-8' : ''}`}
-            >
-              <span className="block h-1 w-8" style={{ background: c.color }} aria-hidden="true" />
-              <p className="mt-4 text-[17px] font-medium tracking-[-0.01em] lg:text-[18px]">{c.titulo}</p>
-              <p className="mt-2 text-sm leading-relaxed text-[var(--l-ink-muted)]">{c.texto}</p>
-            </li>
-          ))}
-        </ul>
       </Franja>
       </div>
 
-      {/* ── La animática, bajo el titular ── */}
+      {/* ── La promesa, en el primer scroll ── */}
+      <Franja tono="ink" divisor className="py-20 sm:py-28">
+        <Revela>
+          <p className="l-linea max-w-[30ch] text-[24px] font-medium leading-snug tracking-[-0.02em] text-balance min-[640px]:text-[32px] min-[1920px]:text-[38px]" style={d(0)}>
+            Imagina llegar a la primera reunión con las pruebas que necesita su negocio.
+          </p>
+          <ul className="mt-10 grid border-t border-[var(--l-ink-line)] sm:grid-cols-3">
+            {CAPACIDADES.map((c, i) => (
+              <li
+                key={c.titulo}
+                style={d(220 + i * 110)}
+                className={`l-sube pt-6 sm:pb-2 ${i > 0 ? 'mt-6 border-t border-[var(--l-ink-line)] sm:mt-0 sm:border-l sm:border-t-0 sm:pl-8' : ''} ${i < 2 ? 'sm:pr-8' : ''}`}
+              >
+                <span className="block h-1 w-8" style={{ background: c.color }} aria-hidden="true" />
+                <p className="mt-4 text-[17px] font-medium tracking-[-0.01em] lg:text-[18px]">{c.titulo}</p>
+                <p className="mt-2 max-w-[42ch] text-sm leading-relaxed text-[var(--l-ink-muted)]">{c.texto}</p>
+              </li>
+            ))}
+          </ul>
+        </Revela>
+      </Franja>
+
+      {/* ── La animática ── */}
       <Franja tono="ink" id="como-funciona" divisor className="pb-24 pt-14 sm:pb-28">
         <Revela>
         <div className="mb-8 grid gap-6 lg:grid-cols-[1fr_1fr] lg:items-end">
@@ -574,7 +592,7 @@ export default function LandingPage() {
       </Franja>
 
       <footer className="bg-[var(--l-ink)]">
-        <div className="mx-auto flex w-full max-w-[1200px] flex-wrap items-center justify-between gap-4 border-x border-t border-dashed border-[var(--l-ink-line)] px-6 py-6 font-mono text-xs text-[var(--l-ink-soft)] sm:px-12">
+        <div className={`${COLUMNA} flex flex-wrap items-center justify-between gap-4 border-x border-t border-dashed border-[var(--l-ink-line)] py-6 font-mono text-xs text-[var(--l-ink-soft)]`}>
           <span className="flex items-center gap-2 text-[var(--l-ink-muted)]">
             <Logo />
             <span>Leads · por FLOC*</span>
