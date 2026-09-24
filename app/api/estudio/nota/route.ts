@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getEstudio, guardarEstudio } from '@/lib/data';
+import { guardarMarcaEstudio } from '@/lib/data';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import { currentUserEmail } from '@/lib/auth';
+import { NOTA_MAX } from '@/lib/battle-cards';
 
 // El porqué de una marca en el estudio. PATCH { domain, marca, nota }.
-// Va aparte del PUT de grupos porque una nota no cambia pertenencia ni orden
-// (que viven en la URL): toca solo el estudio guardado, en la marca que
-// toque, esté en el grupo que esté. Nota vacía = borrar.
+//
+// La nota vive en la ficha de la marca (`marcas[dominio].note`) y se guarda
+// sola, mezclándola en la base. Antes vivía dentro de la composición y esta
+// ruta la reescribía ENTERA para guardar una frase: si otra persona acababa
+// de añadir una marca, la nota se la llevaba por delante, y la siguiente
+// escritura de composición de esa persona se llevaba la nota. La app nueva
+// ya no pasa por aquí (usa la clasificación), pero una pestaña abierta antes
+// del cambio sí, y así también escribe en el sitio bueno.
 export async function PATCH(req: NextRequest) {
   try {
     const { domain, marca, nota } = (await req.json()) as {
@@ -27,25 +33,13 @@ export async function PATCH(req: NextRequest) {
       .maybeSingle();
     if (!company) return NextResponse.json({ error: 'Marca no encontrada' }, { status: 404 });
 
-    const estudio = await getEstudio(company.id);
-    if (!estudio) return NextResponse.json({ error: 'Este cliente no tiene estudio guardado' }, { status: 404 });
-
-    const m = marca.trim().toLowerCase();
-    const texto = String(nota ?? '').trim().slice(0, 600);
-    let tocado = false;
-    const grupos = estudio.grupos.map((g) => {
-      if (!g.dominios.includes(m)) return g;
-      tocado = true;
-      const notas = { ...(g.notas ?? {}) };
-      if (texto) notas[m] = texto;
-      else delete notas[m];
-      return { ...g, ...(Object.keys(notas).length ? { notas } : { notas: undefined }) };
-    });
-    if (!tocado) {
-      return NextResponse.json({ error: 'Esa marca no está en ningún grupo del estudio' }, { status: 404 });
-    }
-
-    await guardarEstudio(company.id, grupos, await currentUserEmail());
+    const texto = String(nota ?? '').replace(/\s+/g, ' ').trim().slice(0, NOTA_MAX);
+    await guardarMarcaEstudio(
+      company.id,
+      marca.trim().toLowerCase(),
+      { note: texto || null },
+      await currentUserEmail(),
+    );
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error('[estudio/nota]', e);

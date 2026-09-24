@@ -80,7 +80,11 @@ export interface MarcaEstudio {
   verification?: Verificacion;
 }
 
-export const NOTA_MAX = 140;
+// Cabe una frase de verdad. Era 140 y cortaba sin avisar: tres notas del
+// estudio de Family (Wekiwi, Coopvoce, Scelgozero) se quedaron a medias al
+// migrarlas, y la más larga que se ha escrito tenía 224 caracteres. El campo
+// enseña cuánto queda, así que el tope ya no sorprende a nadie.
+export const NOTA_MAX = 280;
 
 // ---------- ejes de posicionamiento ----------
 

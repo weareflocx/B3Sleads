@@ -68,6 +68,158 @@ const ESTADO: Record<MarcaEnGrupo['estado'], string> = {
 const MINI =
   'inline-flex h-6 min-w-6 items-center justify-center rounded border border-[var(--border)] px-1.5 font-mono text-[10px] text-[var(--muted)] transition-colors hover:border-[var(--muted)] hover:text-[var(--text)] disabled:opacity-30 disabled:hover:border-[var(--border)] disabled:hover:text-[var(--muted)]';
 
+// Una fila del grupo. Vive FUERA de GrupoEstudio a propósito: declarada
+// dentro, cada vez que el grupo se volvía a pintar (el sondeo de un scan en
+// marcha lo hace cada pocos segundos) React la veía como un componente
+// NUEVO y desmontaba todas las filas. La nota que alguien estaba escribiendo
+// desaparecía a media frase y no llegaba a guardarse.
+interface AccionesFila {
+  mover: (d: string, paso: -1 | 1) => void;
+  ocultar: (d: string, si: boolean) => void;
+  moverA: (d: string, destino: string) => void;
+  quitar: (d: string) => void;
+}
+
+function Fila({
+  m,
+  lista,
+  hrefBase,
+  cliente,
+  progreso,
+  otros,
+  acciones,
+}: {
+  m: MarcaEnGrupo;
+  lista: MarcaEnGrupo[];
+  hrefBase: string;
+  cliente: string;
+  progreso: Record<string, number>;
+  otros: Grupo[];
+  acciones: AccionesFila;
+}) {
+  const { mover, ocultar, moverA, quitar } = acciones;
+  const i = lista.indexOf(m);
+  return (
+    <li className={`group flex items-start gap-3 px-4 py-2.5 ${m.oculta || m.descartada ? 'opacity-60' : ''}`}>
+      <Link
+        href={`${hrefBase}/${m.domain}`}
+        className="mt-0.5 shrink-0"
+        tabIndex={-1}
+      >
+        <CompanyLogo domain={m.domain} name={m.name} size={30} src={m.logoUrl} />
+      </Link>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-3">
+          <Link
+            href={`${hrefBase}/${m.domain}`}
+            className="min-w-0 hover:underline"
+          >
+            <span className="flex items-center gap-2">
+              <span
+                title={`Verificación: ${VERIFICACION_LABEL[m.verificacion]}`}
+                className={`h-2 w-2 shrink-0 rounded-full ${TONO_VERIFICACION[m.verificacion]}`}
+              />
+              <span className="truncate text-sm font-medium">{m.name}</span>
+            </span>
+            <span className="block font-mono text-[11px] text-[var(--soft)]">
+              {m.domain}
+              {m.estado === 'listo' && m.detectados < 8 && ` · ${m.detectados}/10 detectados`}
+            </span>
+          </Link>
+          <span className="flex shrink-0 items-center gap-3">
+            {m.estado === 'listo' && m.score != null ? (
+              <ScoreRing score={m.score} size={26} />
+            ) : m.estado === 'escaneando' ? (
+              <span className="w-28">
+                <ScanProgress value={progreso[m.domain] ?? 8} label={null} />
+              </span>
+            ) : (
+              <span className="font-mono text-[11px] text-[var(--soft)]">{ESTADO[m.estado]}</span>
+            )}
+          </span>
+        </div>
+
+        {/* La clasificación, en dos palabras. Se decide en la rejilla. */}
+        {m.resumen.length > 0 && (
+          <p className="mt-1 font-mono text-[10px] uppercase tracking-wider text-[var(--cta)]">
+            {m.resumen.join(' · ')}
+          </p>
+        )}
+
+        {/* El porqué, editable donde se lee. */}
+        <NotaMarca cliente={cliente} marca={m.domain} inicial={m.nota} className="mt-1" />
+
+        {/* Los mandos, en su propia línea y discretos: aparecen al pasar
+            por la fila. Son gestos de montaje, no de lectura. */}
+        <div className="mt-1.5 flex flex-wrap items-center gap-1 transition-opacity md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100">
+          {!m.oculta && (
+            <>
+              <button onClick={() => mover(m.domain, -1)} disabled={i <= 0} className={MINI} title="Subir">
+                ↑
+              </button>
+              <button
+                onClick={() => mover(m.domain, 1)}
+                disabled={i >= lista.length - 1}
+                className={MINI}
+                title="Bajar"
+              >
+                ↓
+              </button>
+            </>
+          )}
+          {m.descartada ? (
+            <span
+              title="Prioridad «Fuera». Se cambia en la rejilla de clasificación."
+              className={`${MINI} border-dashed`}
+            >
+              descartada
+            </span>
+          ) : m.oculta ? (
+            <button
+              onClick={() => ocultar(m.domain, false)}
+              className={`${MINI} border-[var(--cta)]/50 text-[var(--cta)]`}
+              title="Vuelve a entrar en la comparación"
+            >
+              volver al estudio
+            </button>
+          ) : (
+            <button
+              onClick={() => ocultar(m.domain, true)}
+              className={MINI}
+              title="Sigue en el grupo, sale de la matriz y de las medias"
+            >
+              ocultar
+            </button>
+          )}
+          {otros.length > 0 && (
+            <select
+              value=""
+              onChange={(e) => moverA(m.domain, e.target.value)}
+              className={`${MINI} cursor-pointer appearance-none bg-transparent pr-1.5`}
+              title="Mover a otro grupo"
+              aria-label={`Mover ${m.name} a otro grupo`}
+            >
+              <option value="">mover a…</option>
+              {otros.map((g) => (
+                <option key={g.nombre} value={g.nombre}>
+                  {g.nombre}
+                </option>
+              ))}
+            </select>
+          )}
+          <button
+            onClick={() => quitar(m.domain)}
+            className={`${MINI} ml-auto hover:border-[var(--danger)] hover:text-[var(--danger)]`}
+            title="Quitar del grupo (el scan y la nota no se borran del corpus)"
+          >
+            quitar
+          </button>
+        </div>
+      </div>
+    </li>
+  );
+}
+
 export function GrupoEstudio({
   nombre,
   datos,
@@ -84,7 +236,7 @@ export function GrupoEstudio({
   cliente: string; // dominio del cliente, para guardar las notas
 }) {
   const router = useRouter();
-  const { grupos, marcas: fichas, editar: editarEstudio, query } = useEstudio();
+  const { grupos, marcas: fichas, editar: editarEstudio } = useEstudio();
   const [texto, setTexto] = useState('');
   const [ocupado, setOcupado] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -236,129 +388,7 @@ export function GrupoEstudio({
   const visibles = marcas.filter((m) => !m.oculta && !m.descartada);
   const ocultas = marcas.filter((m) => m.oculta || m.descartada);
   const otros = grupos.filter((g) => g.nombre !== nombre);
-
-  function Fila({ m, lista }: { m: MarcaEnGrupo; lista: MarcaEnGrupo[] }) {
-    const i = lista.indexOf(m);
-    return (
-      <li className={`group flex items-start gap-3 px-4 py-2.5 ${m.oculta || m.descartada ? 'opacity-60' : ''}`}>
-        <Link
-          href={`${hrefBase}/${m.domain}${query ? `?g=${query}` : ''}`}
-          className="mt-0.5 shrink-0"
-          tabIndex={-1}
-        >
-          <CompanyLogo domain={m.domain} name={m.name} size={30} src={m.logoUrl} />
-        </Link>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3">
-            <Link
-              href={`${hrefBase}/${m.domain}${query ? `?g=${query}` : ''}`}
-              className="min-w-0 hover:underline"
-            >
-              <span className="flex items-center gap-2">
-                <span
-                  title={`Verificación: ${VERIFICACION_LABEL[m.verificacion]}`}
-                  className={`h-2 w-2 shrink-0 rounded-full ${TONO_VERIFICACION[m.verificacion]}`}
-                />
-                <span className="truncate text-sm font-medium">{m.name}</span>
-              </span>
-              <span className="block font-mono text-[11px] text-[var(--soft)]">
-                {m.domain}
-                {m.estado === 'listo' && m.detectados < 8 && ` · ${m.detectados}/10 detectados`}
-              </span>
-            </Link>
-            <span className="flex shrink-0 items-center gap-3">
-              {m.estado === 'listo' && m.score != null ? (
-                <ScoreRing score={m.score} size={26} />
-              ) : m.estado === 'escaneando' ? (
-                <span className="w-28">
-                  <ScanProgress value={progreso[m.domain] ?? 8} label={null} />
-                </span>
-              ) : (
-                <span className="font-mono text-[11px] text-[var(--soft)]">{ESTADO[m.estado]}</span>
-              )}
-            </span>
-          </div>
-
-          {/* La clasificación, en dos palabras. Se decide en la rejilla. */}
-          {m.resumen.length > 0 && (
-            <p className="mt-1 font-mono text-[10px] uppercase tracking-wider text-[var(--cta)]">
-              {m.resumen.join(' · ')}
-            </p>
-          )}
-
-          {/* El porqué, editable donde se lee. */}
-          <NotaMarca cliente={cliente} marca={m.domain} inicial={m.nota} className="mt-1" />
-
-          {/* Los mandos, en su propia línea y discretos: aparecen al pasar
-              por la fila. Son gestos de montaje, no de lectura. */}
-          <div className="mt-1.5 flex flex-wrap items-center gap-1 transition-opacity md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100">
-            {!m.oculta && (
-              <>
-                <button onClick={() => mover(m.domain, -1)} disabled={i <= 0} className={MINI} title="Subir">
-                  ↑
-                </button>
-                <button
-                  onClick={() => mover(m.domain, 1)}
-                  disabled={i >= lista.length - 1}
-                  className={MINI}
-                  title="Bajar"
-                >
-                  ↓
-                </button>
-              </>
-            )}
-            {m.descartada ? (
-              <span
-                title="Prioridad «Fuera». Se cambia en la rejilla de clasificación."
-                className={`${MINI} border-dashed`}
-              >
-                descartada
-              </span>
-            ) : m.oculta ? (
-              <button
-                onClick={() => ocultar(m.domain, false)}
-                className={`${MINI} border-[var(--cta)]/50 text-[var(--cta)]`}
-                title="Vuelve a entrar en la comparación"
-              >
-                volver al estudio
-              </button>
-            ) : (
-              <button
-                onClick={() => ocultar(m.domain, true)}
-                className={MINI}
-                title="Sigue en el grupo, sale de la matriz y de las medias"
-              >
-                ocultar
-              </button>
-            )}
-            {otros.length > 0 && (
-              <select
-                value=""
-                onChange={(e) => moverA(m.domain, e.target.value)}
-                className={`${MINI} cursor-pointer appearance-none bg-transparent pr-1.5`}
-                title="Mover a otro grupo"
-                aria-label={`Mover ${m.name} a otro grupo`}
-              >
-                <option value="">mover a…</option>
-                {otros.map((g) => (
-                  <option key={g.nombre} value={g.nombre}>
-                    {g.nombre}
-                  </option>
-                ))}
-              </select>
-            )}
-            <button
-              onClick={() => quitar(m.domain)}
-              className={`${MINI} ml-auto hover:border-[var(--danger)] hover:text-[var(--danger)]`}
-              title="Quitar del grupo (el scan y la nota no se borran del corpus)"
-            >
-              quitar
-            </button>
-          </div>
-        </div>
-      </li>
-    );
-  }
+  const acciones: AccionesFila = { mover, ocultar, moverA, quitar };
 
   return (
     <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)]">
@@ -381,7 +411,7 @@ export function GrupoEstudio({
       {visibles.length > 0 && (
         <ul className="divide-y divide-[var(--border)]">
           {visibles.map((m) => (
-            <Fila key={m.domain} m={m} lista={visibles} />
+            <Fila key={m.domain} m={m} lista={visibles} hrefBase={hrefBase} cliente={cliente} progreso={progreso} otros={otros} acciones={acciones} />
           ))}
         </ul>
       )}
@@ -408,7 +438,7 @@ export function GrupoEstudio({
           {verOcultas && (
             <ul className="divide-y divide-[var(--border)] border-t border-dashed border-[var(--border)]">
               {ocultas.map((m) => (
-                <Fila key={m.domain} m={m} lista={ocultas} />
+                <Fila key={m.domain} m={m} lista={ocultas} hrefBase={hrefBase} cliente={cliente} progreso={progreso} otros={otros} acciones={acciones} />
               ))}
             </ul>
           )}
