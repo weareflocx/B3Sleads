@@ -270,10 +270,9 @@ export default function LandingPage() {
 
       {/* ── Hero ── */}
       <Franja tono="ink" className="pb-14 pt-16 sm:pb-20 sm:pt-24">
-        <Etiqueta tono="ink">Generación de leads de valor · por FLOC*</Etiqueta>
         {/* Dos tonos, como el titular de Doss: lo que se promete en claro y
             la otra mitad en gris. */}
-        <h1 className="mt-6 text-[44px] font-medium leading-[1.02] tracking-[-0.035em] sm:text-[68px] lg:text-[80px]">
+        <h1 className="text-[44px] font-medium leading-[1.02] tracking-[-0.035em] sm:text-[68px] lg:text-[80px]">
           <span className="block">Atrae founders.</span>
           <span className="block text-[var(--l-ink-soft)]">No los persigas.</span>
         </h1>
