@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { CSSProperties, ReactNode } from 'react';
 import { Logo } from './(dashboard)/logo';
 import { ScannerFilm } from './scanner-film';
+import { Revela, Tecleo } from './entradas';
 
 // Landing pública de B3S Leads.
 //
@@ -37,8 +38,10 @@ const PALETA = {
   '--l-ink-muted': '#9b968c',
   '--l-ink-soft': '#6c6862',
   '--l-blue-on-ink': '#5b6cff',
-  '--l-red-on-ink': '#ff4d4d',
-  '--l-green-on-ink': '#00d554',
+  // RGB puro, el de los tres canales del logo.
+  '--l-red-on-ink': '#ff0000',
+  '--l-green-on-ink': '#00ff00',
+  '--l-blue-pure': '#0000ff',
   '--l-paper': '#eeeeee',
   '--l-paper-2': '#f6f6f5',
   '--l-paper-line': '#d6d6d2',
@@ -52,6 +55,9 @@ const PALETA = {
 
 const SCANNER = 'https://b3s.fly.dev';
 
+// El retardo de una pieza en la coreografía de entrada (ver globals.css).
+const d = (ms: number) => ({ '--d': `${ms}ms` }) as CSSProperties;
+
 // ---------- la rejilla ----------
 
 // Una franja a todo lo ancho con su columna central. Los raíles de los lados
@@ -61,11 +67,14 @@ function Franja({
   tono,
   id,
   divisor = false,
+  transparente = false,
   children,
   className = '',
 }: {
   tono: 'ink' | 'paper';
   id?: string;
+  // Sin fondo propio: el hero deja ver el vídeo que tiene detrás.
+  transparente?: boolean;
   // Una línea continua de lado a lado sobre la franja. Los raíles son
   // discontinuos; las divisiones, no: así se lee qué es guía y qué es corte.
   divisor?: boolean;
@@ -76,7 +85,7 @@ function Franja({
   return (
     <section
       id={id}
-      className={`${ink ? 'bg-[var(--l-ink)] text-[var(--l-ink-text)]' : 'bg-[var(--l-paper)] text-[var(--l-paper-text)]'} ${
+      className={`${transparente ? '' : ink ? 'bg-[var(--l-ink)]' : 'bg-[var(--l-paper)]'} ${ink ? 'text-[var(--l-ink-text)]' : 'text-[var(--l-paper-text)]'} ${
         divisor ? `border-t ${ink ? 'border-[var(--l-ink-line)]' : 'border-[var(--l-paper-line)]'}` : ''
       } scroll-mt-4`}
     >
@@ -101,12 +110,23 @@ function Franja({
   );
 }
 
-function Etiqueta({ children, tono }: { children: ReactNode; tono: 'ink' | 'paper' }) {
+function Etiqueta({
+  children,
+  tono,
+  className = '',
+  style,
+}: {
+  children: ReactNode;
+  tono: 'ink' | 'paper';
+  className?: string;
+  style?: CSSProperties;
+}) {
   return (
     <p
+      style={style}
       className={`font-mono text-[11px] uppercase tracking-[0.18em] ${
         tono === 'ink' ? 'text-[var(--l-ink-soft)]' : 'text-[var(--l-paper-soft)]'
-      }`}
+      } ${className}`}
     >
       {children}
     </p>
@@ -256,7 +276,7 @@ const CAPACIDADES: { color: string; titulo: string; texto: string }[] = [
     texto: 'Qué comunica su marca, qué no y qué suena como la de todos. Cada punto, con la frase que lo demuestra.',
   },
   {
-    color: 'var(--l-blue-on-ink)',
+    color: 'var(--l-blue-pure)',
     titulo: 'Compara con su competencia',
     texto: 'Sus competidores, leídos con el mismo método en B3S Studio: posicionamiento, medias por categoría y qué promete cada uno.',
   },
@@ -287,6 +307,38 @@ const CIFRAS: { n: string; unidad: string; texto: string }[] = [
   },
 ];
 
+// ---------- el fondo del hero ----------
+
+// El bucle de B3Scan detrás del titular, al 35 %: presente sin competir con
+// el texto. Recodificado para la web: 1600 × 900, sin audio y 1,3 MB en vez de 10 (el original pesaba
+// más que toda la página). Mientras carga se ve su primer fotograma; con
+// «reducir movimiento» se queda solo el fotograma. Abajo se funde con el
+// negro de la franja siguiente para que no haya corte.
+function FondoHero() {
+  return (
+    <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/media/hero-b3scan.jpg"
+        alt=""
+        className="absolute inset-0 h-full w-full object-cover opacity-35"
+      />
+      <video
+        className="absolute inset-0 h-full w-full object-cover opacity-35 motion-reduce:hidden"
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="auto"
+        poster="/media/hero-b3scan.jpg"
+      >
+        <source src="/media/hero-b3scan.mp4" type="video/mp4" />
+      </video>
+      <div className="absolute inset-x-0 bottom-0 h-[45%] bg-gradient-to-b from-transparent via-[var(--l-ink)]/60 to-[var(--l-ink)]" />
+    </div>
+  );
+}
+
 // ---------- la página ----------
 
 const BTN =
@@ -295,18 +347,36 @@ const BTN =
 export default function LandingPage() {
   return (
     <div style={PALETA} className="min-h-screen overflow-x-clip bg-[var(--l-ink)] font-sans text-[var(--l-ink-text)]">
-      {/* El aviso de arriba, en el azul de B3S: lleva a la animática. */}
+      <noscript>
+        <style
+          dangerouslySetInnerHTML={{
+            __html: '[data-espera] .l-linea,[data-espera] .l-sube,[data-espera] .l-letra,[data-espera].l-linea,[data-espera].l-sube{animation-play-state:running!important}',
+          }}
+        />
+      </noscript>
+
+      {/* El aviso de arriba: lleva a la animática. El degradado va en el
+          orden del logo, rojo, azul, verde (el mismo de la barra de progreso
+          del scan). Así el centro, donde está el texto, es azul puro y el
+          blanco se lee; con el verde en medio no se leería. En móvil el
+          texto se acorta para no llegar a los extremos. */}
       <Link
         href="#como-funciona"
-        className="group flex items-center justify-center gap-2 bg-[var(--l-blue)] px-4 py-2 text-center text-[13px] text-white"
+        className="group flex items-center justify-center gap-2 px-4 py-2 text-center text-[13px] font-medium text-white"
+        style={{ background: 'linear-gradient(90deg, #ff0000 0%, #0000ff 50%, #00ff00 100%)' }}
       >
-        <span>Así lee una marca B3S Scanner, en dos minutos</span>
+        <span className="hidden sm:inline">Así lee una marca B3S Scanner, en dos minutos</span>
+        <span className="sm:hidden">Así lee una marca B3S Scanner</span>
         <span className="transition-transform duration-150 group-hover:translate-x-0.5" aria-hidden="true">
           →
         </span>
       </Link>
 
-      <header className="bg-[var(--l-ink)]">
+      {/* Cabecera y hero comparten fondo: el bucle de B3Scan, a pantalla
+          completa y a media opacidad. */}
+      <div className="relative isolate">
+        <FondoHero />
+      <header>
         <div className="mx-auto flex w-full max-w-[1200px] items-center justify-between border-x border-dashed border-[var(--l-ink-line)] px-6 py-4 sm:px-12">
           <span className="flex items-center gap-2 text-[var(--l-ink-text)]">
             <Logo />
@@ -332,18 +402,21 @@ export default function LandingPage() {
       </header>
 
       {/* ── Hero ── */}
-      <Franja tono="ink" className="pb-14 pt-16 sm:pb-20 sm:pt-24">
+      <Franja tono="ink" transparente className="pb-14 pt-16 sm:pb-20 sm:pt-24">
         {/* Dos tonos, como el titular de Doss: lo que se promete en claro y
             la otra mitad en gris. */}
-        <h1 className="text-[42px] font-medium leading-[1.03] tracking-[-0.035em] text-balance sm:text-[60px] lg:text-[76px]">
-          <span className="block">Inteligencia de marca</span>
-          <span className="block text-[var(--l-ink-soft)]">para ganar nuevos proyectos.</span>
+        <h1 className="[text-shadow:0_0_24px_rgba(11,13,14,0.85),0_0_2px_rgba(11,13,14,0.6)] text-[36px] font-medium leading-[1.04] tracking-[-0.035em] text-balance sm:text-[50px] lg:text-[62px]">
+          <span className="l-linea block" style={d(0)}>Inteligencia de marca</span>
+          <span className="l-linea block text-[var(--l-ink-muted)]" style={d(120)}>para ganar nuevos proyectos.</span>
         </h1>
-        <p className="mt-7 max-w-[48ch] text-[17px] leading-relaxed text-[var(--l-ink-muted)]">
-          B3S Leads detecta las marcas con las que puedes trabajar y te dice, con datos, dónde
-          puedes ayudar.
+        <p className="[text-shadow:0_0_24px_rgba(11,13,14,0.85),0_0_2px_rgba(11,13,14,0.6)] mt-7 max-w-[48ch] text-[17px] leading-relaxed text-[var(--l-ink-muted)]">
+          <Tecleo
+            texto="B3S Leads detecta las marcas con las que puedes trabajar señalando, con datos y evidencias, lo que necesitan mejorar."
+            inicio={420}
+            paso={11}
+          />
         </p>
-        <div className="mt-9 flex flex-wrap items-center gap-3">
+        <div className="l-sube mt-9 flex flex-wrap items-center gap-3" style={d(700)}>
           <Link href="/login" className={`${BTN} bg-[var(--l-ink-text)] text-[var(--l-ink)] hover:opacity-90`}>
             Empezar
           </Link>
@@ -356,14 +429,15 @@ export default function LandingPage() {
         </div>
 
         {/* La promesa, y debajo las tres formas de cumplirla. */}
-        <p className="mt-20 max-w-[30ch] text-[22px] font-medium leading-snug tracking-[-0.02em] text-balance sm:text-[28px]">
+        <p className="[text-shadow:0_0_24px_rgba(11,13,14,0.85),0_0_2px_rgba(11,13,14,0.6)] l-linea mt-20 max-w-[30ch] text-[22px] font-medium leading-snug tracking-[-0.02em] text-balance sm:text-[28px]" style={d(950)}>
           Imagina llegar a la primera reunión con las pruebas que necesita su negocio.
         </p>
-        <ul className="mt-8 grid border-t border-[var(--l-ink-line)] sm:grid-cols-3">
+        <ul className="[text-shadow:0_0_24px_rgba(11,13,14,0.85),0_0_2px_rgba(11,13,14,0.6)] l-sube mt-8 grid border-t border-[var(--l-ink-line)] sm:grid-cols-3" style={d(1050)}>
           {CAPACIDADES.map((c, i) => (
             <li
               key={c.titulo}
-              className={`pt-6 sm:pb-2 ${i > 0 ? 'mt-6 border-t border-[var(--l-ink-line)] sm:mt-0 sm:border-l sm:border-t-0 sm:pl-8' : ''} ${i < 2 ? 'sm:pr-8' : ''}`}
+              style={d(1120 + i * 90)}
+              className={`l-sube pt-6 sm:pb-2 ${i > 0 ? 'mt-6 border-t border-[var(--l-ink-line)] sm:mt-0 sm:border-l sm:border-t-0 sm:pl-8' : ''} ${i < 2 ? 'sm:pr-8' : ''}`}
             >
               <span className="block h-1 w-8" style={{ background: c.color }} aria-hidden="true" />
               <p className="mt-4 text-[17px] font-medium tracking-[-0.01em] lg:text-[18px]">{c.titulo}</p>
@@ -372,43 +446,53 @@ export default function LandingPage() {
           ))}
         </ul>
       </Franja>
+      </div>
 
       {/* ── La animática, bajo el titular ── */}
       <Franja tono="ink" id="como-funciona" divisor className="pb-24 pt-14 sm:pb-28">
+        <Revela>
         <div className="mb-8 grid gap-6 lg:grid-cols-[1fr_1fr] lg:items-end">
           <div>
-            <Etiqueta tono="ink">Cómo funciona</Etiqueta>
+            <Etiqueta tono="ink" className="l-sube" style={d(0)}>Cómo funciona</Etiqueta>
             <h2 className="mt-4 text-[32px] font-medium leading-[1.08] tracking-[-0.03em] text-balance sm:text-[44px]">
-              De la huella pública <span className="text-[var(--l-ink-soft)]">al diagnóstico.</span>
+              <span className="l-linea inline-block" style={d(60)}>De la huella pública</span>{' '}
+              <span className="l-linea inline-block text-[var(--l-ink-soft)]" style={d(170)}>al diagnóstico.</span>
             </h2>
           </div>
           <p className="max-w-[48ch] text-[15px] leading-relaxed text-[var(--l-ink-muted)]">
-            El Scanner visita la web de la marca, guarda cada página con su fecha y su huella,
-            ordena la evidencia en nueve bloques y la interpreta componente a componente. Cada punto
-            de la nota lleva a la frase que lo sostiene.
+            <Tecleo
+              texto="El Scanner visita la web de la marca, guarda cada página con su fecha y su huella, ordena la evidencia en nueve bloques y la interpreta componente a componente. Cada punto de la nota lleva a la frase que lo sostiene."
+              inicio={300}
+              paso={6}
+            />
           </p>
         </div>
 
-        <ScannerFilm />
+        <div className="l-sube" style={d(380)}>
+          <ScannerFilm />
+        </div>
 
-        <p className="mt-14 max-w-[70ch] font-mono text-[11px] leading-relaxed text-[var(--l-ink-soft)] sm:mt-16">
+        <p style={d(560)} className="l-sube mt-14 max-w-[70ch] font-mono text-[11px] leading-relaxed text-[var(--l-ink-soft)] sm:mt-16">
           Animática ilustrativa del equipo FLOC*.
           <br />
           El escenario y los estados no son un scan real; el 68/100 es un ejemplo aritmético.
         </p>
+        </Revela>
       </Franja>
 
       {/* ── El método, en cifras ── */}
       <Franja tono="paper" className="py-20 sm:py-24">
-        <Etiqueta tono="paper">El método</Etiqueta>
-        <h2 className="mt-4 max-w-[20ch] text-[32px] font-medium leading-[1.08] tracking-[-0.03em] text-balance sm:text-[44px]">
+        <Revela>
+        <Etiqueta tono="paper" className="l-sube" style={d(0)}>El método</Etiqueta>
+        <h2 className="l-linea mt-4 max-w-[20ch] text-[32px] font-medium leading-[1.08] tracking-[-0.03em] text-balance sm:text-[44px]" style={d(60)}>
           Una nota que se puede auditar
         </h2>
         <div className="mt-12 grid border-y border-[var(--l-paper-line)] sm:grid-cols-3">
           {CIFRAS.map((c, i) => (
             <div
               key={c.unidad}
-              className={`py-8 sm:px-8 sm:py-10 ${i > 0 ? 'border-t border-[var(--l-paper-line)] sm:border-l sm:border-t-0' : ''} ${i === 0 ? 'sm:pl-0' : ''}`}
+              style={d(220 + i * 90)}
+              className={`l-sube py-8 sm:px-8 sm:py-10 ${i > 0 ? 'border-t border-[var(--l-paper-line)] sm:border-l sm:border-t-0' : ''} ${i === 0 ? 'sm:pl-0' : ''}`}
             >
               <p className="text-[64px] font-medium leading-none tracking-[-0.04em] tabular-nums sm:text-[76px]">
                 {c.n}
@@ -420,19 +504,22 @@ export default function LandingPage() {
             </div>
           ))}
         </div>
+        </Revela>
       </Franja>
 
       {/* ── Los tres canales ── */}
       <Franja tono="paper" divisor className="py-20 sm:py-24">
-        <Etiqueta tono="paper">De la señal a la conversación</Etiqueta>
-        <h2 className="mt-4 max-w-[22ch] text-[32px] font-medium leading-[1.08] tracking-[-0.03em] text-balance sm:text-[44px]">
+        <Revela>
+        <Etiqueta tono="paper" className="l-sube" style={d(0)}>De la señal a la conversación</Etiqueta>
+        <h2 className="l-linea mt-4 max-w-[22ch] text-[32px] font-medium leading-[1.08] tracking-[-0.03em] text-balance sm:text-[44px]" style={d(60)}>
           Cuatro pasos, ninguno a ciegas
         </h2>
+        </Revela>
         <div className="mt-12 divide-y divide-[var(--l-paper-line)] border-y border-[var(--l-paper-line)]">
           {CANALES.map((c) => (
-            <div key={c.canal} className="grid gap-6 py-8 sm:grid-cols-[250px_1fr] sm:gap-10 sm:py-10">
-              <div className="max-w-[280px]">{c.pieza}</div>
-              <div>
+            <Revela key={c.canal} className="grid gap-6 py-8 sm:grid-cols-[250px_1fr] sm:gap-10 sm:py-10">
+              <div className="l-sube max-w-[280px]" style={d(0)}>{c.pieza}</div>
+              <div className="l-sube" style={d(90)}>
                 <p className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: c.color }}>
                   <span className="h-1.5 w-6" style={{ background: c.color }} aria-hidden="true" />
                   {c.canal}
@@ -440,7 +527,7 @@ export default function LandingPage() {
                 <h3 className="mt-3 text-[22px] font-medium leading-snug tracking-[-0.02em] sm:text-[26px]">{c.titulo}</h3>
                 <p className="mt-2 max-w-[52ch] text-[15px] leading-relaxed text-[var(--l-paper-muted)]">{c.texto}</p>
               </div>
-            </div>
+            </Revela>
           ))}
         </div>
       </Franja>
@@ -449,29 +536,41 @@ export default function LandingPage() {
           Donde Doss pone un testimonio a cuerpo grande, aquí va lo único que
           B3S Leads no negocia. No es una cita de nadie: es la regla. */}
       <Franja tono="paper" divisor className="py-24 sm:py-32">
+        <Revela>
         <blockquote>
-          <p className="max-w-[18ch] text-[40px] font-medium leading-[1.05] tracking-[-0.035em] text-balance sm:text-[60px]">
+          <p className="l-linea max-w-[18ch] text-[40px] font-medium leading-[1.05] tracking-[-0.035em] text-balance sm:text-[60px]" style={d(0)}>
             El envío es siempre humano.
           </p>
           <p className="mt-6 max-w-[52ch] text-[17px] leading-relaxed text-[var(--l-paper-muted)]">
-            Nada de automatizar LinkedIn ni de mandar ráfagas. B3S Leads prepara el contexto y el
-            borrador; la conversación la abres tú, persona a persona. Por eso responden.
+            <Tecleo
+              texto="Nada de automatizar LinkedIn ni de mandar ráfagas. B3S Leads prepara el contexto y el borrador; la conversación la abres tú, persona a persona. Por eso responden."
+              inicio={350}
+              paso={8}
+            />
           </p>
         </blockquote>
+        </Revela>
       </Franja>
 
       {/* ── Cierre ── */}
       <Franja tono="ink" className="py-24 sm:py-28">
-        <h2 className="max-w-[18ch] text-[36px] font-medium leading-[1.05] tracking-[-0.035em] text-balance sm:text-[56px]">
+        <Revela>
+        <h2 className="l-linea max-w-[18ch] text-[36px] font-medium leading-[1.05] tracking-[-0.035em] text-balance sm:text-[56px]" style={d(0)}>
           Tu próximo cliente ya tiene una marca que mejorar.
         </h2>
         <p className="mt-6 max-w-[46ch] text-[17px] leading-relaxed text-[var(--l-ink-muted)]">
-          Encuéntrala, entiende qué le falta mejor que nadie y ábrele una conversación que no pueda
-          ignorar.
+          <Tecleo
+            texto="Encuéntrala, entiende qué le falta mejor que nadie y ábrele una conversación que no pueda ignorar."
+            inicio={300}
+            paso={9}
+          />
         </p>
-        <Link href="/login" className={`${BTN} mt-9 bg-[var(--l-ink-text)] text-[var(--l-ink)] hover:opacity-90`}>
-          Entrar en B3S Leads
-        </Link>
+        <div className="l-sube mt-9" style={d(700)}>
+          <Link href="/login" className={`${BTN} bg-[var(--l-ink-text)] text-[var(--l-ink)] hover:opacity-90`}>
+            Entrar en B3S Leads
+          </Link>
+        </div>
+        </Revela>
       </Franja>
 
       <footer className="bg-[var(--l-ink)]">

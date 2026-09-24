@@ -184,3 +184,75 @@ textarea,
 li:not(.font-mono) {
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
+
+/* ---------- Landing: entradas ----------
+   Un solo lenguaje para toda la página, y muy contenido:
+   · los titulares entran por líneas: suben un poco desde un leve desenfoque;
+   · los textos que los siguen se escriben en una ola suave: cada letra se
+     funde en 160 ms en vez de aparecer de golpe (una máquina de escribir sin
+     el golpe de la máquina);
+   · el resto sube 12 px y se aclara.
+   Todo con transform, opacity y un desenfoque mínimo, en CSS (corre fuera
+   del hilo principal) y con una curva de salida fuerte: arranca rápido y se
+   posa. El retardo de cada pieza va en --d.
+
+   Lo que está por debajo de la pantalla espera en pausa ([data-espera]) y
+   arranca al entrar; lo decide app/entradas.tsx. */
+@keyframes l-linea {
+  from {
+    opacity: 0;
+    transform: translateY(0.42em);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+@keyframes l-sube {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes l-letra {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.l-linea {
+  animation: l-linea 900ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation-delay: var(--d, 0ms);
+}
+.l-sube {
+  animation: l-sube 800ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation-delay: var(--d, 0ms);
+}
+.l-letra {
+  animation: l-letra 160ms ease-out both;
+  animation-delay: var(--d, 0ms);
+}
+/* En pausa hasta que se vea. La pausa congela también el retardo, así que
+   el escalonado se respeta cuando arranca. */
+[data-espera] .l-linea,
+[data-espera] .l-sube,
+[data-espera] .l-letra,
+[data-espera].l-linea,
+[data-espera].l-sube {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .l-linea,
+  .l-sube,
+  .l-letra {
+    animation: none !important;
+  }
+}

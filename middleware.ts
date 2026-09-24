@@ -120,6 +120,8 @@ export const config = {
   // Todo menos estáticos e imágenes, y la carpeta /scanner, que guarda la
   // animática del Scanner que se ve en la landing pública: sin esto un
   // visitante anónimo recibía el login dentro del hueco de la película. Es
-  // una carpeta de archivos estáticos, sin rutas de la app detrás.
-  matcher: ['/((?!_next/static|_next/image|scanner/|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)'],
+  // una carpeta de archivos estáticos, sin rutas de la app detrás. Igual
+  // /media, con el vídeo de fondo de la landing (un .mp4 no es imagen y
+  // también acababa en el login).
+  matcher: ['/((?!_next/static|_next/image|scanner/|media/|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)'],
 };
