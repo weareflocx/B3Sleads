@@ -436,7 +436,7 @@ export default async function MarcaCorpusPage({ params }: Props) {
                   <NotaMarca
                     cliente={cliente}
                     marca={dom}
-                    inicial={ficha?.note ?? grupo.notas?.[dom] ?? null}
+                    inicial={ficha?.note ?? null}
                     className="mt-1"
                   />
                   <p className="mt-2 font-mono text-[10px] text-[var(--soft)]">

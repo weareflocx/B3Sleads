@@ -260,7 +260,10 @@ export function GrupoEstudio({
       ...base,
       oculta: (grupo?.ocultas ?? []).includes(d),
       descartada: f.priority === 'out',
-      nota: f.note ?? grupo?.notas?.[d] ?? null,
+      // Solo la ficha. La copia vieja dentro de la composición ya está
+      // entera en la ficha (comprobado el 24/09: ninguna nota vive solo ahí),
+      // y leerla de reserva hacía que una nota borrada reapareciera.
+      nota: f.note ?? null,
       resumen,
       verificacion: f.verification ?? base.verificacionAuto,
     };

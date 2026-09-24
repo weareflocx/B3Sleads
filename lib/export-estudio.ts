@@ -181,7 +181,7 @@ export function csvDelEstudio({
           f?.role ? ROL_LABEL[f.role] : '',
           f?.layer ? CAPA_LABEL[f.layer] : '',
           f?.priority ? PRIORIDAD_LABEL[f.priority] : '',
-          f?.note ?? g.notas?.[d] ?? '',
+          f?.note ?? '',
           VERIFICACION_LABEL[
             verificacionDe(f, {
               conScanPublicable: scan != null,
