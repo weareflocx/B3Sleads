@@ -5,6 +5,12 @@ import { ScannerFilm } from './scanner-film';
 
 // Landing pública de B3S Leads.
 //
+// Para quién: la persona que dirige una agencia de marketing, branding o
+// publicidad, o lleva sus cuentas, y quiere conseguir los proyectos que le
+// apetece hacer. B3S Leads no es un radar de startups: es inteligencia de
+// marca basada en datos. Detecta marcas con las que trabajar, lee qué les
+// falta y las compara con su competencia en B3S Studio.
+//
 // Inspirada en la estructura de doss.com, no en su marca: hero oscuro con el
 // producto justo debajo del titular, una rejilla de arquitecto con las guías
 // a la vista, filas de funcionalidad con una pieza pequeña de interfaz y
@@ -18,9 +24,9 @@ import { ScannerFilm } from './scanner-film';
 // propósito, y el gris claro es el mismo de la película para que su franja
 // empalme sin costura.
 export const metadata = {
-  title: 'B3S Leads — generación de leads de valor',
+  title: 'B3S Leads · Inteligencia de marca para agencias',
   description:
-    'Detecta startups con momentum, lee su marca con B3S Scanner y abre conversaciones que responden. El envío es siempre humano.',
+    'Detecta marcas con las que trabajar, lee qué les falta y compáralas con su competencia. El envío es siempre humano.',
 };
 
 const PALETA = {
@@ -31,6 +37,8 @@ const PALETA = {
   '--l-ink-muted': '#9b968c',
   '--l-ink-soft': '#6c6862',
   '--l-blue-on-ink': '#5b6cff',
+  '--l-red-on-ink': '#ff4d4d',
+  '--l-green-on-ink': '#00d554',
   '--l-paper': '#eeeeee',
   '--l-paper-2': '#f6f6f5',
   '--l-paper-line': '#d6d6d2',
@@ -114,8 +122,8 @@ function PiezaSenal() {
   return (
     <div className="space-y-1.5">
       {[
-        { tipo: 'Ronda', texto: 'Serie A · 5 M€', cuando: 'hace 2 d' },
-        { tipo: 'Lanzamiento', texto: 'Web nueva', cuando: 'hace 6 d' },
+        { tipo: 'Rebranding', texto: 'Nombre nuevo', cuando: 'hace 2 d' },
+        { tipo: 'Web nueva', texto: 'Relanzada', cuando: 'hace 6 d' },
       ].map((s) => (
         <div
           key={s.tipo}
@@ -177,30 +185,83 @@ function PiezaConversacion() {
   );
 }
 
+// Una categoría en un mapa: la marca que interesa, con su anillo, entre sus
+// competidores. Es la forma de B3S Studio, sin datos de nadie.
+function PiezaStudio() {
+  const puntos: [number, number][] = [
+    [22, 30], [38, 62], [55, 24], [68, 70], [80, 42], [30, 78], [62, 48],
+  ];
+  return (
+    <div className="border border-[var(--l-paper-line)] bg-[var(--l-paper-2)] p-2.5">
+      <svg viewBox="0 0 100 60" className="block w-full" aria-hidden="true">
+        <line x1="50" y1="4" x2="50" y2="56" stroke="var(--l-paper-line)" strokeWidth="0.6" />
+        <line x1="4" y1="30" x2="96" y2="30" stroke="var(--l-paper-line)" strokeWidth="0.6" />
+        {puntos.map(([x, y], i) => (
+          <circle key={i} cx={x} cy={y * 0.6 + 2} r="2.4" fill="var(--l-paper-soft)" />
+        ))}
+        <circle cx="44" cy="16" r="3" fill="var(--l-blue)" />
+        <circle cx="44" cy="16" r="5.6" fill="none" stroke="var(--l-blue)" strokeWidth="0.7" />
+      </svg>
+      <p className="mt-1.5 flex justify-between font-mono text-[9px] uppercase tracking-wider text-[var(--l-paper-soft)]">
+        <span>funcional</span>
+        <span>emocional</span>
+      </p>
+    </div>
+  );
+}
+
 const CANALES: { color: string; canal: string; titulo: string; texto: string; pieza: ReactNode }[] = [
   {
     color: 'var(--l-red)',
     canal: 'Señal',
-    titulo: 'Startups con momentum, cada noche',
+    titulo: 'Marcas en movimiento',
     texto:
-      'Rondas, lanzamientos y equipos que crecen. El lead llega con la razón para hablar ahora, nunca en frío.',
+      'Rebrandings, cambios de nombre, webs nuevas, lanzamientos, rondas, expansión a otros mercados. Cada marca llega con una razón para hablar ahora.',
     pieza: <PiezaSenal />,
   },
   {
     color: 'var(--l-green)',
-    canal: 'Análisis',
-    titulo: 'Su marca, leída componente a componente',
+    canal: 'Diagnóstico',
+    titulo: 'Qué le falta a cada marca',
     texto:
-      'El Scanner encuentra lo que la marca dice y lo que calla. De ahí sale un ángulo que solo sirve para esa startup.',
+      'El Scanner lee la marca componente a componente: lo que dice, lo que dice igual que todos y lo que no dice. Cada hueco, con su prueba.',
     pieza: <PiezaAnalisis />,
   },
   {
     color: 'var(--l-blue)',
+    canal: 'B3S Studio',
+    titulo: 'Su categoría, en una sola vista',
+    texto:
+      'Pones la marca junto a sus competidores y los lees con el mismo método: mapas de posicionamiento, medias por dimensión, el vocabulario que comparten y quién promete lo que nadie demuestra.',
+    pieza: <PiezaStudio />,
+  },
+  {
+    color: 'var(--l-paper-text)',
     canal: 'Conversación',
     titulo: 'Un borrador, no un envío',
     texto:
-      'Argumentario, mensaje y brief de llamada por founder. Lo copias, lo ajustas y lo mandas tú desde LinkedIn.',
+      'Argumentario, mensaje y brief de llamada para cada marca. Lo copias, lo ajustas y lo mandas tú.',
     pieza: <PiezaConversacion />,
+  },
+];
+
+// Lo que la web tiene que enseñar nada más entrar: las tres cosas que una
+// agencia no puede hacer a mano con cada marca que le interesa.
+const CAPACIDADES: { color: string; titulo: string; texto: string }[] = [
+  {
+    color: 'var(--l-red-on-ink)',
+    titulo: 'Qué le falta',
+    texto: 'Los componentes de marca que no aparecen o suenan como los de todos, con la frase que lo demuestra.',
+  },
+  {
+    color: 'var(--l-green-on-ink)',
+    titulo: 'Contra quién compite',
+    texto: 'Sus competidores, leídos con el mismo método y en la misma escala.',
+  },
+  {
+    color: 'var(--l-blue-on-ink)',
+    titulo: 'Benchmark en B3S Studio',
+    texto: 'Mapas de posicionamiento, medias por categoría y qué promete cada marca.',
   },
 ];
 
@@ -272,13 +333,13 @@ export default function LandingPage() {
       <Franja tono="ink" className="pb-14 pt-16 sm:pb-20 sm:pt-24">
         {/* Dos tonos, como el titular de Doss: lo que se promete en claro y
             la otra mitad en gris. */}
-        <h1 className="text-[44px] font-medium leading-[1.02] tracking-[-0.035em] sm:text-[68px] lg:text-[80px]">
-          <span className="block">Atrae founders.</span>
-          <span className="block text-[var(--l-ink-soft)]">No los persigas.</span>
+        <h1 className="text-[42px] font-medium leading-[1.03] tracking-[-0.035em] text-balance sm:text-[60px] lg:text-[76px]">
+          <span className="block">Inteligencia de marca</span>
+          <span className="block text-[var(--l-ink-soft)]">para ganar los proyectos que quieres hacer.</span>
         </h1>
-        <p className="mt-7 max-w-[46ch] text-[17px] leading-relaxed text-[var(--l-ink-muted)]">
-          Detectamos startups con momentum, leemos su marca con B3S Scanner y te damos el ángulo
-          exacto para abrir la conversación. El envío lo haces tú.
+        <p className="mt-7 max-w-[48ch] text-[17px] leading-relaxed text-[var(--l-ink-muted)]">
+          B3S Leads detecta marcas con las que puedes trabajar, lee qué les falta y las compara con
+          su competencia. Llegas a la primera conversación sabiendo dónde puedes ayudar.
         </p>
         <div className="mt-9 flex flex-wrap items-center gap-3">
           <Link href="/login" className={`${BTN} bg-[var(--l-ink-text)] text-[var(--l-ink)] hover:opacity-90`}>
@@ -291,6 +352,19 @@ export default function LandingPage() {
             Ver cómo funciona ↓
           </Link>
         </div>
+
+        <ul className="mt-16 grid border-t border-[var(--l-ink-line)] sm:grid-cols-3">
+          {CAPACIDADES.map((c, i) => (
+            <li
+              key={c.titulo}
+              className={`pt-6 sm:pr-8 ${i > 0 ? 'mt-6 border-t border-[var(--l-ink-line)] sm:mt-0 sm:border-l sm:border-t-0 sm:pl-8' : ''}`}
+            >
+              <span className="block h-1 w-8" style={{ background: c.color }} aria-hidden="true" />
+              <p className="mt-4 text-[17px] font-medium tracking-[-0.01em]">{c.titulo}</p>
+              <p className="mt-1.5 max-w-[34ch] text-sm leading-relaxed text-[var(--l-ink-muted)]">{c.texto}</p>
+            </li>
+          ))}
+        </ul>
       </Franja>
 
       {/* ── La animática, bajo el titular ── */}
@@ -299,7 +373,7 @@ export default function LandingPage() {
           <div>
             <Etiqueta tono="ink">Cómo funciona</Etiqueta>
             <h2 className="mt-4 text-[32px] font-medium leading-[1.08] tracking-[-0.03em] text-balance sm:text-[44px]">
-              Del dominio al informe, sin caja negra
+              De la huella pública <span className="text-[var(--l-ink-soft)]">al diagnóstico.</span>
             </h2>
           </div>
           <p className="max-w-[48ch] text-[15px] leading-relaxed text-[var(--l-ink-muted)]">
@@ -312,8 +386,9 @@ export default function LandingPage() {
         <ScannerFilm />
 
         <p className="mt-14 max-w-[70ch] font-mono text-[11px] leading-relaxed text-[var(--l-ink-soft)] sm:mt-16">
-          Animática ilustrativa del equipo de Brand3. El escenario y los estados no son un scan
-          real; el 68/100 es un ejemplo aritmético. Sin sonido.
+          Animática ilustrativa del equipo FLOC*.
+          <br />
+          El escenario y los estados no son un scan real; el 68/100 es un ejemplo aritmético.
         </p>
       </Franja>
 
@@ -345,7 +420,7 @@ export default function LandingPage() {
       <Franja tono="paper" divisor className="py-20 sm:py-24">
         <Etiqueta tono="paper">De la señal a la conversación</Etiqueta>
         <h2 className="mt-4 max-w-[22ch] text-[32px] font-medium leading-[1.08] tracking-[-0.03em] text-balance sm:text-[44px]">
-          Tres canales, un lead con contexto
+          Llega sabiendo dónde puedes ayudar
         </h2>
         <div className="mt-12 divide-y divide-[var(--l-paper-line)] border-y border-[var(--l-paper-line)]">
           {CANALES.map((c) => (
@@ -374,7 +449,7 @@ export default function LandingPage() {
           </p>
           <p className="mt-6 max-w-[52ch] text-[17px] leading-relaxed text-[var(--l-paper-muted)]">
             Nada de automatizar LinkedIn ni de mandar ráfagas. B3S Leads prepara el contexto y el
-            borrador; la conversación la abres tú, founder a founder. Por eso responden.
+            borrador; la conversación la abres tú, persona a persona. Por eso responden.
           </p>
         </blockquote>
       </Franja>
@@ -382,10 +457,11 @@ export default function LandingPage() {
       {/* ── Cierre ── */}
       <Franja tono="ink" className="py-24 sm:py-28">
         <h2 className="max-w-[18ch] text-[36px] font-medium leading-[1.05] tracking-[-0.035em] text-balance sm:text-[56px]">
-          Tu próximo cliente ya levantó ronda.
+          Tu próximo cliente ya tiene una marca que mejorar.
         </h2>
         <p className="mt-6 max-w-[46ch] text-[17px] leading-relaxed text-[var(--l-ink-muted)]">
-          Encuéntralo, entiende su marca mejor que él y ábrele una conversación que no pueda ignorar.
+          Encuéntrala, entiende qué le falta mejor que nadie y ábrele una conversación que no pueda
+          ignorar.
         </p>
         <Link href="/login" className={`${BTN} mt-9 bg-[var(--l-ink-text)] text-[var(--l-ink)] hover:opacity-90`}>
           Entrar en B3S Leads
