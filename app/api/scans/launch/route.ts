@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { absoluteB3SUrl, apiConfigured, createScan, storedScanStatus } from '@/lib/brand3';
-import { syncStoredScan } from '@/lib/b3s-scan-storage';
+import { scanEnMarcha, syncStoredScan } from '@/lib/b3s-scan-storage';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import type { Company, Scan } from '@/lib/types';
 
@@ -43,17 +43,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Compañía no encontrada' }, { status: 404 });
     }
 
-    // No lanzar dos trabajos simultáneos para la misma marca.
-    const { data: activeScan } = await db
-      .from('scans')
-      .select('*')
-      .eq('company_id', companyId)
-      .in('status', ['queued', 'running', 'blocked'])
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // No lanzar dos trabajos simultáneos para la misma marca. Los colgados
+    // (horas "en marcha") se rescatan antes: si el Scanner ya los terminó,
+    // su resultado sirve y no hace falta gastar otro scan.
+    const { activo: activeScan, rescatados } = await scanEnMarcha(db, companyId);
     if (activeScan) {
       return NextResponse.json({ ok: true, deduped: true, scan: activeScan });
+    }
+    const conNota = rescatados.find((s) => s.status === 'ready' && s.score != null);
+    if (conNota) {
+      if (leadId) {
+        await db
+          .from('leads')
+          .update({ scan_id: conNota.id, updated_at: new Date().toISOString() })
+          .eq('id', leadId)
+          .eq('company_id', companyId);
+      }
+      return NextResponse.json({ ok: true, rescued: true, scan: conNota });
     }
 
     const idempotencyKey = req.headers.get('idempotency-key')?.trim() || undefined;

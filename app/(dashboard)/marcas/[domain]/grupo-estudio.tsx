@@ -78,6 +78,11 @@ interface AccionesFila {
   ocultar: (d: string, si: boolean) => void;
   moverA: (d: string, destino: string) => void;
   quitar: (d: string) => void;
+  // Lanzar (o rescatar) el scan de una marca sin lectura. Antes estas filas
+  // decían "sin scan" y no ofrecían nada: había que ir a la ficha, y allí el
+  // botón chocaba con el scan colgado.
+  escanear: (d: string) => void;
+  lanzando: string | null;
 }
 
 function Fila({
@@ -97,7 +102,7 @@ function Fila({
   otros: Grupo[];
   acciones: AccionesFila;
 }) {
-  const { mover, ocultar, moverA, quitar } = acciones;
+  const { mover, ocultar, moverA, quitar, escanear, lanzando } = acciones;
   const i = lista.indexOf(m);
   return (
     <li className={`group flex items-start gap-3 px-4 py-2.5 ${m.oculta || m.descartada ? 'opacity-60' : ''}`}>
@@ -134,7 +139,17 @@ function Fila({
                 <ScanProgress value={progreso[m.domain] ?? 8} label={null} />
               </span>
             ) : (
-              <span className="font-mono text-[11px] text-[var(--soft)]">{ESTADO[m.estado]}</span>
+              <>
+                <span className="font-mono text-[11px] text-[var(--soft)]">{ESTADO[m.estado]}</span>
+                <button
+                  onClick={() => escanear(m.domain)}
+                  disabled={lanzando !== null}
+                  className={`${MINI} border-[var(--cta)]/50 text-[var(--cta)]`}
+                  title={m.estado === 'retenido' ? 'Otra pasada del Scanner' : 'Lanzar el scan de esta marca'}
+                >
+                  {lanzando === m.domain ? 'lanzando…' : m.estado === 'retenido' ? 'reescanear' : 'escanear'}
+                </button>
+              </>
             )}
           </span>
         </div>
@@ -391,7 +406,30 @@ export function GrupoEstudio({
   const visibles = marcas.filter((m) => !m.oculta && !m.descartada);
   const ocultas = marcas.filter((m) => m.oculta || m.descartada);
   const otros = grupos.filter((g) => g.nombre !== nombre);
-  const acciones: AccionesFila = { mover, ocultar, moverA, quitar };
+  // El scan va por la misma ruta que el alta: idempotente, rescata los
+  // colgados y solo lanza si hace falta. Al volver, la fila ya viene como
+  // "escaneando" y el sondeo de arriba la rellena al terminar.
+  const [lanzando, setLanzando] = useState<string | null>(null);
+  const escanear = async (d: string) => {
+    setLanzando(d);
+    setAviso(null);
+    try {
+      const r = await fetch('/api/estudio/marca', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain: d }),
+      });
+      const j = (await r.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!r.ok || !j.ok) throw new Error(j.error || `Error ${r.status}`);
+      router.refresh();
+    } catch (e) {
+      setAviso(`${d}: ${e instanceof Error ? e.message : 'no se pudo lanzar el scan.'}`);
+    } finally {
+      setLanzando(null);
+    }
+  };
+
+  const acciones: AccionesFila = { mover, ocultar, moverA, quitar, escanear, lanzando };
 
   return (
     <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)]">

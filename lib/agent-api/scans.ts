@@ -1,5 +1,5 @@
 import { absoluteB3SUrl, apiConfigured, createScan, storedScanStatus } from '@/lib/brand3';
-import { syncStoredScan } from '@/lib/b3s-scan-storage';
+import { scanEnMarcha, syncStoredScan } from '@/lib/b3s-scan-storage';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import type { Company, Scan } from '@/lib/types';
 import { agentRequestHash } from './auth';
@@ -144,19 +144,14 @@ export async function launchAgentScan(options: {
     throw new AgentApiError(404, 'company_not_found', 'Compañía no encontrada.');
   }
 
-  const { data: activeScan, error: activeError } = await db
-    .from('scans')
-    .select('*')
-    .eq('company_id', options.companyId)
-    .in('status', ['queued', 'running', 'blocked'])
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (activeError) {
+  let activeScan: Scan | null;
+  try {
+    ({ activo: activeScan } = await scanEnMarcha(db, options.companyId));
+  } catch {
     throw new AgentApiError(500, 'scan_lookup_failed', 'No se pudo comprobar el scan activo.');
   }
   if (activeScan) {
-    const scan = activeScan as Scan;
+    const scan = activeScan;
     await linkLead(options.companyId, options.leadId, scan.id);
     return { scan, deduped: true, reason: 'active_scan' };
   }

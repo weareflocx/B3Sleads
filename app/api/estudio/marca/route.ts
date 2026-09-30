@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { absoluteB3SUrl, apiConfigured, B3SApiError, createScan, storedScanStatus } from '@/lib/brand3';
-import { syncStoredScan } from '@/lib/b3s-scan-storage';
+import { scanEnMarcha, syncStoredScan } from '@/lib/b3s-scan-storage';
 import { normalizarDominio } from '@/lib/eclipse';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import type { Scan } from '@/lib/types';
@@ -29,15 +29,21 @@ export async function POST(req: NextRequest) {
     // huérfana sin scan ni lead.
     const { data: existente } = await db.from('companies').select('*').eq('domain', domain).maybeSingle();
     if (existente) {
+      // Los colgados se rescatan antes de mirar: un scan "en marcha" desde
+      // hace días bloqueaba el botón para siempre.
+      const { activo } = await scanEnMarcha(db, existente.id);
+      if (activo) return NextResponse.json({ ok: true, domain, estado: 'escaneando', scanId: activo.id });
       const { data: scans } = await db
         .from('scans')
-        .select('*')
+        .select('id, status, score, created_at')
         .eq('company_id', existente.id)
         .order('created_at', { ascending: false });
-      const activo = (scans ?? []).find((s) => ['queued', 'running', 'blocked'].includes(s.status));
-      if (activo) return NextResponse.json({ ok: true, domain, estado: 'escaneando', scanId: activo.id });
-      const listo = (scans ?? []).find((s) => s.status === 'ready' && s.score != null);
-      if (listo) return NextResponse.json({ ok: true, domain, estado: 'listo', scanId: listo.id });
+      // Solo cuenta como "ya está" la ÚLTIMA pasada con nota. Si la última es
+      // una retenida o una fallida, quien pulsa quiere otra lectura.
+      const ultimo = (scans ?? [])[0];
+      if (ultimo && ultimo.status === 'ready' && ultimo.score != null) {
+        return NextResponse.json({ ok: true, domain, estado: 'listo', scanId: ultimo.id });
+      }
     }
 
     if (!apiConfigured()) {
