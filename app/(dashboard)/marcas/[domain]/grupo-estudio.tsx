@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { Grupo } from '@/lib/benchmark';
+import { colocaMarca } from '@/lib/composicion';
 import { CompanyLogo } from '../../company-logo';
 import { ScoreRing } from '../../score-ring';
 import { ScanProgress } from '../../scan-progress';
@@ -85,6 +86,21 @@ interface AccionesFila {
   lanzando: string | null;
 }
 
+// El arrastre en curso, compartido entre todos los grupos de la página: el
+// navegador no deja leer los datos del arrastre hasta soltar, y el grupo de
+// destino necesita saber qué marca le llega para pintar dónde caería.
+let enVuelo: { d: string; desde: string } | null = null;
+
+interface ArrastreFila {
+  // Dónde caería si se suelta ahora: antes o después de esta fila.
+  marca: 'antes' | 'despues' | null;
+  enVuelo: boolean;
+  empieza: (e: React.DragEvent<HTMLLIElement>, d: string) => void;
+  termina: () => void;
+  sobre: (e: React.DragEvent<HTMLLIElement>, d: string) => void;
+  suelta: (e: React.DragEvent) => void;
+}
+
 function Fila({
   m,
   lista,
@@ -93,7 +109,9 @@ function Fila({
   progreso,
   otros,
   acciones,
+  arrastre,
 }: {
+  arrastre: ArrastreFila | null;
   m: MarcaEnGrupo;
   lista: MarcaEnGrupo[];
   hrefBase: string;
@@ -103,9 +121,60 @@ function Fila({
   acciones: AccionesFila;
 }) {
   const { mover, ocultar, moverA, quitar, escanear, lanzando } = acciones;
-  const i = lista.indexOf(m);
+  // Solo se arrastra desde el asa: la fila entera arrastrable robaba la
+  // selección de texto y el clic de la nota.
+  const [agarrada, setAgarrada] = useState(false);
   return (
-    <li className={`group flex items-start gap-3 px-4 py-2.5 ${m.oculta || m.descartada ? 'opacity-60' : ''}`}>
+    <li
+      draggable={agarrada && !!arrastre}
+      onDragStart={(e) => arrastre?.empieza(e, m.domain)}
+      onDragEnd={() => {
+        setAgarrada(false);
+        arrastre?.termina();
+      }}
+      onDragOver={(e) => arrastre?.sobre(e, m.domain)}
+      onDrop={(e) => arrastre?.suelta(e)}
+      className={`group relative flex items-start gap-3 px-4 py-2.5 transition-opacity duration-150 ${
+        m.oculta || m.descartada ? 'opacity-60' : ''
+      } ${arrastre?.enVuelo ? 'opacity-35' : ''}`}
+    >
+      {/* Dónde caería: una línea entre filas, no un hueco que empuje. */}
+      {arrastre?.marca && (
+        <span
+          aria-hidden="true"
+          className={`pointer-events-none absolute inset-x-3 z-10 h-0.5 rounded-full bg-[var(--cta)] ${
+            arrastre.marca === 'antes' ? '-top-px' : '-bottom-px'
+          }`}
+        />
+      )}
+      {arrastre ? (
+        <button
+          type="button"
+          onPointerDown={() => setAgarrada(true)}
+          onPointerUp={() => setAgarrada(false)}
+          onKeyDown={(e) => {
+            // Sin ratón, las flechas hacen lo que hacía el ↑↓.
+            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+              e.preventDefault();
+              mover(m.domain, e.key === 'ArrowUp' ? -1 : 1);
+            }
+          }}
+          aria-label={`Arrastrar ${m.name} para ordenarla (o flechas arriba y abajo)`}
+          title="Arrastra para ordenar o llévala a otro grupo"
+          className="-ml-2 mt-1.5 flex h-6 w-4 shrink-0 cursor-grab items-center justify-center rounded text-[var(--soft)] opacity-40 transition-opacity hover:text-[var(--text)] hover:opacity-100 focus-visible:opacity-100 active:cursor-grabbing group-hover:opacity-100"
+        >
+          <svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor" aria-hidden="true">
+            {[1, 7, 13].map((y) => (
+              <g key={y}>
+                <circle cx="1.5" cy={y} r="1.3" />
+                <circle cx="6.5" cy={y} r="1.3" />
+              </g>
+            ))}
+          </svg>
+        </button>
+      ) : (
+        <span className="-ml-2 w-4 shrink-0" aria-hidden="true" />
+      )}
       <Link
         href={`${hrefBase}/${m.domain}`}
         className="mt-0.5 shrink-0"
@@ -167,21 +236,6 @@ function Fila({
         {/* Los mandos, en su propia línea y discretos: aparecen al pasar
             por la fila. Son gestos de montaje, no de lectura. */}
         <div className="mt-1.5 flex flex-wrap items-center gap-1 transition-opacity md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100">
-          {!m.oculta && (
-            <>
-              <button onClick={() => mover(m.domain, -1)} disabled={i <= 0} className={MINI} title="Subir">
-                ↑
-              </button>
-              <button
-                onClick={() => mover(m.domain, 1)}
-                disabled={i >= lista.length - 1}
-                className={MINI}
-                title="Bajar"
-              >
-                ↓
-              </button>
-            </>
-          )}
           {m.descartada ? (
             <span
               title="Prioridad «Fuera». Se cambia en la rejilla de clasificación."
@@ -431,8 +485,85 @@ export function GrupoEstudio({
 
   const acciones: AccionesFila = { mover, ocultar, moverA, quitar, escanear, lanzando };
 
+  // ---- Arrastrar para ordenar (y para cambiar de grupo) ----
+  // Dónde caería lo que se arrastra en ESTE grupo: antes de `antesDe` (null =
+  // al final), pintado junto a la fila `junto`.
+  const [destino, setDestino] = useState<{
+    antesDe: string | null;
+    junto: string | null;
+    lado: 'antes' | 'despues';
+  } | null>(null);
+  const [volando, setVolando] = useState<string | null>(null);
+  const seccion = useRef<HTMLElement | null>(null);
+
+  // Soltarla donde ya está no mueve nada: no se promete con una línea.
+  const esSuSitio = (antesDe: string | null) => {
+    if (!enVuelo || enVuelo.desde !== nombre) return false;
+    const i = visibles.findIndex((m) => m.domain === enVuelo!.d);
+    return antesDe === enVuelo.d || antesDe === (visibles[i + 1]?.domain ?? null);
+  };
+  const apunta = (antesDe: string | null, junto: string | null, lado: 'antes' | 'despues') => {
+    if (esSuSitio(antesDe)) return setDestino(null);
+    setDestino((p) => (p && p.antesDe === antesDe && p.junto === junto && p.lado === lado ? p : { antesDe, junto, lado }));
+  };
+  const empieza = (e: React.DragEvent<HTMLLIElement>, d: string) => {
+    enVuelo = { d, desde: nombre };
+    setVolando(d);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', d); // Firefox no arrastra sin datos
+    e.dataTransfer.setDragImage(e.currentTarget, 28, 24);
+  };
+  const termina = () => {
+    enVuelo = null;
+    setVolando(null);
+    setDestino(null);
+  };
+  const sobre = (e: React.DragEvent<HTMLLIElement>, d: string) => {
+    if (!enVuelo) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    const r = e.currentTarget.getBoundingClientRect();
+    const arriba = e.clientY < r.top + r.height / 2;
+    const i = visibles.findIndex((m) => m.domain === d);
+    apunta(arriba ? d : (visibles[i + 1]?.domain ?? null), d, arriba ? 'antes' : 'despues');
+  };
+  const suelta = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const v = enVuelo;
+    const donde = destino;
+    termina();
+    if (!v || !donde) return;
+    editarEstudio((gs) => colocaMarca(gs, v.d, nombre, donde.antesDe));
+  };
+  const filaArrastre = (m: MarcaEnGrupo): ArrastreFila => ({
+    marca: destino?.junto === m.domain ? destino.lado : null,
+    enVuelo: volando === m.domain,
+    empieza,
+    termina,
+    sobre,
+    suelta,
+  });
+
   return (
-    <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+    <section
+      ref={seccion}
+      // Por debajo de la última fila (o en un grupo vacío) cae al final.
+      onDragOver={(e) => {
+        if (!enVuelo) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        apunta(null, visibles[visibles.length - 1]?.domain ?? null, 'despues');
+      }}
+      onDragLeave={(e) => {
+        if (!seccion.current?.contains(e.relatedTarget as Node | null)) setDestino(null);
+      }}
+      onDrop={suelta}
+      className={`rounded-lg border bg-[var(--surface)] transition-colors duration-150 ${
+        destino && !visibles.length ? 'border-[var(--cta)]' : 'border-[var(--border)]'
+      }`}
+    >
       <header className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-2.5">
         <h3 className="text-sm font-semibold">
           {nombre}
@@ -452,7 +583,7 @@ export function GrupoEstudio({
       {visibles.length > 0 && (
         <ul className="divide-y divide-[var(--border)]">
           {visibles.map((m) => (
-            <Fila key={m.domain} m={m} lista={visibles} hrefBase={hrefBase} cliente={cliente} progreso={progreso} otros={otros} acciones={acciones} />
+            <Fila key={m.domain} m={m} lista={visibles} hrefBase={hrefBase} cliente={cliente} progreso={progreso} otros={otros} acciones={acciones} arrastre={filaArrastre(m)} />
           ))}
         </ul>
       )}
@@ -479,7 +610,7 @@ export function GrupoEstudio({
           {verOcultas && (
             <ul className="divide-y divide-[var(--border)] border-t border-dashed border-[var(--border)]">
               {ocultas.map((m) => (
-                <Fila key={m.domain} m={m} lista={ocultas} hrefBase={hrefBase} cliente={cliente} progreso={progreso} otros={otros} acciones={acciones} />
+                <Fila key={m.domain} m={m} lista={ocultas} hrefBase={hrefBase} cliente={cliente} progreso={progreso} otros={otros} acciones={acciones} arrastre={null} />
               ))}
             </ul>
           )}

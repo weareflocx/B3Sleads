@@ -106,3 +106,64 @@ test('el enlace viejo de Victor no trae nada que falte', () => {
   const conNueva = [g('Nacional', ['mendesaltaren.com', 'nueva.com'])];
   assert.deepEqual(faltanEnElEstudio(conNueva, guardado), [{ grupo: 'Nacional', dominio: 'nueva.com' }]);
 });
+
+// ---------- Arrastrar para ordenar ----------
+import { colocaMarca } from '../lib/composicion';
+
+const tres: Grupo[] = [
+  { nombre: 'Nacional', dominios: ['a.com', 'b.com', 'c.com'], ocultas: ['c.com'] },
+  { nombre: 'Internacional', dominios: ['x.com', 'y.com'] },
+];
+
+test('arrastrar dentro del grupo coloca la marca antes de la que se suelta', () => {
+  const r = colocaMarca(tres, 'b.com', 'Nacional', 'a.com');
+  assert.deepEqual(r[0].dominios, ['b.com', 'a.com', 'c.com']);
+  assert.deepEqual(r[0].ocultas, ['c.com']);
+  assert.equal(r[1], tres[1], 'el otro grupo no se toca');
+});
+
+test('soltar al final la deja la última', () => {
+  const r = colocaMarca(tres, 'a.com', 'Nacional', null);
+  assert.deepEqual(r[0].dominios, ['b.com', 'c.com', 'a.com']);
+});
+
+test('llevarla a otro grupo la saca del suyo y entra visible', () => {
+  const r = colocaMarca(tres, 'c.com', 'Internacional', 'y.com');
+  assert.deepEqual(r[0].dominios, ['a.com', 'b.com']);
+  assert.equal(r[0].ocultas, undefined);
+  assert.deepEqual(r[1].dominios, ['x.com', 'c.com', 'y.com']);
+  assert.equal(r[1].ocultas, undefined);
+});
+
+test('soltarla sobre sí misma o en un grupo que no existe no cambia nada', () => {
+  assert.equal(colocaMarca(tres, 'a.com', 'Nacional', 'a.com'), tres);
+  assert.equal(colocaMarca(tres, 'a.com', 'Fantasma', null), tres);
+});
+
+test('una oculta reordenada dentro de su grupo sigue oculta', () => {
+  const r = colocaMarca(tres, 'c.com', 'Nacional', 'a.com');
+  assert.deepEqual(r[0].dominios, ['c.com', 'a.com', 'b.com']);
+  assert.deepEqual(r[0].ocultas, ['c.com']);
+});
+
+test('arrastrada a otro grupo, la marca se guarda donde se soltó (no al final)', () => {
+  const base: Grupo[] = [
+    { nombre: 'Italia', dominios: ['themost.it', 'brand.unithink.it', 'saglietti.it'] },
+    { nombre: 'Internacional', dominios: ['ramotion.com', 'pentagram.com'] },
+  ];
+  const nuestra = colocaMarca(base, 'brand.unithink.it', 'Internacional', 'pentagram.com');
+  const r = fusionaComposicion(base, nuestra, base);
+  assert.deepEqual(r.find((g) => g.nombre === 'Internacional')!.dominios, ['ramotion.com', 'brand.unithink.it', 'pentagram.com']);
+  assert.deepEqual(r.find((g) => g.nombre === 'Italia')!.dominios, ['themost.it', 'saglietti.it']);
+  // Y si otra persona añadió mientras tanto, lo suyo se conserva.
+  const suya: Grupo[] = [base[0], { nombre: 'Internacional', dominios: ['ramotion.com', 'pentagram.com', 'koto.com'] }];
+  const r2 = fusionaComposicion(base, nuestra, suya);
+  assert.deepEqual(r2.find((g) => g.nombre === 'Internacional')!.dominios, ['ramotion.com', 'brand.unithink.it', 'pentagram.com', 'koto.com']);
+});
+
+test('una alta por el campo (al final) sigue sin imponer el orden de esta pestaña', () => {
+  const base: Grupo[] = [{ nombre: 'G', dominios: ['a', 'b', 'c'] }];
+  const nuestra: Grupo[] = [{ nombre: 'G', dominios: ['a', 'b', 'c', 'nueva'] }];
+  const suya: Grupo[] = [{ nombre: 'G', dominios: ['c', 'a', 'b'] }];
+  assert.deepEqual(fusionaComposicion(base, nuestra, suya)[0].dominios, ['c', 'a', 'b', 'nueva']);
+});

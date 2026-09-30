@@ -119,8 +119,11 @@ export function fusionaComposicion(base: Grupo[], nuestra: Grupo[], suya: Grupo[
     const enNuestra = listaDe(nuestra, nombre);
     const enSuya = listaDe(suya, nombre);
     // Dentro del grupo, lo mismo: manda el orden de quien reordenó. Las
-    // marcas nuevas van al final, que es donde las pone el campo de alta.
-    const dominios = reordenado(enBase, enNuestra)
+    // marcas nuevas van al final, que es donde las pone el campo de alta;
+    // pero si alguien la soltó en medio (arrastrándola desde otro grupo),
+    // eso también es ordenar, y su sitio se respeta.
+    const colocadaEnMedio = enNuestra.some((d, i) => !enBase.includes(d) && i < enNuestra.length - 1);
+    const dominios = reordenado(enBase, enNuestra) || colocadaEnMedio
       ? ordenPor(dentro, enNuestra, enSuya)
       : ordenPor(dentro, enSuya, enNuestra);
     const ocultas = dominios.filter((d) => destino.get(d)?.oculta);
@@ -160,4 +163,29 @@ export function faltanEnElEstudio(enlace: Grupo[], guardado: Grupo[]): { grupo: 
 // ficha de cada marca, la composición no las lleva ni las guarda.
 export function sinNotas(gs: Grupo[]): Grupo[] {
   return gs.map(({ notas: _notas, ...g }) => g);
+}
+
+// Coloca una marca donde se suelta al arrastrarla: en el grupo `destino`,
+// justo antes de `antesDe` (o al final si es null). Sirve igual para
+// reordenar dentro del grupo que para llevarla a otro.
+//
+// Dentro del mismo grupo conserva si estaba oculta; al cambiar de grupo entra
+// visible, como con «mover a…». Una marca vive en un solo grupo, así que se
+// quita de donde estuviera antes de insertarla.
+export function colocaMarca(gs: Grupo[], d: string, destino: string, antesDe: string | null): Grupo[] {
+  if (antesDe === d || !gs.some((g) => g.nombre === destino)) return gs;
+  const origen = gs.find((g) => g.dominios.includes(d))?.nombre ?? null;
+  const mismo = origen === destino;
+  return gs.map((g) => {
+    if (g.nombre !== origen && g.nombre !== destino) return g;
+    let dominios = g.dominios.filter((x) => x !== d);
+    let ocultas = g.ocultas;
+    if (g.nombre === origen && !mismo) ocultas = (ocultas ?? []).filter((x) => x !== d);
+    if (g.nombre === destino) {
+      const i = antesDe ? dominios.indexOf(antesDe) : -1;
+      dominios = i < 0 ? [...dominios, d] : [...dominios.slice(0, i), d, ...dominios.slice(i)];
+    }
+    const { ocultas: _fuera, ...resto } = g;
+    return { ...resto, dominios, ...(ocultas && ocultas.length ? { ocultas } : {}) };
+  });
 }
