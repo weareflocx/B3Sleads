@@ -121,6 +121,38 @@ export function esScanRetenido(
   return scan?.status === 'ready' && scan.score == null;
 }
 
+// El estado de un scan en una palabra, el mismo en todas las pantallas. Antes
+// cada lista lo redactaba a su manera ("sin scan", "ret.", "…", "Brand3: scan
+// failed…") y un scan fallido o bloqueado salía como "sin scan" o como
+// "escaneando" para siempre.
+export type EstadoScan = 'listo' | 'escaneando' | 'retenido' | 'bloqueado' | 'fallo' | 'sin-scan';
+
+export const ETIQUETA_ESTADO_SCAN: Record<EstadoScan, string> = {
+  listo: 'listo',
+  escaneando: 'escaneando…',
+  retenido: 'retenido',
+  bloqueado: 'bloqueado',
+  fallo: 'falló',
+  'sin-scan': 'sin scan',
+};
+
+export function estadoScan(
+  scan: { status: ScanStatus; score: number | null } | null | undefined,
+): EstadoScan {
+  if (!scan) return 'sin-scan';
+  switch (scan.status) {
+    case 'ready':
+      return scan.score == null ? 'retenido' : 'listo';
+    case 'queued':
+    case 'running':
+      return 'escaneando';
+    case 'blocked':
+      return 'bloqueado';
+    default:
+      return 'fallo';
+  }
+}
+
 // El founder. linkedin_url es el canal: por ahí se le escribe (a mano).
 export interface Contact {
   id: string;

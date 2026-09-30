@@ -537,3 +537,24 @@ export function storedScanStatus(status: B3SScanStatus):
   if (status === 'completed') return 'ready';
   return status;
 }
+
+// De qué web es un informe importado: la marca del resultado de la API o la
+// línea "- URL:" del Markdown público. null si no lo dice.
+export function dominioDelInforme(profile: Pick<ImportedScan, 'raw'>): string | null {
+  const raw = profile.raw as { brand?: { domain?: string; url?: string }; markdown?: string };
+  const bruto =
+    raw.brand?.domain ||
+    raw.brand?.url ||
+    (typeof raw.markdown === 'string' ? raw.markdown.match(/^-\s*URL:\s*(\S+)/m)?.[1] : undefined);
+  if (!bruto) return null;
+  return bruto.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0] || null;
+}
+
+// ¿Es el informe de esta empresa? Se aceptan subdominios en los dos sentidos
+// (brand.unithink.it ↔ unithink.it). Sin dato en el informe, se da por bueno.
+export function informeEsDe(profile: Pick<ImportedScan, 'raw'>, dominioEmpresa: string): boolean {
+  const d = dominioDelInforme(profile);
+  if (!d) return true;
+  const e = dominioEmpresa.toLowerCase().replace(/^www\./, '');
+  return d === e || d.endsWith(`.${e}`) || e.endsWith(`.${d}`);
+}

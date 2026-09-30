@@ -1,5 +1,6 @@
 // Generación de mensajes y extracción de rondas con Claude API (spec §7)
 import Anthropic from '@anthropic-ai/sdk';
+import { idiomaDePais } from './idioma';
 import fs from 'node:fs';
 import path from 'node:path';
 import { displayName } from './types';
@@ -94,7 +95,6 @@ export function draftInputFromLead(bl: BriefingLead): DraftInput {
     : typeof bl.scan?.tldr === 'string'
       ? bl.scan.tldr
       : JSON.stringify(bl.scan?.tldr ?? {});
-  const isSpanish = (bl.company.hq_country ?? '').toLowerCase().match(/spain|españa|es\b/);
   return {
     companyName: bl.company.name,
     domain: bl.company.domain,
@@ -104,7 +104,7 @@ export function draftInputFromLead(bl: BriefingLead): DraftInput {
     personalAngle: bl.contact?.notes ?? null,
     contactName: displayName(bl.contact?.full_name) || null,
     channel: 'linkedin',
-    lang: isSpanish ? 'es' : 'en',
+    lang: idiomaDePais(bl.company.hq_country),
   };
 }
 

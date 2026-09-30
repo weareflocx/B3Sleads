@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import type { BriefingLead } from '@/lib/types';
-import { DISCARD_REASONS, displayName, companyLabel, esScanRetenido } from '@/lib/types';
+import { DISCARD_REASONS, displayName, companyLabel, esScanRetenido, estadoScan, ETIQUETA_ESTADO_SCAN } from '@/lib/types';
 import { CompanyLogo } from '../company-logo';
 import { agoLabel, computeRadar, type Radar } from '@/lib/radar';
 
@@ -35,7 +35,8 @@ function tldrText(bl: BriefingLead): string | null {
   const t = bl.scan?.tldr;
   if (!t) return null;
   if (typeof t === 'string') return t;
-  return (t.summary as string) ?? JSON.stringify(t).slice(0, 200);
+  // Sin resumen no se enseña nada: antes caía un trozo de JSON crudo.
+  return typeof t.summary === 'string' && t.summary.trim() ? t.summary : null;
 }
 
 // El número del radar y la señal que lo sostiene. Sin señal no hay número:
@@ -83,6 +84,12 @@ export function LeadCard({ initial }: { initial: BriefingLead }) {
   const [gone, setGone] = useState<string | null>(null);
   const [discarding, setDiscarding] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
+  // El mensaje al que pertenece el borrador que se ve: cambia al regenerar.
+  const [mensaje, setMensaje] = useState<{ id: string | null; draft: string }>({
+    id: bl.message?.id ?? null,
+    draft: bl.message?.draft ?? '',
+  });
 
   // El briefing solo pasa leads con empresa (cualificados). Guard defensivo.
   if (!bl.company) return null;
@@ -97,41 +104,67 @@ export function LeadCard({ initial }: { initial: BriefingLead }) {
 
   async function patchLead(stage: string, discardReason?: string) {
     setBusy(stage);
-    const res = await fetch('/api/leads', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ leadId: bl.lead.id, stage, discardReason }),
-    });
-    setBusy(null);
-    if (res.ok) setGone(stage === 'contacted' ? 'Contactado' : 'Descartado');
+    setAviso(null);
+    try {
+      const res = await fetch('/api/leads', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId: bl.lead.id, stage, discardReason }),
+      });
+      if (res.ok) setGone(stage === 'contacted' ? 'Contactado' : 'Descartado');
+      else setAviso('No se pudo cambiar la etapa. Vuelve a intentarlo.');
+    } catch {
+      setAviso('No se pudo cambiar la etapa: sin conexión con el servidor.');
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function copyAndOpen() {
-    await navigator.clipboard.writeText(draft);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-    // Guardar lo editado como edited_final (feedback loop)
-    if (bl.message && draft !== bl.message.draft) {
+    setAviso(null);
+    // El portapapeles se pide ANTES de abrir la pestaña (con la página aún
+    // enfocada) y la pestaña se abre en el mismo gesto: esperar al
+    // portapapeles primero hacía que Safari bloqueara la ventana.
+    const copia = navigator.clipboard.writeText(draft);
+    if (bl.contact?.linkedin_url) window.open(bl.contact.linkedin_url, '_blank');
+    try {
+      await copia;
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setAviso('No pude copiar el borrador. Selecciónalo y cópialo a mano.');
+    }
+    // Lo que se envía de verdad, si difiere de lo que escribió la IA, se
+    // guarda en el mensaje que se está enviando (el último regenerado).
+    if (mensaje.id && draft !== mensaje.draft) {
       fetch('/api/messages', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messageId: bl.message.id, editedFinal: draft }),
-      });
+        body: JSON.stringify({ messageId: mensaje.id, editedFinal: draft }),
+      })
+        .then((r) => {
+          if (!r.ok) setAviso('El borrador editado no se guardó en el historial.');
+        })
+        .catch(() => setAviso('El borrador editado no se guardó en el historial.'));
     }
-    if (bl.contact?.linkedin_url) window.open(bl.contact.linkedin_url, '_blank');
   }
 
   async function regenerate() {
     setBusy('regen');
+    setAviso(null);
     try {
       const res = await fetch('/api/messages/regenerate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ leadId: bl.lead.id }),
       });
-      const json = await res.json();
-      if (json.draft) setDraft(json.draft);
-      else if (json.error) alert(`No se pudo regenerar: ${json.error}`);
+      const json = (await res.json().catch(() => ({}))) as { draft?: string; messageId?: string | null; error?: string };
+      if (json.draft) {
+        setDraft(json.draft);
+        setMensaje({ id: json.messageId ?? null, draft: json.draft });
+      } else setAviso(`No se pudo regenerar: ${json.error ?? `error ${res.status}`}`);
+    } catch {
+      setAviso('No se pudo regenerar: sin conexión con el servidor.');
     } finally {
       setBusy(null);
     }
@@ -202,9 +235,9 @@ export function LeadCard({ initial }: { initial: BriefingLead }) {
               {/* Un scan sin nota no es un scan vacío: el Scanner la retuvo.
                   Se dice, y la ficha explica por qué. */}
               {esScanRetenido(bl.scan) ? (
-                <span className="font-mono text-[var(--warning)]">Brand3: lectura retenida</span>
+                <span className="font-mono text-[var(--warning)]">B3S: lectura retenida</span>
               ) : (
-                <span className="font-mono">Brand3: {bl.scan.score ?? '—'}/100</span>
+                <span className="font-mono">B3S: {bl.scan.score ?? '—'}/100</span>
               )}
               {tldr && <span className="text-[var(--muted)]"> · “{tldr}”</span>}{' '}
               {bl.scan.ui_url && (
@@ -219,7 +252,11 @@ export function LeadCard({ initial }: { initial: BriefingLead }) {
               )}
             </>
           ) : (
-            <span className="text-[var(--muted)]">Brand3: scan {bl.scan.status}…</span>
+            // En castellano y sin puntos suspensivos cuando no hay nada en
+            // marcha: "scan failed…" parecía trabajo en curso.
+            <span className={estadoScan(bl.scan) === 'escaneando' ? 'text-[var(--muted)]' : 'text-[var(--warning)]'}>
+              B3S: scan {ETIQUETA_ESTADO_SCAN[estadoScan(bl.scan)]}
+            </span>
           )}
         </div>
       )}
@@ -287,6 +324,12 @@ export function LeadCard({ initial }: { initial: BriefingLead }) {
             </button>
           </div>
         </div>
+      )}
+
+      {aviso && (
+        <p role="status" className="mt-3 text-xs text-[var(--danger)]">
+          {aviso}
+        </p>
       )}
 
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[var(--border)] pt-4 text-sm">

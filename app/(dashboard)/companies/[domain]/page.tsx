@@ -17,7 +17,7 @@ import { leadTemperature } from '@/lib/scoring';
 import { buildPitch } from '@/lib/pitch';
 import { storedScanReport, retencionDeScan, notaRetenida } from '@/lib/scan-report';
 import { buildCallBriefPrompt, buildLeadContext } from '@/lib/lead-prompts';
-import { stageLabel as stageLabelFor, displayName, companyLabel } from '@/lib/types';
+import { stageLabel as stageLabelFor, displayName, companyLabel, estadoScan } from '@/lib/types';
 import { resolveInvestors } from '@/lib/investors';
 import { getTeamMembers, leadOwner } from '@/lib/team';
 import { userLabel } from '@/lib/leaderboard';
@@ -538,9 +538,17 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
                           lectura retenida · sin publicar
                         </span>
                       </div>
-                    ) : scan && scan.status !== 'ready' ? (
+                    ) : scan && estadoScan(scan) === 'escaneando' ? (
                       <p className="text-sm text-[var(--muted)]">
                         Scan en marcha. Al terminar aparece aquí la puntuación.
+                      </p>
+                    ) : scan && estadoScan(scan) === 'bloqueado' ? (
+                      <p className="text-sm text-[var(--warning)]">
+                        El Scanner se paró por falta de evidencia. Revísalo abajo o lanza otro.
+                      </p>
+                    ) : scan && estadoScan(scan) === 'fallo' ? (
+                      <p className="text-sm text-[var(--warning)]">
+                        El último scan falló. Lánzalo de nuevo desde aquí abajo.
                       </p>
                     ) : (
                       <p className="text-sm text-[var(--muted)]">

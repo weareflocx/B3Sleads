@@ -6,6 +6,7 @@
 //   npm run pipeline:dry   → sin escrituras ni créditos (solo RSS + extracción)
 //   npm run pipeline:run   → completo
 import 'dotenv/config';
+import { idiomaDePais } from '../lib/idioma';
 import { getServiceSupabase } from '../lib/supabase';
 import { createScan, pollScan, getResult, getEvidence, storedScanStatus } from '../lib/brand3';
 import { completedScanData } from '../lib/b3s-scan-storage';
@@ -177,7 +178,7 @@ async function main() {
         await db.from('messages').insert({
           lead_id: lead.id,
           channel: 'linkedin',
-          lang: (company as Company).hq_country?.toLowerCase().includes('spain') ? 'es' : 'en',
+          lang: idiomaDePais((company as Company).hq_country),
           draft,
         });
         console.log(`[draft] borrador generado para ${(company as Company).name}`);

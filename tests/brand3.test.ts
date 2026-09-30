@@ -247,3 +247,14 @@ test('el argumentario consume components del resultado v1 sin Markdown', () => {
   ]);
   assert.equal(report?.weaknesses[0].ratio, 0.6);
 });
+
+import { informeEsDe } from '../lib/brand3';
+test('un informe importado solo se cuelga de su propia marca', () => {
+  const md = (url: string) => ({ raw: { markdown: `# Brand3 Scanner — X\n\n- URL: ${url}\n- Brand3 Score: **70/100**` } });
+  assert.equal(informeEsDe(md('https://utopicum.es'), 'utopicum.es'), true);
+  assert.equal(informeEsDe(md('https://www.utopicum.es/'), 'utopicum.es'), true);
+  assert.equal(informeEsDe(md('https://brand.unithink.it'), 'unithink.it'), true);
+  assert.equal(informeEsDe(md('https://locomotive.ca'), 'utopicum.es'), false);
+  assert.equal(informeEsDe({ raw: { brand: { name: 'R', url: 'https://revenuecat.com', domain: 'revenuecat.com' } } }, 'revenuecat.com'), true);
+  assert.equal(informeEsDe({ raw: {} }, 'loquesea.com'), true);
+});

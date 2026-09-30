@@ -165,7 +165,9 @@ export function ScanButton({
       const res = await fetch('/api/scans/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadId, ...body }),
+        // Con companyId siempre: sin lead (inversor, marca de un estudio) la
+        // ruta no sabía a qué empresa colgarlo y reventaba.
+        body: JSON.stringify({ leadId, companyId, ...body }),
       });
       const json = await readJson(res);
       if (json === null) {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
-import { apiConfigured, getBrandProfile, getReportByUrl } from '@/lib/brand3';
+import { apiConfigured, dominioDelInforme, getBrandProfile, getReportByUrl, informeEsDe } from '@/lib/brand3';
 import { persistImportedScan } from '@/lib/b3s-scan-storage';
 import { priorityScore } from '@/lib/scoring';
 import type { Company, Scan } from '@/lib/types';
@@ -56,14 +56,23 @@ export async function POST(req: NextRequest) {
     if (coId) {
       const { data } = await db.from('companies').select('*').eq('id', coId).single();
       company = data as Company | null;
-    } else {
-      const domain = rawDomain.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
+    } else if (rawDomain) {
+      const domain = String(rawDomain).toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
       const { data } = await db.from('companies').select('*').eq('domain', domain).maybeSingle();
       company = data as Company | null;
       coId = company?.id ?? null;
     }
-    if (!coId) {
+    if (!coId || !company) {
       return NextResponse.json({ error: 'No hay ficha de empresa para ese dominio' }, { status: 400 });
+    }
+
+    // Un informe de otra marca no se cuelga de esta: pasaba al pegar la URL
+    // equivocada, y el mismo scan acababa en dos empresas.
+    if (!informeEsDe(profile, company.domain)) {
+      return NextResponse.json(
+        { error: `Ese informe es de ${dominioDelInforme(profile)}, no de ${company.domain}.` },
+        { status: 409 },
+      );
     }
 
     // Nombre comercial real del Scanner. Solo pisa el nombre si era un
@@ -95,6 +104,6 @@ export async function POST(req: NextRequest) {
       uiUrl: profile.uiUrl,
     });
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
 }

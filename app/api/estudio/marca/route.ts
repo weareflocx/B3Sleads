@@ -16,7 +16,10 @@ import type { Scan } from '@/lib/types';
 // existe sin scan (o falló), lanza uno; si hay uno en marcha, lo reutiliza.
 export async function POST(req: NextRequest) {
   try {
-    const { domain: raw } = (await req.json()) as { domain?: string };
+    // `intento`: un id por pulsación. Sin él, la clave de idempotencia era por
+    // día y "reescanear" una marca el mismo día devolvía el MISMO trabajo del
+    // Scanner (retenido o fallido) en vez de lanzar otro.
+    const { domain: raw, intento } = (await req.json()) as { domain?: string; intento?: string };
     const domain = normalizarDominio(raw ?? '');
     if (!domain) return NextResponse.json({ error: 'Ese dominio no parece una web.' }, { status: 422 });
     if (isDemoMode()) return NextResponse.json({ ok: true, demo: true, domain });
@@ -84,7 +87,7 @@ export async function POST(req: NextRequest) {
         // La clave de idempotencia hace que reintentar sea gratis: si el scan
         // llegó a crearse en el Scanner y solo se perdió la respuesta, la
         // segunda llamada devuelve ese mismo trabajo en vez de duplicarlo.
-        idempotencyKey: `estudio-${domain}-${new Date().toISOString().slice(0, 10)}`,
+        idempotencyKey: `estudio-${domain}-${(intento ?? '').slice(0, 40) || new Date().toISOString().slice(0, 16)}`,
       });
       const { data: scan, error } = await db
         .from('scans')
@@ -98,6 +101,13 @@ export async function POST(req: NextRequest) {
         .single();
       if (error) throw error;
       const stored = job.status === 'completed' ? (await syncStoredScan(db, scan as Scan)).scan : scan;
+      // Si la marca también es lead, su ficha tiene que ver este scan. Antes
+      // seguía apuntando al viejo y no enseñaba ni el progreso.
+      const { error: eLead } = await db
+        .from('leads')
+        .update({ scan_id: stored.id, updated_at: new Date().toISOString() })
+        .eq('company_id', company.id);
+      if (eLead) console.error('[estudio/marca] no se enlazó el scan al lead', eLead.message);
       return NextResponse.json({
         ok: true,
         domain,

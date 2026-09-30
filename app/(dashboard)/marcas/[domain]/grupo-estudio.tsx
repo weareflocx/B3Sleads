@@ -471,7 +471,8 @@ export function GrupoEstudio({
       const r = await fetch('/api/estudio/marca', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain: d }),
+        // Una pulsación, un trabajo: reescanear hoy lanza uno nuevo.
+        body: JSON.stringify({ domain: d, intento: crypto.randomUUID() }),
       });
       const j = (await r.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (!r.ok || !j.ok) throw new Error(j.error || `Error ${r.status}`);
