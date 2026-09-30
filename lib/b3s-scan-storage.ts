@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   absoluteB3SUrl,
   apiConfigured,
+  B3SApiError,
   getEvidence,
   getReportByUrl,
   getResult,
@@ -14,6 +15,8 @@ import {
   type ImportedScan,
 } from './brand3';
 import type { Scan } from './types';
+
+const EN_MARCHA = ['queued', 'running', 'blocked'];
 
 export function completedScanData(result: B3SScanResult, evidence: B3SScanEvidence) {
   return {
@@ -58,9 +61,18 @@ export async function syncStoredScan(
     };
   }
 
-  const { data, error } = await db.from('scans').update(update).eq('id', scan.id).select().single();
+  // Un "sigue en marcha" que llega tarde no puede deshacer un cierre: con
+  // varias pestañas sondeando, un sondeo lento que vio "running" aterrizaba
+  // después de otro que ya había escrito "ready".
+  const terminal = update.status === 'ready' || update.status === 'failed' || update.status === 'cancelled';
+  let q = db.from('scans').update(update).eq('id', scan.id);
+  if (!terminal) q = q.in('status', EN_MARCHA);
+  const { data, error } = await q.select().maybeSingle();
   if (error) throw error;
-  return { scan: data as Scan, job };
+  if (data) return { scan: data as Scan, job };
+  const { data: actual, error: e2 } = await db.from('scans').select('*').eq('id', scan.id).single();
+  if (e2) throw e2;
+  return { scan: actual as Scan, job };
 }
 
 // Materializa un resultado histórico sin duplicarlo si varias entradas del
@@ -113,22 +125,26 @@ export async function persistImportedScan(
 // lanzaba nada: la marca se quedaba "sin scan" para siempre (Utopicum,
 // Locomotive y Studiofreight, 26/09 → 30/09).
 export const SCAN_COLGADO_MS = 6 * 60 * 60 * 1000;
-const EN_MARCHA = ['queued', 'running', 'blocked'];
 
 export function scanColgado(s: Pick<Scan, 'status' | 'created_at'>, ahora = Date.now()): boolean {
   return EN_MARCHA.includes(s.status) && ahora - new Date(s.created_at).getTime() > SCAN_COLGADO_MS;
 }
 
 // Cierra un scan colgado con lo que diga el Scanner: su resultado si terminó,
-// y si no, "failed". Sin token (en local) lee el informe público, que no trae
+// su fallo si falló. Sin token (en local) lee el informe público, que no trae
 // evidencia estructurada pero sí nota, resumen y análisis.
+//
+// "failed" solo se escribe si el Scanner lo dice (fallido, cancelado o que no
+// existe). Un corte de red o un timeout NO es un fallo: la fila se queda como
+// estaba y simplemente deja de bloquear un scan nuevo. Antes cualquier error
+// pasajero la dejaba "failed" para siempre aunque el Scanner terminara.
 export async function rescataScan(db: SupabaseClient, scan: Scan): Promise<Scan> {
   if (apiConfigured()) {
     try {
-      const { scan: sincronizado } = await syncStoredScan(db, scan);
-      if (!EN_MARCHA.includes(sincronizado.status)) return sincronizado;
-    } catch {
-      // Se prueba la vía pública antes de darlo por perdido.
+      return (await syncStoredScan(db, scan)).scan;
+    } catch (e) {
+      if (e instanceof B3SApiError && e.status === 404) return marcaFallido(db, scan);
+      // Pasajero: se prueba la vía pública, y si tampoco, se deja como está.
     }
   }
   try {
@@ -137,16 +153,21 @@ export async function rescataScan(db: SupabaseClient, scan: Scan): Promise<Scan>
       return await persistImportedScan(db, scan.company_id, informe);
     }
   } catch {
-    // Sin informe: se cierra abajo.
+    // Sin informe público todavía: no es una respuesta del Scanner.
   }
+  return scan;
+}
+
+async function marcaFallido(db: SupabaseClient, scan: Scan): Promise<Scan> {
   const { data, error } = await db
     .from('scans')
     .update({ status: 'failed', completed_at: new Date().toISOString() })
     .eq('id', scan.id)
+    .in('status', EN_MARCHA)
     .select()
-    .single();
+    .maybeSingle();
   if (error) throw error;
-  return data as Scan;
+  return (data as Scan | null) ?? scan;
 }
 
 // El scan de verdad en marcha de una marca, si lo hay. Los colgados se
@@ -170,6 +191,7 @@ export async function scanEnMarcha(
       activo ??= s;
       continue;
     }
+    // Rescatado o no, un colgado no cuenta como "en marcha".
     rescatados.push(await rescataScan(db, s));
   }
   return { activo, rescatados };
