@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { BTN_OUTLINE, BTN_WHITE } from '../../buttons';
 import { CARD_LAYOUT, cardBand, type CardCell } from '@/lib/brand-card';
 import { LogoMark } from '../../logo-mark';
+import { logoUrl as autoLogo } from '../../company-logo';
 
 // La tarjeta se compone SIEMPRE a 1080×1080 y se escala para verse. Así lo
 // que se descarga es idéntico a lo que se ve y no depende del ancho de la
@@ -227,10 +228,13 @@ export function BrandCard({
   const [imagenFondo, setImagenFondo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
-  // El logo vive en el CDN de LinkedIn. Se pasa a data URL al montar para que
-  // la exportación no dependa de una petición externa.
+  // El logo, en el mismo orden que el resto de la app: el pegado a mano y, si
+  // no hay o no carga, el automático de /api/logo (el mismo que se ve en la
+  // ficha y en el estudio). Antes la tarjeta solo miraba el pegado a mano, así
+  // que casi todas salían con iniciales aunque la marca tuviera logo en todas
+  // las demás pantallas. Se pasa a data URL para que el PNG no dependa de una
+  // petición externa al exportar.
   const [logoData, setLogoData] = useState<string | null>(null);
-
   const t = TEMAS[tema];
   const base = colorFondo ?? t.fondo;
   // Con imagen, un velo del color del tema por encima: sin él, el texto de
@@ -240,27 +244,42 @@ export function BrandCard({
     : base;
 
   useEffect(() => {
-    if (!logoUrl) return;
     let vivo = true;
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      if (!vivo) return;
-      try {
-        const c = document.createElement('canvas');
-        c.width = 256;
-        c.height = 256;
-        c.getContext('2d')?.drawImage(img, 0, 0, 256, 256);
-        setLogoData(c.toDataURL('image/png'));
-      } catch {
-        // Si el CDN no deja leerlo se enseña igual: solo se pierde en el PNG.
-      }
+    setLogoData(null);
+    const fuentes = [logoUrl?.trim() || null, autoLogo(domain)].filter(Boolean) as string[];
+    const prueba = (i: number) => {
+      const src = fuentes[i];
+      if (!src || !vivo) return;
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        if (!vivo) return;
+        // Un sello de 16 px estirado queda peor que las iniciales.
+        if (img.naturalWidth < 24) return prueba(i + 1);
+        try {
+          // Encajado sin deformar: antes se estiraba a 256×256 y un logo
+          // apaisado salía aplastado.
+          const c = document.createElement('canvas');
+          c.width = 256;
+          c.height = 256;
+          const k = Math.min(256 / img.naturalWidth, 256 / img.naturalHeight);
+          const w = img.naturalWidth * k;
+          const h = img.naturalHeight * k;
+          c.getContext('2d')?.drawImage(img, (256 - w) / 2, (256 - h) / 2, w, h);
+          setLogoData(c.toDataURL('image/png'));
+        } catch {
+          // Un CDN que no deja leer la imagen: se prueba la siguiente fuente.
+          prueba(i + 1);
+        }
+      };
+      img.onerror = () => prueba(i + 1);
+      img.src = src;
     };
-    img.src = logoUrl;
+    prueba(0);
     return () => {
       vivo = false;
     };
-  }, [logoUrl]);
+  }, [logoUrl, domain]);
 
   // La escala se calcula del ancho real disponible: la tarjeta se ve entera
   // en cualquier columna sin dejar de medir 1080 por dentro.
@@ -496,10 +515,10 @@ export function BrandCard({
               {/* El logo lleva el MISMO marco que la caja del score: mismo
                   tamaño, mismo radio y el mismo borde tenue. Antes iba sobre
                   una placa blanca rellena que rompía la columna. */}
-              {logoUrl ? (
+              {logoData ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={logoData ?? logoUrl}
+                  src={logoData}
                   alt=""
                   crossOrigin="anonymous"
                   className="h-[76px] w-[76px] rounded-[14px] border object-contain p-1.5"
