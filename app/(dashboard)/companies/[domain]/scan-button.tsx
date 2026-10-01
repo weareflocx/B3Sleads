@@ -30,6 +30,9 @@ export function ScanButton({
   // Último valor confirmado por el servidor: el goteo visual nunca lo
   // adelanta en más de unos puntos, para no mentir.
   const serverPct = useRef(0);
+  // Fallos de sincronización seguidos. Uno suelto (Fly arrancando, un corte
+  // de Netlify) no merece alarma: el aviso sale al tercero.
+  const fallos = useRef(0);
 
   // El mensaje del servidor ya viene redactado para humanos; interpolar el
   // objeto Error añadía un "Error: Error:" delante.
@@ -88,6 +91,8 @@ export function ScanButton({
           return;
         }
         if (!response.ok) throw new Error((body.error as string) || 'No se pudo sincronizar el scan');
+        fallos.current = 0;
+        setMsg(null);
         if (typeof body.progress === 'number') {
           const confirmed = body.progress as number;
           serverPct.current = confirmed;
@@ -111,7 +116,10 @@ export function ScanButton({
           return;
         }
       } catch (error) {
-        if (!cancelled) setMsg({ text: `No pude sincronizar el scan: ${reason(error)}`, tone: 'error' });
+        fallos.current += 1;
+        if (!cancelled && fallos.current >= 3) {
+          setMsg({ text: `El Scanner tarda en responder; sigo intentándolo. ${reason(error)}`, tone: 'info' });
+        }
       }
       if (!cancelled) timer = setTimeout(sync, 3_000);
     }
@@ -192,6 +200,30 @@ export function ScanButton({
 
   const running = scan?.status === 'running' || scan?.status === 'queued';
 
+  // La barra no depende de que el sondeo haya respondido: si el botón dice
+  // "en curso", se pinta, estimada por el tiempo transcurrido mientras el
+  // servidor no confirme nada. Antes dependía solo del estado interno, y en
+  // producción (iPronics, 01/10) quedaba el botón "en curso" sin barra.
+  // (Sin Date.now() aquí: se pinta también en el servidor y no coincidiría al
+  // hidratar. El goteo del efecto la rellena en el primer segundo.)
+  const valorBarra = progress?.value ?? 2;
+
+  // Un scan cerrado con el informe público (sin evidencia estructurada) se
+  // completa por la API en cuanto alguien abre su ficha. Una vez por scan.
+  const intentoMejora = useRef<string | null>(null);
+  useEffect(() => {
+    const publico =
+      scan?.status === 'ready' && (scan.result_raw as { source?: string } | null)?.source === 'public_report';
+    if (!scan || !publico || intentoMejora.current === scan.id) return;
+    intentoMejora.current = scan.id;
+    fetch(`/api/scans/${scan.id}/sync`, { method: 'POST' })
+      .then((r) => r.json())
+      .then((j: { mejorado?: boolean }) => {
+        if (j.mejorado) router.refresh();
+      })
+      .catch(() => {});
+  }, [scan, router]);
+
   // Cabecera de estado sobre el botón: espeja la fila de avatar de la ficha
   // del founder, así "Lanzar scan" queda a la altura de "Abrir LinkedIn".
   function relTime(iso: string): string {
@@ -236,9 +268,9 @@ export function ScanButton({
 
       {/* Mientras el scan corre, solo las barras: el color (rojo → azul →
           verde) ya cuenta cuánto queda, sin números que distraigan. */}
-      {running && progress && (
+      {running && (
         <div className="py-2 text-[var(--text)]">
-          <ScanProgress value={progress.value} label={progress.phase} />
+          <ScanProgress value={valorBarra} label={progress?.phase ?? null} />
         </div>
       )}
 

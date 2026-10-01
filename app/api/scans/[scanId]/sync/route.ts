@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { syncStoredScan } from '@/lib/b3s-scan-storage';
-import { getReportByUrl } from '@/lib/brand3';
+import { esInformePublico, syncStoredScan } from '@/lib/b3s-scan-storage';
+import { apiConfigured, B3SApiError, getPublicReport } from '@/lib/brand3';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import type { Scan } from '@/lib/types';
 import type { ScanJob } from '@/lib/brand3';
@@ -36,25 +36,43 @@ export async function POST(
     }
 
     const scan = data as Scan;
-    if (['ready', 'failed', 'cancelled'].includes(scan.status)) {
+    // Un scan cerrado por la vía pública se intenta completar por la API
+    // (evidencia estructurada). El resto de cerrados no se tocan.
+    const mejorar = esInformePublico(scan);
+    if (['ready', 'failed', 'cancelled'].includes(scan.status) && !mejorar) {
       return NextResponse.json({ ok: true, scan });
     }
+    if (mejorar && !apiConfigured()) return NextResponse.json({ ok: true, scan });
 
     try {
-      const { scan: updated, job } = await syncStoredScan(db, scan);
+      // 4 s para el estado y 5 s para resultado y evidencia (en paralelo):
+      // cabe en los 10 s de Netlify. Antes eran 8 + 8.
+      const { scan: updated, job } = await syncStoredScan(db, scan, { estado: 4_000, informe: 5_000 });
       return NextResponse.json({
         ok: true,
         scan: updated,
         progress: pctFromJob(job),
         phase: job.phase ?? null,
+        ...(mejorar ? { mejorado: !esInformePublico(updated) } : {}),
       });
     } catch (apiError) {
+      if (mejorar) return NextResponse.json({ ok: true, scan, mejorado: false });
+      // Un timeout pasajero no cierra el scan por la vía pública: el próximo
+      // sondeo (3 s) lo vuelve a intentar. Solo si el scan lleva ya más de
+      // diez minutos se acepta el informe público como cierre.
+      const pasajero =
+        apiError instanceof B3SApiError &&
+        (apiError.code === 'scanner_timeout' || apiError.code === 'scanner_unreachable');
+      const reciente = Date.now() - new Date(scan.created_at).getTime() < 10 * 60_000;
+      if (pasajero && reciente) {
+        return NextResponse.json({ ok: true, scan, pendiente: true });
+      }
       // La API v1 encadena tres llamadas (estado + resultado + evidencia) y a
       // veces no cabe en el tiempo que da el hosting. Si el informe público ya
       // existe, el scan ha terminado: se cierra con esos datos en vez de
       // dejarlo colgado en "running" para siempre.
       const jobId = String(scan.scanner_job_id);
-      const fallback = await getReportByUrl(`https://b3s.fly.dev/report/${jobId}`).catch(() => null);
+      const fallback = await getPublicReport(jobId);
       if (!fallback?.found) throw apiError;
 
       const { data: closed } = await db

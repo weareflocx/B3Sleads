@@ -303,8 +303,12 @@ export async function createScan(url: string, options: CreateScanOptions = {}): 
   });
 }
 
-export async function getScanStatus(id: string): Promise<ScanJob> {
-  return request<ScanJob>(`/scans/${encodeURIComponent(id)}`);
+// `ms`: tope de esta llamada. Por defecto 8 s; quien encadena varias en una
+// misma función de Netlify (10 s) las reparte con topes más cortos.
+const tope = (ms?: number): RequestInit => (ms ? { signal: AbortSignal.timeout(ms) } : {});
+
+export async function getScanStatus(id: string, ms?: number): Promise<ScanJob> {
+  return request<ScanJob>(`/scans/${encodeURIComponent(id)}`, tope(ms));
 }
 
 export async function continueScan(id: string): Promise<ScanJob> {
@@ -355,12 +359,12 @@ export async function pollScan(
   });
 }
 
-export async function getResult(id: string): Promise<B3SScanResult> {
-  return request<B3SScanResult>(`/scans/${encodeURIComponent(id)}/result`);
+export async function getResult(id: string, ms?: number): Promise<B3SScanResult> {
+  return request<B3SScanResult>(`/scans/${encodeURIComponent(id)}/result`, tope(ms));
 }
 
-export async function getEvidence(id: string): Promise<B3SScanEvidence> {
-  return request<B3SScanEvidence>(`/scans/${encodeURIComponent(id)}/evidence`);
+export async function getEvidence(id: string, ms?: number): Promise<B3SScanEvidence> {
+  return request<B3SScanEvidence>(`/scans/${encodeURIComponent(id)}/evidence`, tope(ms));
 }
 
 export interface ImportedScan {
@@ -467,10 +471,21 @@ export function brandNameFromMarkdown(md: string): string | null {
   return m?.[1].trim() || null;
 }
 
-async function publicReportImport(scanId: string): Promise<ImportedScan> {
+// El informe público directo, sin pasar por la API. Con tope: Fly tarda ~35 s
+// en devolver un 503 cuando la máquina está parada.
+export async function getPublicReport(scanId: string, ms = 3_500): Promise<ImportedScan> {
+  try {
+    return await publicReportImport(scanId, ms);
+  } catch {
+    return emptyImport();
+  }
+}
+
+async function publicReportImport(scanId: string, ms = 8_000): Promise<ImportedScan> {
   const response = await fetch(`${PUBLIC_BASE}/report/${encodeURIComponent(scanId)}.md`, {
     cache: 'no-store',
     headers: { Accept: 'text/markdown' },
+    signal: AbortSignal.timeout(ms),
   });
   if (!response.ok) return emptyImport();
 

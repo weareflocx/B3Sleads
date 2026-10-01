@@ -35,19 +35,27 @@ export function completedScanData(result: B3SScanResult, evidence: B3SScanEviden
 //
 // Devuelve también el job remoto: trae `progress` y `phase`, y así la barra de
 // progreso del navegador no necesita una llamada extra a la API.
+// `tiempos`: topes por llamada para caber en los 10 s de una función de
+// Netlify. Sin ellos, estado (8 s) + resultado y evidencia (8 s) podían
+// sumar 16 s: Netlify cortaba, el navegador recibía su página de error, y el
+// scan acababa cerrándose por la vía pública, sin evidencia estructurada
+// (iPronics, 01/10).
 export async function syncStoredScan(
   db: SupabaseClient,
   scan: Scan,
+  tiempos: { estado?: number; informe?: number } = {},
 ): Promise<{ scan: Scan; job: ScanJob }> {
-  const job = await getScanStatus(scan.scanner_job_id);
+  const job = await getScanStatus(scan.scanner_job_id, tiempos.estado);
   let update: Record<string, unknown>;
 
   if (job.status === 'completed') {
     const [result, evidence] = await Promise.all([
-      getResult(job.id),
-      getEvidence(job.id),
+      getResult(job.id, tiempos.informe),
+      getEvidence(job.id, tiempos.informe),
     ]);
-    update = completedScanData(result, evidence);
+    // Si ya estaba cerrado (se está completando un informe público), se
+    // conserva cuándo terminó de verdad.
+    update = { ...completedScanData(result, evidence), ...(scan.completed_at ? { completed_at: scan.completed_at } : {}) };
   } else {
     update = {
       status: storedScanStatus(job.status),
@@ -195,4 +203,11 @@ export async function scanEnMarcha(
     rescatados.push(await rescataScan(db, s));
   }
   return { activo, rescatados };
+}
+
+// Un scan cerrado con el informe público (sin token, o porque la API no
+// respondió a tiempo) tiene nota y análisis, pero no la evidencia
+// estructurada. Con token se puede completar después por la API.
+export function esInformePublico(scan: Pick<Scan, 'status' | 'result_raw'> | null | undefined): boolean {
+  return scan?.status === 'ready' && (scan.result_raw as { source?: string } | null)?.source === 'public_report';
 }
