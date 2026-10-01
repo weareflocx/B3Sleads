@@ -25,7 +25,7 @@ Esfuerzo: S (< medio día), M (1-2 días), L (más).
 - [x] **La ficha dice "Scan en marcha" con un scan fallido** (`companies/[domain]/page.tsx:541`) y el briefing enseña el estado crudo en inglés ("Brand3: scan failed…") y JSON del tldr (`lead-card.tsx:38,222`).
 - [x] **El scan lanzado desde el estudio no actualiza `leads.scan_id`**: si la marca también es lead, la ficha sigue con el scan viejo (`api/estudio/marca`).
 - [x] **"Reescanear" el mismo día repite el mismo trabajo** del Scanner por la clave de idempotencia por día (`api/estudio/marca:87`).
-- [ ] **Las tres marcas rescatadas hoy desde local** tienen el informe público, sin evidencia estructurada. Necesita el token (solo en producción): lo hace el barrido del día 5.
+- [x] **Las tres marcas rescatadas desde local** completadas por la API el 01/10 (Utopicum, Studiofreight, Locomotive sept.). Ahora cualquier scan cerrado por la vía pública se completa solo al abrir su ficha.
 - [x] Extra: importar un informe de otra marca se rechaza (antes se colgaba de la ficha equivocada); errores visibles en la tarjeta del briefing en vez de `alert()`; "Copiar y abrir LinkedIn" ya no lo bloquea Safari.
 
 ## Día 2 · Un solo estado del scan y una sola nota en toda la app (M)
@@ -56,7 +56,8 @@ Hoy solo se llega al estudio desde el banner de "Cerrado", y la landing lo vende
 ## Día 5 · Que nada se quede a medias sin nadie mirando (M)
 - [ ] **Barrido programado** (Netlify Scheduled Function cada 10-15 min) que sincroniza los scans en marcha. Hoy solo avanzan si hay una pestaña abierta. De paso, re-trae por API los informes importados por la vía pública.
 - [ ] Un solo scan activo por marca (índice único): dos pestañas lanzan hoy dos scans de pago.
-- [ ] Plazo total por petición (Netlify corta a los 10 s; sync + rescate pueden pasar de 16 s).
+- [x] Plazo por llamada en la sincronización (4 s estado + 5 s informe; vía pública directa con 3,5 s). Falta el rescate de colgados dentro de lanzar.
+- [x] La barra del scan sale siempre que está en curso (iPronics, 01/10).
 - [ ] El entorno local no escribe en producción sin permiso explícito, y `next dev` solo en 127.0.0.1.
 - [ ] Refuerzo de acceso: lista de emails permitidos en el middleware (por si alguien reactiva registros) y `shouldCreateUser:false`.
 - [ ] Seguridad de la base (SQL a aplicar en Supabase): vista `scans_ligeros` con `security_invoker`, RLS en `investors` y `component_selections`, revocar las RPC `estudio_*` a anon.
