@@ -8,10 +8,12 @@ import { ScoreRing } from '../score-ring';
 import { Heat } from '../heat';
 import { leadTemperature } from '@/lib/scoring';
 import { CompanyLogo } from '../company-logo';
+import { EtiquetaRonda } from '../etiqueta-ronda';
+import { comparaPorAnuncio, FILTROS_RONDA, pasaFiltroRonda, senalDeRonda, type FiltroRonda } from '@/lib/senal-ronda';
 
 // Catálogo de marcas con controles: ordenar por score B3S o por recientes,
 // y verlo en tarjetas, lista o cuadrícula. Una tarjeta por startup.
-type Sort = 'score' | 'temperatura' | 'recientes';
+type Sort = 'score' | 'temperatura' | 'recientes' | 'anuncio';
 type Dir = 'desc' | 'asc';
 type View = 'tarjetas' | 'lista' | 'cuadricula';
 
@@ -19,6 +21,7 @@ export function StartupsList({ items }: { items: BriefingLead[] }) {
   const [sort, setSort] = useState<Sort>('score');
   const [dir, setDir] = useState<Dir>('desc');
   const [view, setView] = useState<View>('tarjetas');
+  const [filtroRonda, setFiltroRonda] = useState<FiltroRonda>('todas');
 
   // Pulsar el orden que ya está activo lo invierte. Es el patrón de cualquier
   // tabla y evita duplicar botones: con tres criterios y dos direcciones
@@ -33,8 +36,16 @@ export function StartupsList({ items }: { items: BriefingLead[] }) {
     bl.scan?.status === 'ready' && bl.scan.score != null ? Number(bl.scan.score) : null;
   const tempOf = (bl: BriefingLead) => leadTemperature(bl).score;
 
-  const sorted = [...items].sort((a, b) => {
+  const senales = new Map(items.map((bl) => [bl.lead.id, senalDeRonda(bl.signals)]));
+  const sorted = items.filter((bl) => pasaFiltroRonda(senales.get(bl.lead.id) ?? null, filtroRonda)).sort((a, b) => {
     const signo = dir === 'desc' ? 1 : -1;
+    // Por fecha del anuncio: las que no tienen señal, al final en los dos sentidos.
+    if (sort === 'anuncio') {
+      const sa = senales.get(a.lead.id) ?? null;
+      const sb = senales.get(b.lead.id) ?? null;
+      if (!sa || !sb) return comparaPorAnuncio(sa, sb);
+      return signo * comparaPorAnuncio(sa, sb);
+    }
     if (sort === 'recientes') return signo * b.lead.updated_at.localeCompare(a.lead.updated_at);
     if (sort === 'temperatura') return signo * (tempOf(b) - tempOf(a));
     // Sin scan no es "la peor valorada", es una desconocida: se queda al final
@@ -61,7 +72,14 @@ export function StartupsList({ items }: { items: BriefingLead[] }) {
             ['score', `Score B3S${sort === 'score' ? flecha : ''}`],
             ['temperatura', `Temperatura${sort === 'temperatura' ? flecha : ''}`],
             ['recientes', `Recientes${sort === 'recientes' ? flecha : ''}`],
+            ['anuncio', `Fecha de anuncio${sort === 'anuncio' ? flecha : ''}`],
           ]}
+        />
+        <Segmented
+          label="Señal de ronda"
+          value={filtroRonda}
+          onChange={(v) => setFiltroRonda(v as FiltroRonda)}
+          options={FILTROS_RONDA.map((f) => [f.valor, f.texto])}
         />
         <Segmented
           label="Vista"
@@ -74,6 +92,12 @@ export function StartupsList({ items }: { items: BriefingLead[] }) {
           ]}
         />
       </div>
+
+      {sorted.length === 0 && (
+        <p className="rounded-lg border border-dashed border-[var(--border)] p-6 text-center text-sm text-[var(--muted)]">
+          Ninguna marca con esa señal de ronda.
+        </p>
+      )}
 
       {view === 'cuadricula' ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -165,10 +189,14 @@ function StartupCard({
     </div>
   );
 
+  const senal = senalDeRonda(bl.signals);
   const meta = (
-    <span className="text-xs text-[var(--muted)]">
-      {stageLabel(bl.lead.stage)}
-      {founder ? ` · ${founder}` : ''}
+    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--muted)]">
+      <EtiquetaRonda senal={senal} />
+      <span>
+        {stageLabel(bl.lead.stage)}
+        {founder ? ` · ${founder}` : ''}
+      </span>
     </span>
   );
 

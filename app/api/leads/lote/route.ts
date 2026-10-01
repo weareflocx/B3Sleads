@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
       handles?: unknown;
       filas?: unknown;
       completar?: boolean;
+      origen?: string;
     };
     if (isDemoMode()) return NextResponse.json({ error: 'En modo demo no se importa.' }, { status: 400 });
     const db = getServiceSupabase()!;
@@ -62,7 +63,15 @@ export async function POST(req: NextRequest) {
       // Fila a fila: un error no para el resto.
       for (const f of filas) {
         try {
-          resultados.push(await importarFila(db, f, { completar: body.completar === true, autor, hoy }));
+          resultados.push(
+            await importarFila(db, f, {
+              completar: body.completar === true,
+              autor,
+              hoy,
+              // Desde "Rondas de la semana" la bitácora lo dice así; el resto es lote.
+              origen: body.origen === 'rondas' ? 'Alta desde Rondas de la semana' : 'Alta por lote',
+            }),
+          );
         } catch (e) {
           resultados.push({
             n: Number(f?.n) || 0,
@@ -152,7 +161,7 @@ function revalida(f: FilaLote) {
 async function importarFila(
   db: SupabaseClient,
   bruta: FilaLote,
-  op: { completar: boolean; autor: string | null; hoy: string },
+  op: { completar: boolean; autor: string | null; hoy: string; origen: string },
 ): Promise<Resultado> {
   const f = revalida(bruta);
   if (!f.dominio) {
@@ -222,7 +231,7 @@ async function importarFila(
     const { data: lead, error: eLead } = await db.from('leads').insert(leadRow).select('id').single();
     if (eLead) throw eLead;
 
-    const lineas = [`Alta por lote · ${op.hoy} · fuente: ${f.fuente ?? 'sin fuente'}`];
+    const lineas = [`${op.origen} · ${op.hoy} · fuente: ${f.fuente ?? 'sin fuente'}`];
     if (avisos.includes(AVISO_NOMBRE)) lineas.push('Nombre por revisar: vino sin nombre de marca, se usa el dominio.');
     const raros = f.fundadores.filter((x) => x.raw && !x.url).map((x) => `«${x.raw}»`);
     if (raros.length) lineas.push(`LinkedIn por verificar: ${raros.join(', ')} no es un perfil personal (linkedin.com/in/…).`);

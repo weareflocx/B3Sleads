@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import { signalMeta } from '@/lib/radar';
+import { anotaEnBitacora } from '@/lib/bitacora';
+import { ETIQUETA_RONDA, fechaCorta, senalDeRonda } from '@/lib/senal-ronda';
+import type { Signal } from '@/lib/types';
 
 // Registra una señal del radar de cualquier tipo (spec §3.2). Es la vía por
 // la que entran a mano las señales A y B: normalmente promoviendo una nota de
@@ -32,7 +35,7 @@ export async function POST(req: NextRequest) {
     if (isDemoMode()) return NextResponse.json({ ok: true, demo: true });
 
     const db = getServiceSupabase()!;
-    const { error } = await db.from('signals').insert({
+    const { data: nueva, error } = await db.from('signals').insert({
       company_id: companyId,
       type: meta.type,
       detail: {
@@ -44,8 +47,19 @@ export async function POST(req: NextRequest) {
       },
       // Auditoría: cuándo lo registramos. No entra en el cálculo.
       detected_at: new Date().toISOString(),
-    });
+    }).select().single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    // Las señales de ronda dejan rastro en la bitácora, como las cerradas.
+    const r = meta.type === 'levantando_ronda' ? senalDeRonda([nueva as Signal]) : null;
+    if (r) {
+      await anotaEnBitacora(
+        db,
+        companyId,
+        null,
+        `Señal de ronda añadida a mano · ${[ETIQUETA_RONDA[r.tipo], r.importe, fechaCorta(r.fecha), r.confirmada ? 'confirmada' : 'sin confirmar', r.fuente ? `fuente: ${r.fuente}` : null].filter(Boolean).join(' · ')}`,
+      );
+    }
 
     return NextResponse.json({ ok: true, level: meta.level, weight: meta.weight });
   } catch (e) {

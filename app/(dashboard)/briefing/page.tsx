@@ -13,6 +13,12 @@ import {
 } from '@/lib/briefing';
 import { displayName } from '@/lib/types';
 import { LeadCard } from './lead-card';
+import { AnadirComoLead } from './anadir-como-lead';
+import { companyLabel } from '@/lib/types';
+import { fechaAnuncio, fechaCorta, senalDeRonda } from '@/lib/senal-ronda';
+import { titularesDelDia, type Titular } from '@/lib/ecosystem';
+import { EtiquetaRonda } from '../etiqueta-ronda';
+import { CompanyLogo } from '../company-logo';
 import { ImportBox } from '../import-box';
 
 export const dynamic = 'force-dynamic';
@@ -61,6 +67,37 @@ export default async function BriefingPage() {
     caducan: caducan.length,
   });
 
+  // Rondas de la semana: las cerradas que se anunciaron en los últimos 7 días
+  // y ya están en la base, y las de la prensa que aún no lo están.
+  const SEMANA = 7 * 86_400_000;
+  const ahora = Date.now();
+  const rondasSemana = leads
+    .filter((bl) => bl.company)
+    .map((bl) => {
+      const cerradas = bl.signals.filter(
+        (s) => s.type === 'funding_round' && ahora - new Date(fechaAnuncio(s)).getTime() <= SEMANA,
+      );
+      return cerradas.length ? { bl, senal: senalDeRonda(cerradas)! } : null;
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null)
+    .filter((x, i, arr) => arr.findIndex((y) => y.bl.company!.domain === x.bl.company!.domain) === i)
+    .sort((a, b) => b.senal.fecha.localeCompare(a.senal.fecha));
+  let titulares: Titular[] = [];
+  try {
+    titulares = await titularesDelDia();
+  } catch {
+    // Sin buscador configurado o caído: el bloque se queda con lo de la base.
+  }
+  // Una noticia que nombra una marca que ya tenemos no es nueva.
+  const nombres = leads
+    .filter((bl) => bl.company)
+    .map((bl) => companyLabel(bl.company!.name, bl.company!.domain).toLowerCase())
+    .filter((n) => n.length >= 4);
+  const fueraDeLaBase = titulares.filter((t) => {
+    const texto = `${t.headline} ${t.detail ?? ''}`.toLowerCase();
+    return !nombres.some((n) => new RegExp(`\\b${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(texto));
+  });
+
   const conversaciones = leads.filter((l) =>
     ['conversation', 'call', 'proposal'].includes(l.lead.stage),
   ).length;
@@ -98,6 +135,55 @@ export default async function BriefingPage() {
           </Link>
         ))}
       </div>
+
+      {/* Rondas de la semana: lo que ya está en la base y lo que no. */}
+      {(rondasSemana.length > 0 || fueraDeLaBase.length > 0) && (
+        <section id="rondas" className="mb-8">
+          <SectionTitle count={rondasSemana.length + fueraDeLaBase.length}>Rondas de la semana</SectionTitle>
+          <ul className="divide-y divide-[var(--border)] rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+            {rondasSemana.map(({ bl, senal }) => (
+              <li key={bl.company!.domain} className="flex items-center gap-3 px-4 py-2.5">
+                <CompanyLogo
+                  domain={bl.company!.domain}
+                  name={companyLabel(bl.company!.name, bl.company!.domain)}
+                  size={26}
+                  src={bl.company!.logo_url}
+                />
+                <div className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="truncate text-sm font-medium">
+                      {companyLabel(bl.company!.name, bl.company!.domain)}
+                    </span>
+                    <EtiquetaRonda senal={senal} />
+                  </span>
+                  <span className="font-mono text-xs text-[var(--muted)]">
+                    {[senal.importe, fechaCorta(senal.fecha)].filter(Boolean).join(' · ')}
+                  </span>
+                </div>
+                <Link
+                  href={`/companies/${bl.company!.domain}`}
+                  className="shrink-0 rounded-md border border-[var(--border)] px-2.5 py-1 text-xs font-medium transition-colors hover:border-[var(--muted)]"
+                >
+                  Ver ficha
+                </Link>
+              </li>
+            ))}
+            {fueraDeLaBase.map((t) => (
+              <li key={t.url} className="flex items-start gap-3 px-4 py-2.5">
+                <div className="min-w-0 flex-1">
+                  <a href={t.url} target="_blank" rel="noreferrer" className="text-sm hover:underline">
+                    {t.headline}
+                  </a>
+                  <span className="block font-mono text-xs text-[var(--muted)]">
+                    {[t.host, t.published ? fechaCorta(t.published) : null, 'aún no está en la base'].filter(Boolean).join(' · ')}
+                  </span>
+                </div>
+                <AnadirComoLead fuente={t.url} fecha={t.published} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* ¿Qué ha cambiado? Señales detectadas y scans terminados en 48h. */}
       {cambios.length > 0 && (

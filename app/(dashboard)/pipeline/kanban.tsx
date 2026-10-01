@@ -6,6 +6,8 @@ import type { BriefingLead, LeadStage } from '@/lib/types';
 import { STAGES, displayName, companyLabel } from '@/lib/types';
 import { CompanyLogo } from '../company-logo';
 import { computeRadar } from '@/lib/radar';
+import { EtiquetaRonda } from '../etiqueta-ronda';
+import { comparaPorAnuncio, FILTROS_RONDA, pasaFiltroRonda, senalDeRonda, type FiltroRonda } from '@/lib/senal-ronda';
 
 // Columnas visibles del kanban (detected y briefed se agrupan como "Detectado")
 const COLUMNS: { key: LeadStage; label: string; includes: LeadStage[] }[] = [
@@ -22,6 +24,11 @@ const COLUMNS: { key: LeadStage; label: string; includes: LeadStage[] }[] = [
 export function Kanban({ initial }: { initial: BriefingLead[] }) {
   const [leads, setLeads] = useState(initial);
   const [dragId, setDragId] = useState<string | null>(null);
+  const [filtroRonda, setFiltroRonda] = useState<FiltroRonda>('todas');
+  // Dentro de cada columna: el orden de siempre, o por fecha del anuncio de
+  // la ronda (las que no tienen señal, al final).
+  const [porAnuncio, setPorAnuncio] = useState(false);
+  const senales = new Map(leads.map((l) => [l.lead.id, senalDeRonda(l.signals)]));
 
   async function moveTo(leadId: string, stage: LeadStage) {
     const prev = leads;
@@ -41,10 +48,35 @@ export function Kanban({ initial }: { initial: BriefingLead[] }) {
   // Tablero: scroll horizontal con anclaje. En móvil cada columna ocupa
   // casi toda la pantalla y se desliza de una en una; desde sm crecen para
   // repartirse el ancho, sin bajar de 264px para que la tarjeta se lea.
+  const BOTON = 'rounded px-2 py-1 transition-colors';
   return (
+    <>
+    <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[11px]">
+      <span className="flex items-center gap-1">
+        <span className="mr-1 uppercase tracking-wider text-[var(--soft)]">Señal de ronda</span>
+        {FILTROS_RONDA.map((f) => (
+          <button
+            key={f.valor}
+            onClick={() => setFiltroRonda(f.valor)}
+            className={`${BOTON} ${filtroRonda === f.valor ? 'bg-[var(--surface-2)] text-[var(--text)]' : 'text-[var(--muted)] hover:text-[var(--text)]'}`}
+          >
+            {f.texto}
+          </button>
+        ))}
+      </span>
+      <label className="flex cursor-pointer items-center gap-2 text-[var(--muted)]">
+        <input type="checkbox" checked={porAnuncio} onChange={(e) => setPorAnuncio(e.target.checked)} className="accent-[var(--cta)]" />
+        Ordenar por fecha del anuncio
+      </label>
+    </div>
     <div className="flex snap-x snap-proximity gap-3 overflow-x-auto pb-4">
       {COLUMNS.map((col) => {
-        const items = leads.filter((l) => col.includes.includes(l.lead.stage));
+        const enColumna = leads.filter(
+          (l) => col.includes.includes(l.lead.stage) && pasaFiltroRonda(senales.get(l.lead.id) ?? null, filtroRonda),
+        );
+        const items = porAnuncio
+          ? [...enColumna].sort((a, b) => comparaPorAnuncio(senales.get(a.lead.id) ?? null, senales.get(b.lead.id) ?? null))
+          : enColumna;
         return (
           <div
             key={col.key}
@@ -120,6 +152,11 @@ export function Kanban({ initial }: { initial: BriefingLead[] }) {
                         ? 'founder sin empresa'
                         : ''}
                   </p>
+                  {senales.get(bl.lead.id) && (
+                    <div className="mt-2">
+                      <EtiquetaRonda senal={senales.get(bl.lead.id) ?? null} />
+                    </div>
+                  )}
                   {bl.lead.discard_reason && (
                     <p className="mt-1.5 text-xs text-[var(--danger)]/80">{bl.lead.discard_reason}</p>
                   )}
@@ -130,5 +167,6 @@ export function Kanban({ initial }: { initial: BriefingLead[] }) {
         );
       })}
     </div>
+    </>
   );
 }

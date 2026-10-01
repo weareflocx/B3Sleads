@@ -41,6 +41,8 @@ import { ScoreRing } from '../../score-ring';
 import { Heat } from '../../heat';
 import { Avatar } from '../../avatar';
 import { EditableText } from '../../editable-text';
+import { DetalleRonda, EtiquetaRonda } from '../../etiqueta-ronda';
+import { senalDeRonda } from '@/lib/senal-ronda';
 import { NivelCerradoSlot } from './nivel-cerrado-slot';
 import { AdoptarPasada } from './adoptar-pasada';
 
@@ -242,6 +244,9 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
     company.name === company.domain ? 'nombre por revisar' : null,
     !founders.some((c) => c.linkedin_url) ? 'LinkedIn por verificar' : null,
   ].filter(Boolean) as string[];
+  // Ronda detectada / buscando ronda: de las señales que ya tiene. Sin
+  // señal, nada cambia en la cabecera.
+  const senalRonda = senalDeRonda(signals);
   const stageLabel = stageLabelFor(lead.stage);
   const firstName = displayName(contact?.full_name).split(' ')[0] || null;
   const temp = leadTemperature(bl);
@@ -295,14 +300,20 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
             />
           </EditableImage>
           <div className="flex min-w-0 flex-col justify-between" style={{ minHeight: 86 }}>
-            <EditableText
-              initial={companyLabel(company.name, company.domain)}
-              kind="company"
-              id={company.id}
-              as="h1"
-              className="text-3xl font-semibold leading-none tracking-tight"
-              label="Editar nombre de la marca"
-            />
+            <div className="flex flex-col gap-1.5">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                <EditableText
+                  initial={companyLabel(company.name, company.domain)}
+                  kind="company"
+                  id={company.id}
+                  as="h1"
+                  className="text-3xl font-semibold leading-none tracking-tight"
+                  label="Editar nombre de la marca"
+                />
+                <EtiquetaRonda senal={senalRonda} tam="md" />
+              </div>
+              <DetalleRonda senal={senalRonda} />
+            </div>
             <div className="flex flex-wrap items-center gap-3 font-mono text-sm text-[var(--muted)]">
               {porRevisar.map((p) => (
                 <span key={p} className="rounded border border-[var(--warning)]/50 px-1.5 py-0.5 text-[10px] text-[var(--warning)]">

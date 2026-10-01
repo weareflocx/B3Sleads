@@ -3,6 +3,8 @@ import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import { priorityScore } from '@/lib/scoring';
 import { parseInvestors } from '@/lib/funding';
 import type { Company, Scan, Signal, SignalDetail } from '@/lib/types';
+import { anotaEnBitacora } from '@/lib/bitacora';
+import { ETIQUETA_RONDA, fechaCorta, senalDeRonda } from '@/lib/senal-ronda';
 
 // Rondas que la ficha gestiona: la cerrada y la que están levantando ahora.
 // Las dos se editan y se borran igual; lo que cambia es cómo se leen.
@@ -55,12 +57,30 @@ async function recalcLead(
     .eq('id', companyId);
 }
 
+// Cómo se lee una señal de ronda en la bitácora: "Ronda detectada · seed ·
+// 2M€ · 20 sept 2026 · confirmada · fuente: https://…".
+function lineaRonda(sig: Signal): string {
+  const r = senalDeRonda([sig]);
+  if (!r) return 'ronda';
+  const d = (sig.detail ?? {}) as Record<string, unknown>;
+  return [
+    ETIQUETA_RONDA[r.tipo],
+    typeof d.round === 'string' ? d.round : null,
+    r.importe,
+    fechaCorta(r.fecha),
+    r.confirmada ? 'confirmada' : 'sin confirmar',
+    r.fuente ? `fuente: ${r.fuente}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
 // Alta manual de una ronda de financiación en la ficha. La señal recalcula
 // la prioridad del lead (la recencia de ronda pesa un 40% del score).
 // POST { companyId, leadId?, round, amount?, investors?, date?, sourceUrl? }
 export async function POST(req: NextRequest) {
   try {
-    const { companyId, leadId, round, amount, amountEur, investors, date, sourceUrl } =
+    const { companyId, leadId, round, amount, amountEur, investors, date, sourceUrl, confirmada } =
       await req.json();
     if (!companyId || !round) {
       return NextResponse.json({ error: 'companyId y round requeridos' }, { status: 400 });
@@ -70,7 +90,7 @@ export async function POST(req: NextRequest) {
     const db = getServiceSupabase()!;
     const detectedAt = date ? new Date(date).toISOString() : new Date().toISOString();
 
-    const { error } = await db.from('signals').insert({
+    const { data: nueva, error } = await db.from('signals').insert({
       company_id: companyId,
       type: 'funding_round',
       detail: {
@@ -80,11 +100,15 @@ export async function POST(req: NextRequest) {
         investors: parseInvestors(investors),
         source_url: sourceUrl || null,
         manual: true,
+        // Lo que se registra a mano cuenta como confirmado salvo que se diga.
+        confirmada: confirmada === false ? false : true,
+        ...(date ? { announced_at: detectedAt } : {}),
       },
       detected_at: detectedAt,
-    });
+    }).select().single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+    await anotaEnBitacora(db, companyId, leadId, `Señal de ronda añadida a mano · ${lineaRonda(nueva as Signal)}`);
     await recalcLead(db, leadId, companyId);
     return NextResponse.json({ ok: true });
   } catch (e) {
@@ -118,13 +142,29 @@ export async function PATCH(req: NextRequest) {
       detail.amount_eur = typeof body.amountEur === 'number' ? body.amountEur : undefined;
     }
     if (body.investors !== undefined) detail.investors = parseInvestors(body.investors);
+    if (body.targetAmount !== undefined) detail.target_amount = body.targetAmount || undefined;
+    if (body.sourceUrl !== undefined) {
+      const url = typeof body.sourceUrl === 'string' ? body.sourceUrl.trim() : '';
+      detail.source_url = /^https?:\/\/\S+\.\S+/i.test(url) ? url : undefined;
+    }
+    if (typeof body.confirmada === 'boolean') detail.confirmada = body.confirmada;
 
     const update: Record<string, unknown> = { detail };
-    if (body.date) update.detected_at = new Date(body.date).toISOString();
+    if (body.date) {
+      const iso = new Date(body.date).toISOString();
+      update.detected_at = iso;
+      // La fecha del anuncio manda sobre cualquier otra que trajera la señal.
+      detail.announced_at = iso;
+    }
 
-    const { error } = await db.from('signals').update(update).eq('id', signalId);
+    const { data: actualizada, error } = await db.from('signals').update(update).eq('id', signalId).select().single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+    const antes = lineaRonda(current as Signal);
+    const despues = lineaRonda(actualizada as Signal);
+    if (antes !== despues) {
+      await anotaEnBitacora(db, current.company_id, leadId, `Señal de ronda editada\nAntes: ${antes}\nAhora: ${despues}`);
+    }
     await recalcLead(db, leadId, current.company_id);
     return NextResponse.json({ ok: true });
   } catch (e) {
@@ -143,7 +183,7 @@ export async function DELETE(req: NextRequest) {
     const db = getServiceSupabase()!;
     const { data: current } = await db
       .from('signals')
-      .select('company_id')
+      .select('*')
       .eq('id', signalId)
       .in('type', ROUND_TYPES)
       .single();
@@ -151,6 +191,7 @@ export async function DELETE(req: NextRequest) {
 
     const { error } = await db.from('signals').delete().eq('id', signalId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    await anotaEnBitacora(db, current.company_id, leadId, `Señal de ronda eliminada · ${lineaRonda(current as Signal)}`);
 
     await recalcLead(db, leadId, current.company_id);
     return NextResponse.json({ ok: true });

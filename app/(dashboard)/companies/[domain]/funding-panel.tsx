@@ -14,6 +14,7 @@ import {
 import { resolveInvestors } from '@/lib/investors';
 import { BTN_CTA, BTN_OUTLINE } from '../../buttons';
 import type { RoundProposal } from '@/lib/funding-discovery';
+import { estaConfirmada } from '@/lib/senal-ronda';
 
 // Financiación del lead: rondas registradas, corregibles, y alta manual. La
 // ronda es la señal de momento (40% de la prioridad): tocarla reordena el
@@ -71,6 +72,55 @@ function AmountField({
   );
 }
 
+// Fuente (URL) y confirmación: lo que hace creíble una señal de ronda.
+function FuenteYConfirmacion({
+  fuente,
+  confirmada,
+  onFuente,
+  onConfirmada,
+}: {
+  fuente: string;
+  confirmada: boolean;
+  onFuente: (v: string) => void;
+  onConfirmada: (v: boolean) => void;
+}) {
+  return (
+    <>
+      <input
+        value={fuente}
+        onChange={(e) => onFuente(e.target.value)}
+        placeholder="fuente (URL de la noticia o el anuncio)"
+        aria-label="Fuente de la ronda"
+        className={`${FIELD} w-full`}
+      />
+      <label className="flex cursor-pointer items-center gap-2 text-xs text-[var(--muted)]">
+        <input type="checkbox" checked={confirmada} onChange={(e) => onConfirmada(e.target.checked)} className="accent-[var(--cta)]" />
+        Confirmada (anuncio oficial o fuente fiable)
+      </label>
+    </>
+  );
+}
+
+// "sin confirmar" y el enlace a la fuente, en la fila de la ronda.
+function MetaRonda({ signal }: { signal: Signal }) {
+  const d = (signal.detail ?? {}) as Record<string, unknown>;
+  const url = typeof d.source_url === 'string' && /^https?:\/\//i.test(d.source_url) ? d.source_url : null;
+  const confirmada = estaConfirmada(signal);
+  if (confirmada && !url) return null;
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-2 font-mono text-[10px]">
+      {!confirmada && (
+        <span className="rounded border border-dashed border-[var(--border)] px-1.5 py-0.5 text-[var(--soft)]">sin confirmar</span>
+      )}
+      {url && (
+        <a href={url} target="_blank" rel="noreferrer" className="text-[var(--muted)] hover:text-[var(--text)] hover:underline">
+          fuente ↗
+        </a>
+      )}
+    </div>
+  );
+}
+
 // Los inversores dejan de ser texto plano: cada chip lleva a la ficha del
 // fondo, donde está su cartera dentro del radar.
 function InvestorChips({ investors }: { investors: unknown }) {
@@ -99,6 +149,32 @@ function RaisingRow({ signal, leadId }: { signal: Signal; leadId: string }) {
   const router = useRouter();
   const d = signal.detail ?? {};
   const [busy, setBusy] = useState(false);
+  const objetivoInicial = parseAmount(d.target_amount);
+  const [editing, setEditing] = useState(false);
+  const [valor, setValor] = useState(objetivoInicial.value);
+  const [unidad, setUnidad] = useState<AmountUnit>(objetivoInicial.unit);
+  const [fuente, setFuente] = useState(typeof d.source_url === 'string' ? d.source_url : '');
+  const [confirmada, setConfirmada] = useState(estaConfirmada(signal));
+
+  async function guardar() {
+    setBusy(true);
+    const res = await fetch('/api/signals', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        signalId: signal.id,
+        leadId,
+        targetAmount: valor.trim() ? formatAmount(valor, unidad) : '',
+        sourceUrl: fuente,
+        confirmada,
+      }),
+    });
+    setBusy(false);
+    if (res.ok) {
+      setEditing(false);
+      router.refresh();
+    }
+  }
 
   async function remove() {
     if (!confirm('¿Quitar esta señal de "en ronda"?')) return;
@@ -113,17 +189,44 @@ function RaisingRow({ signal, leadId }: { signal: Signal; leadId: string }) {
   }
 
   const evidence = typeof d.evidence === 'string' ? d.evidence : null;
+  if (editing) {
+    return (
+      <div className="space-y-2 rounded-md border border-[var(--cta)] p-2">
+        <p className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">Buscando ronda · qué buscan</p>
+        <AmountField value={valor} unit={unidad} onValue={setValor} onUnit={setUnidad} />
+        <FuenteYConfirmacion fuente={fuente} confirmada={confirmada} onFuente={setFuente} onConfirmada={setConfirmada} />
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={guardar} disabled={busy} className="rounded-md bg-[var(--cta)] px-3 py-1.5 text-sm font-medium text-[var(--cta-text)] disabled:opacity-50">
+            {busy ? 'Guardando…' : 'Guardar'}
+          </button>
+          <button onClick={() => setEditing(false)} className="px-1 text-sm text-[var(--muted)] hover:text-[var(--text)]">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className={`group rounded-md border border-[var(--accent)]/40 bg-[var(--accent)]/5 p-2 ${busy ? 'opacity-50' : ''}`}>
       <div className="flex items-baseline justify-between gap-3">
         <span className="text-sm font-medium">
           <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--accent)]">
-            En ronda
+            Buscando ronda
           </span>{' '}
           <span className="capitalize">{(d.round as string) ?? 'ronda'}</span>
           {d.target_amount ? ` · buscan ${d.target_amount}` : ''}
         </span>
         <span className="flex shrink-0 items-center gap-2">
+          <button
+            onClick={() => setEditing(true)}
+            title="Editar señal"
+            aria-label="Editar señal de buscando ronda"
+            className="text-[var(--soft)] opacity-0 transition-opacity hover:text-[var(--text)] group-hover:opacity-100 focus:opacity-100"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M4 20h4l10-10-4-4L4 16v4zM14 6l4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
           <button
             onClick={remove}
             disabled={busy}
@@ -141,6 +244,7 @@ function RaisingRow({ signal, leadId }: { signal: Signal; leadId: string }) {
       {evidence && (
         <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">{evidence}</p>
       )}
+      <MetaRonda signal={signal} />
     </div>
   );
 }
@@ -167,8 +271,12 @@ function RoundRow({
     Array.isArray(d.investors) ? (d.investors as string[]).join(', ') : '',
   );
   const [date, setDate] = useState(dateInputValue(signal.detected_at));
+  const [fuente, setFuente] = useState(typeof d.source_url === 'string' ? d.source_url : '');
+  const [confirmada, setConfirmada] = useState(estaConfirmada(signal));
 
   function reset() {
+    setFuente(typeof d.source_url === 'string' ? d.source_url : '');
+    setConfirmada(estaConfirmada(signal));
     setRound((d.round as string) || 'seed');
     setValue(initialAmount.value);
     setUnit(initialAmount.unit);
@@ -190,6 +298,8 @@ function RoundRow({
         amountEur: amountToEur(value, unit),
         investors,
         date,
+        sourceUrl: fuente,
+        confirmada,
       }),
     });
     setBusy(false);
@@ -236,6 +346,7 @@ function RoundRow({
           onChange={(e) => setDate(e.target.value)}
           className={`${FIELD} w-full`}
         />
+        <FuenteYConfirmacion fuente={fuente} confirmada={confirmada} onFuente={setFuente} onConfirmada={setConfirmada} />
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={save}
@@ -287,6 +398,7 @@ function RoundRow({
         </span>
       </div>
       <InvestorChips investors={d.investors} />
+      <MetaRonda signal={signal} />
     </div>
   );
 }
@@ -379,6 +491,8 @@ export function FundingPanel({
   const [unit, setUnit] = useState<AmountUnit>('M');
   const [investors, setInvestors] = useState('');
   const [date, setDate] = useState('');
+  const [fuente, setFuente] = useState('');
+  const [confirmada, setConfirmada] = useState(true);
   const [busy, setBusy] = useState(false);
   const [searching, setSearching] = useState(false);
   const [proposals, setProposals] = useState<RoundProposal[] | null>(null);
@@ -391,6 +505,8 @@ export function FundingPanel({
   const [raisingValue, setRaisingValue] = useState('');
   const [raisingUnit, setRaisingUnit] = useState<AmountUnit>('M');
   const [raisingNote, setRaisingNote] = useState('');
+  const [raisingFuente, setRaisingFuente] = useState('');
+  const [raisingConfirmada, setRaisingConfirmada] = useState(true);
 
   async function saveRaising() {
     const objetivo = raisingValue.trim()
@@ -409,7 +525,9 @@ export function FundingPanel({
           type: 'levantando_ronda',
           occurredAt: new Date().toISOString(),
           evidence,
+          sourceUrl: /^https?:\/\/\S+\.\S+/i.test(raisingFuente.trim()) ? raisingFuente.trim() : null,
           detail: {
+            confirmada: raisingConfirmada,
             round: raisingRound,
             target_amount: raisingValue.trim() ? formatAmount(raisingValue, raisingUnit) : null,
             target_amount_eur: raisingValue.trim() ? amountToEur(raisingValue, raisingUnit) : null,
@@ -421,6 +539,8 @@ export function FundingPanel({
         setRaising(false);
         setRaisingValue('');
         setRaisingNote('');
+        setRaisingFuente('');
+        setRaisingConfirmada(true);
         router.refresh();
       }
     } finally {
@@ -466,6 +586,10 @@ export function FundingPanel({
     }
     if (p.investors.length) setInvestors(p.investors.join(', '));
     if (p.date) setDate(p.date.slice(0, 10));
+    // El enlace de la noticia se perdía al guardar: ahora es la fuente.
+    if (p.sourceUrl) setFuente(p.sourceUrl);
+    // Lo encontrado por el buscador no está confirmado hasta que alguien lo diga.
+    setConfirmada(false);
     setProposals(null);
     setSearchMsg(null);
     setShowPaste(false);
@@ -486,6 +610,8 @@ export function FundingPanel({
         amountEur: amountToEur(value, unit),
         investors,
         date,
+        sourceUrl: fuente.trim() || null,
+        confirmada,
       }),
     });
     setBusy(false);
@@ -494,6 +620,8 @@ export function FundingPanel({
       setValue('');
       setInvestors('');
       setDate('');
+      setFuente('');
+      setConfirmada(true);
       router.refresh();
     }
   }
@@ -549,6 +677,7 @@ export function FundingPanel({
             onChange={(e) => setDate(e.target.value)}
             className={`${FIELD} w-full`}
           />
+          <FuenteYConfirmacion fuente={fuente} confirmada={confirmada} onFuente={setFuente} onConfirmada={setConfirmada} />
           <div className="flex gap-2">
             <button onClick={save} disabled={busy} className={`${BTN_CTA} flex-1`}>
               {busy ? 'Guardando…' : 'Guardar ronda'}
@@ -570,7 +699,7 @@ export function FundingPanel({
             {fundingSignals.length ? 'Registrar otra ronda' : 'Registrar a mano'}
           </button>
           <button onClick={() => setRaising((v) => !v)} className={`${BTN_OUTLINE} w-full`}>
-            Están levantando ronda ahora
+            Están buscando ronda ahora
           </button>
         </div>
       )}
@@ -580,7 +709,7 @@ export function FundingPanel({
       {raising && (
         <div className="mt-3 space-y-2 rounded-md border border-[var(--cta)] p-2">
           <p className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">
-            En ronda · qué buscan
+            Buscando ronda · qué buscan
           </p>
           <div className="flex gap-2">
             <select
@@ -606,6 +735,12 @@ export function FundingPanel({
             onChange={(e) => setRaisingNote(e.target.value)}
             placeholder="cómo lo sabes (queda como evidencia)"
             className={`${FIELD} w-full`}
+          />
+          <FuenteYConfirmacion
+            fuente={raisingFuente}
+            confirmada={raisingConfirmada}
+            onFuente={setRaisingFuente}
+            onConfirmada={setRaisingConfirmada}
           />
           <div className="flex gap-2">
             <button onClick={saveRaising} disabled={busy} className={`${BTN_CTA} flex-1`}>
