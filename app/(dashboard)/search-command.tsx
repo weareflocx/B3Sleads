@@ -143,7 +143,7 @@ export function SearchCommand({ collapsed = false }: { collapsed?: boolean }) {
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   onKeyDown={onInputKey}
-                  placeholder="Buscar startups y founders…"
+                  placeholder="Buscar marcas y founders…"
                   className="flex-1 bg-transparent py-3.5 text-sm outline-none placeholder:text-[var(--soft)]"
                 />
                 {loading && <span className="text-xs text-[var(--soft)]">…</span>}
@@ -161,7 +161,7 @@ export function SearchCommand({ collapsed = false }: { collapsed?: boolean }) {
                 ) : (
                   <>
                     {companies.length > 0 && (
-                      <Group label="Startups">
+                      <Group label="Marcas">
                         {companies.map((h) => (
                           <Row
                             key={`c-${h.href}`}

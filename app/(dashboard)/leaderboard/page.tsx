@@ -150,7 +150,7 @@ export default async function LeaderboardPage() {
       )}
       <p className="pt-1 text-[11px] leading-relaxed text-[var(--soft)]">
         B3S Score del último scan (rojo ≤50 · azul 51-75 · verde 76-100). Una fila por
-        startup; si hay varios scans, el mejor.
+        marca; si hay varios scans, el mejor.
       </p>
     </div>
   );
@@ -192,7 +192,7 @@ export default async function LeaderboardPage() {
       <p className="pt-1 text-[11px] leading-relaxed text-[var(--soft)]">
         Fondos ordenados por participadas en el radar. El anillo es la media de B3S Score de su
         cartera escaneada: un fondo con media baja es una conversación con el fondo, no con una
-        startup suelta.
+        marca suelta.
       </p>
     </div>
   );
@@ -221,7 +221,7 @@ export default async function LeaderboardPage() {
           },
           {
             key: 'startups',
-            label: 'Startups',
+            label: 'Marcas',
             hint: 'Las mejores marcas del radar según B3S Scanner.',
             content: startupsTab,
           },

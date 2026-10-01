@@ -236,7 +236,7 @@ export function CompanyBio({
             setEditing(false);
           }
         }}
-        placeholder="qué hace la startup, en una o dos frases (cópialo de su LinkedIn)"
+        placeholder="qué hace la marca, en una o dos frases (cópialo de su LinkedIn)"
         className="w-full resize-y rounded-md border border-[var(--cta)] bg-[var(--bg)] px-2.5 py-2 text-sm leading-relaxed outline-none"
       />
     );
@@ -249,7 +249,7 @@ export function CompanyBio({
           onClick={() => setEditing(true)}
           className="text-left text-sm text-[var(--soft)] underline decoration-dotted underline-offset-4 hover:text-[var(--cta)]"
         >
-          añadir bio (qué hace la startup)
+          añadir bio (qué hace la marca)
         </button>
         {acciones}
         {candidatas}

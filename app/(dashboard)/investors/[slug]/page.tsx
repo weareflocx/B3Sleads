@@ -206,7 +206,7 @@ export default async function InvestorPage({ params }: { params: Promise<{ slug:
               ) : (
                 <p className="text-sm text-[var(--muted)]">
                   Añade la web del fondo arriba y podrás escanear su marca como la de cualquier
-                  startup.
+                  marca.
                 </p>
               )}
             </div>

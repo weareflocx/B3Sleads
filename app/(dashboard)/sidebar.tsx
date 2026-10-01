@@ -38,7 +38,7 @@ const NAV: NavItem[] = [
   { href: '/briefing', label: 'Briefing', Icon: IconBriefing },
   { href: '/pipeline', label: 'Pipeline', Icon: IconPipeline },
   { href: '/founders', label: 'Founders', Icon: IconFounders },
-  { href: '/startups', label: 'Startups', Icon: IconBuilding, match: ['/companies'] },
+  { href: '/startups', label: 'Marcas', Icon: IconBuilding, match: ['/companies'] },
   { href: '/leaderboard', label: 'Leaderboard', Icon: IconLeaderboard, match: ['/investors'] },
 ];
 

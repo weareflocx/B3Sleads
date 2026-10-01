@@ -96,7 +96,7 @@ export default async function HomePage() {
     },
     {
       href: '/startups',
-      title: 'Startups',
+      title: 'Marcas',
       label: `${stats.marcas} marcas`,
       hint: 'El catálogo brand-first: score B3S, sector y ronda.',
     },

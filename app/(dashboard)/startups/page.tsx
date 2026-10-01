@@ -14,7 +14,7 @@ export default async function StartupsPage() {
   return (
     <main className={`${PAGE} space-y-6`}>
       <div className="flex items-baseline justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Startups</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Marcas</h1>
         <span className="text-sm text-[var(--muted)]">
           {startups.length} {startups.length === 1 ? 'marca' : 'marcas'}
         </span>
@@ -24,7 +24,7 @@ export default async function StartupsPage() {
 
       {startups.length === 0 ? (
         <p className="rounded-lg border border-dashed border-[var(--border)] p-10 text-center text-[var(--muted)]">
-          Sin startups todavía. Añade una por dominio arriba o espera al pipeline nocturno.
+          Sin marcas todavía. Añade una por dominio arriba o espera al pipeline nocturno.
         </p>
       ) : (
         <StartupsList items={startups} />
