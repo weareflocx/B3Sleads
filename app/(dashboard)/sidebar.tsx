@@ -9,6 +9,7 @@ import { Avatar } from './avatar';
 import { ThemeToggle } from './theme-toggle';
 import { SearchCommand } from './search-command';
 import { AddLeadButton } from './add-lead-modal';
+import { SubidaLoteButton } from './subida-lote';
 import { getBrowserSupabase } from '@/lib/supabase-browser';
 import {
   IconBriefing,
@@ -181,8 +182,10 @@ function SidebarBody({
       </div>
 
       {/* La única acción del menú: meter algo al radar sin cambiar de pantalla. */}
-      <div className="px-3 pb-1 pt-1.5">
+      <div className="space-y-1.5 px-3 pb-1 pt-1.5">
         <AddLeadButton collapsed={collapsed} />
+        {/* Varias de golpe, desde una hoja o un CSV. No lanza scans. */}
+        <SubidaLoteButton collapsed={collapsed} />
       </div>
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-2">

@@ -235,6 +235,13 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
   const founders = contact
     ? [contact, ...allContacts.filter((c) => c.id !== contact.id)]
     : allContacts;
+  // Lo que una subida en lote dejó pendiente, deducido de los datos (sin
+  // columnas nuevas): marca sin nombre propio, y ningún fundador con un
+  // perfil de LinkedIn válido. Desaparece solo al corregirlo.
+  const porRevisar = [
+    company.name === company.domain ? 'nombre por revisar' : null,
+    !founders.some((c) => c.linkedin_url) ? 'LinkedIn por verificar' : null,
+  ].filter(Boolean) as string[];
   const stageLabel = stageLabelFor(lead.stage);
   const firstName = displayName(contact?.full_name).split(' ')[0] || null;
   const temp = leadTemperature(bl);
@@ -297,6 +304,11 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
               label="Editar nombre de la marca"
             />
             <div className="flex flex-wrap items-center gap-3 font-mono text-sm text-[var(--muted)]">
+              {porRevisar.map((p) => (
+                <span key={p} className="rounded border border-[var(--warning)]/50 px-1.5 py-0.5 text-[10px] text-[var(--warning)]">
+                  {p}
+                </span>
+              ))}
               {company.domain?.includes('.') ? (
                 <a
                   href={`https://${company.domain}`}
