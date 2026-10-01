@@ -13,6 +13,10 @@ Esfuerzo: S (< medio día), M (1-2 días), L (más).
 - [x] Ordenar marcas del estudio arrastrando, también entre grupos.
 - [x] Comprobado: los registros nuevos están desactivados en Supabase. Nadie de fuera puede entrar desde "Empezar" de la landing.
 
+## 01/10 · Fuera del plan
+- [x] **Subir en lote** (tabla o CSV, vista previa, deduplicado, sin scans).
+- [ ] **Mapa de marcas** por país y ciudad: la subida en lote ya los guarda (`hq_country`, `city`); falta pedirlos también en el alta normal y en la ficha.
+
 ## Día 1 · Errores que guardan o enseñan datos falsos (S cada uno)
 - [x] **Regenerar borrador no se guarda**: `api/messages/regenerate` usa el cliente anónimo y el insert falla en silencio.
 - [x] **"Regenerar" corrompe lo enviado**: la tarjeta sigue apuntando al mensaje viejo y guarda el texto nuevo de la IA como `edited_final` (lo que el humano envió) (`briefing/lead-card.tsx:113-138`).
@@ -72,7 +76,7 @@ Hoy solo se llega al estudio desde el banner de "Cerrado", y la landing lo vende
 - [ ] `loading.tsx`, `error.tsx` y 404 en español.
 
 ## Decisiones tuyas
-1. **"Startups" → "Marcas"** en menú, títulos y búsqueda. La landing ya habla de marcas y agencias.
+1. ~~**"Startups" → "Marcas"**~~ Hecho el 01/10 (textos; la dirección /startups se mantiene).
 2. **ICP y registro del mensaje**: `icp.json` excluye agencias y empresas de más de 50 personas, y `message-system.md` es de founder a founder. Si ahora vamos a por agencias o marcas establecidas, hace falta un segmento y una segunda voz.
 3. **Crédito "B3S Scanner by FLOC\*" en la tarjeta**: las reglas dicen no mencionar FLOC en el primer mensaje. ¿Versión sin crédito para primer contacto?
 4. **Migraciones pendientes** de aplicar en Supabase: `20260909120000_scans_ligeros.sql` y `20260911090000_battle_cards_claims.sql`, más las de seguridad del día 5.
