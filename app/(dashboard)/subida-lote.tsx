@@ -37,8 +37,29 @@ interface Resultado {
   avisos?: string[];
 }
 
-export function SubidaLoteButton({ collapsed = false }: { collapsed?: boolean }) {
+// En el menú es un botón con icono; dentro de un formulario de alta puede ser
+// un enlace de texto (`children` + `className`). Es la única subida en lote:
+// la antigua, que emparejaba dos listas por fila, se quitó el 01/10.
+export function SubidaLoteButton({
+  collapsed = false,
+  className,
+  children,
+}: {
+  collapsed?: boolean;
+  className?: string;
+  children?: React.ReactNode;
+}) {
   const [open, setOpen] = useState(false);
+  if (children) {
+    return (
+      <>
+        <button onClick={() => setOpen(true)} className={className}>
+          {children}
+        </button>
+        {open && <Dialogo onClose={() => setOpen(false)} />}
+      </>
+    );
+  }
   return (
     <>
       <button
