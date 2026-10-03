@@ -14,7 +14,8 @@ import {
 import { resolveInvestors } from '@/lib/investors';
 import { BTN_CTA, BTN_OUTLINE } from '../../buttons';
 import type { RoundProposal } from '@/lib/funding-discovery';
-import { estaConfirmada } from '@/lib/senal-ronda';
+import { estaConfirmada, fechaAnuncio, fechaCorta, nombreRonda, senalDeRonda } from '@/lib/senal-ronda';
+import { EtiquetaRonda } from '../../etiqueta-ronda';
 
 // Financiación del lead: rondas registradas, corregibles, y alta manual. La
 // ronda es la señal de momento (40% de la prioridad): tocarla reordena el
@@ -101,46 +102,39 @@ function FuenteYConfirmacion({
   );
 }
 
-// "sin confirmar" y el enlace a la fuente, en la fila de la ronda.
-function MetaRonda({ signal }: { signal: Signal }) {
+// Debajo de cada ronda: con quién (cada inversor lleva a su ficha) y la
+// fuente, en una sola línea de texto. Antes eran un chip por inversor más una
+// fila aparte para "sin confirmar" y la fuente.
+function LineaRonda({ signal }: { signal: Signal }) {
   const d = (signal.detail ?? {}) as Record<string, unknown>;
   const url = typeof d.source_url === 'string' && /^https?:\/\//i.test(d.source_url) ? d.source_url : null;
-  const confirmada = estaConfirmada(signal);
-  if (confirmada && !url) return null;
+  const refs = resolveInvestors(d.investors);
+  if (!refs.length && !url) return null;
   return (
-    <div className="mt-1 flex flex-wrap items-center gap-2 font-mono text-[10px]">
-      {!confirmada && (
-        <span className="rounded border border-dashed border-[var(--border)] px-1.5 py-0.5 text-[var(--soft)]">sin confirmar</span>
+    <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
+      {refs.length > 0 && (
+        <>
+          con{' '}
+          {refs.map((inv, i) => (
+            <span key={inv.slug}>
+              {i > 0 && (i === refs.length - 1 ? ' y ' : ', ')}
+              <Link href={inv.href} className="text-[var(--text)] hover:underline">
+                {inv.name}
+              </Link>
+            </span>
+          ))}
+        </>
       )}
+      {refs.length > 0 && url && <span className="mx-1.5 text-[var(--soft)]">·</span>}
       {url && (
-        <a href={url} target="_blank" rel="noreferrer" className="text-[var(--muted)] hover:text-[var(--text)] hover:underline">
+        <a href={url} target="_blank" rel="noreferrer" className="hover:text-[var(--text)] hover:underline">
           fuente ↗
         </a>
       )}
-    </div>
+    </p>
   );
 }
 
-// Los inversores dejan de ser texto plano: cada chip lleva a la ficha del
-// fondo, donde está su cartera dentro del radar.
-function InvestorChips({ investors }: { investors: unknown }) {
-  const refs = resolveInvestors(investors);
-  if (!refs.length) return null;
-  return (
-    <div className="mt-2 flex flex-wrap gap-1.5">
-      {refs.map((inv) => (
-        <Link
-          key={inv.slug}
-          href={inv.href}
-          title={`Ficha de ${inv.name}`}
-          className="rounded-full border border-[var(--border)] px-2 py-0.5 font-mono text-xs text-[var(--muted)] transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)]"
-        >
-          {inv.name}
-        </Link>
-      ))}
-    </div>
-  );
-}
 
 // Una ronda que están levantando AHORA. Se lee distinto de una cerrada: no es
 // un hecho con inversores, es un estado con un objetivo. Solo se borra (para
@@ -207,14 +201,13 @@ function RaisingRow({ signal, leadId }: { signal: Signal; leadId: string }) {
     );
   }
   return (
-    <div className={`group rounded-md border border-[var(--accent)]/40 bg-[var(--accent)]/5 p-2 ${busy ? 'opacity-50' : ''}`}>
+    <div className={`group ${busy ? 'opacity-50' : ''}`}>
       <div className="flex items-baseline justify-between gap-3">
-        <span className="text-sm font-medium">
-          <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--accent)]">
-            Buscando ronda
-          </span>{' '}
-          <span className="capitalize">{(d.round as string) ?? 'ronda'}</span>
-          {d.target_amount ? ` · buscan ${d.target_amount}` : ''}
+        <span className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
+          <EtiquetaRonda senal={senalDeRonda([signal])} />
+          <span className="font-medium">
+            {[nombreRonda(d.round as string), d.target_amount ? `buscan ${d.target_amount}` : null].filter(Boolean).join(' · ') || 'Ronda'}
+          </span>
         </span>
         <span className="flex shrink-0 items-center gap-2">
           <button
@@ -231,20 +224,22 @@ function RaisingRow({ signal, leadId }: { signal: Signal; leadId: string }) {
             onClick={remove}
             disabled={busy}
             title="Quitar señal"
-            aria-label="Quitar señal de en ronda"
+            aria-label="Quitar señal de buscando ronda"
             className="text-[var(--soft)] opacity-0 transition-opacity hover:text-[var(--danger)] group-hover:opacity-100 focus:opacity-100"
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
           </button>
-          <span className="font-mono text-xs text-[var(--muted)]">{timeAgo(signal.detected_at)}</span>
+          <span className="font-mono text-xs text-[var(--muted)]" title={timeAgo(fechaAnuncio(signal))}>
+            {fechaCorta(fechaAnuncio(signal))}
+          </span>
         </span>
       </div>
       {evidence && (
         <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">{evidence}</p>
       )}
-      <MetaRonda signal={signal} />
+      <LineaRonda signal={signal} />
     </div>
   );
 }
@@ -373,9 +368,11 @@ function RoundRow({
   return (
     <div className={`group ${highlight ? '' : 'opacity-70'}`}>
       <div className="flex items-baseline justify-between gap-3">
-        <span className="text-sm font-medium capitalize">
-          {(d.round as string) ?? 'ronda'}
-          {d.amount ? ` · ${d.amount}` : ''}
+        <span className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
+          <EtiquetaRonda senal={senalDeRonda([signal])} />
+          <span className="font-medium">
+            {[nombreRonda(d.round as string), d.amount as string | undefined].filter(Boolean).join(' · ') || 'Ronda'}
+          </span>
         </span>
         <span className="flex shrink-0 items-center gap-2">
           <button
@@ -394,11 +391,12 @@ function RoundRow({
               />
             </svg>
           </button>
-          <span className="font-mono text-xs text-[var(--muted)]">{timeAgo(signal.detected_at)}</span>
+          <span className="font-mono text-xs text-[var(--muted)]" title={timeAgo(fechaAnuncio(signal))}>
+            {fechaCorta(fechaAnuncio(signal))}
+          </span>
         </span>
       </div>
-      <InvestorChips investors={d.investors} />
-      <MetaRonda signal={signal} />
+      <LineaRonda signal={signal} />
     </div>
   );
 }
@@ -688,19 +686,24 @@ export function FundingPanel({
           </div>
         </div>
       ) : (
-        <div className="mt-3 space-y-2">
-          <button onClick={() => discover()} disabled={searching} className={`${BTN_OUTLINE} w-full`}>
-            {searching ? 'Buscando…' : 'Buscar rondas'}
-          </button>
-          <button onClick={() => setShowPaste((v) => !v)} className={`${BTN_OUTLINE} w-full`}>
-            Pegar noticia o enlace
-          </button>
-          <button onClick={() => setOpen(true)} className={`${BTN_OUTLINE} w-full`}>
-            {fundingSignals.length ? 'Registrar otra ronda' : 'Registrar a mano'}
-          </button>
-          <button onClick={() => setRaising((v) => !v)} className={`${BTN_OUTLINE} w-full`}>
-            Están buscando ronda ahora
-          </button>
+        // Cuatro formas de añadir, en una fila discreta: el panel es para
+        // leer la ronda, no para enseñar botones.
+        <div className="mt-4 flex flex-wrap gap-1.5 border-t border-[var(--border)] pt-3">
+          {[
+            { t: fundingSignals.length ? '+ Otra ronda' : '+ Registrar ronda', f: () => setOpen(true) },
+            { t: 'Buscando ronda', f: () => setRaising((v) => !v) },
+            { t: searching ? 'Buscando…' : 'Buscar en prensa', f: () => discover() },
+            { t: 'Pegar noticia', f: () => setShowPaste((v) => !v) },
+          ].map((b) => (
+            <button
+              key={b.t}
+              onClick={b.f}
+              disabled={searching}
+              className="rounded-md border border-[var(--border)] px-2.5 py-1 text-xs text-[var(--muted)] transition-colors hover:border-[var(--muted)] hover:text-[var(--text)] disabled:opacity-40"
+            >
+              {b.t}
+            </button>
+          ))}
         </div>
       )}
 

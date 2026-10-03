@@ -10,8 +10,10 @@ export type CompanySource =
   | 'manual'
   | 'engaged'
   | 'explee'
-  | 'linkedin';
-export type ContactSource = 'explee' | 'linkedin' | 'lusha' | 'engaged' | 'manual';
+  | 'linkedin'
+  | 'estudio' // competidor dado de alta desde un estudio de marca
+  | 'lote'; // subida en lote
+export type ContactSource = 'explee' | 'linkedin' | 'lusha' | 'engaged' | 'manual' | 'lote';
 // Tipos de señal. Los cinco primeros son históricos (esquema 001); el resto
 // son los eventos del radar v2 (ver lib/radar.ts, que deriva peso y nivel del
 // tipo). La columna en BD es text, así que ampliar aquí no requiere migración.

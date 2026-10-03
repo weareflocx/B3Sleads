@@ -17,6 +17,27 @@ export interface SenalRonda {
   fuente: string | null; // URL
   confirmada: boolean;
   signalId: string;
+  ronda: string | null; // tipo tal cual se guardó: "seed", "series-a"…
+  inversores: string[];
+}
+
+// "series-a" → "Serie A". Lo que no se reconoce se deja como vino.
+const NOMBRES: Record<string, string> = {
+  'pre-seed': 'Pre-seed',
+  preseed: 'Pre-seed',
+  seed: 'Seed',
+  'series-a': 'Serie A',
+  'series-b': 'Serie B',
+  'series-b+': 'Serie B+',
+  'series-c': 'Serie C',
+  launch: 'Lanzamiento',
+  other: 'Ronda',
+  ronda: 'Ronda',
+};
+export function nombreRonda(r: string | null | undefined): string | null {
+  const t = (r ?? '').trim();
+  if (!t) return null;
+  return NOMBRES[t.toLowerCase()] ?? t.charAt(0).toUpperCase() + t.slice(1);
 }
 
 export const ETIQUETA_RONDA: Record<TipoRonda, string> = {
@@ -64,6 +85,8 @@ export function senalDeRonda(signals: Signal[] | null | undefined): SenalRonda |
     fuente: fuenteDe(d),
     confirmada: estaConfirmada(s),
     signalId: s.id,
+    ronda: typeof d.round === 'string' && d.round.trim() ? d.round.trim() : null,
+    inversores: Array.isArray(d.investors) ? (d.investors as unknown[]).filter((x): x is string => typeof x === 'string' && !!x.trim()) : [],
   };
 }
 

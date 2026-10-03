@@ -1,4 +1,7 @@
-import { ETIQUETA_RONDA, fechaCorta, type SenalRonda } from '@/lib/senal-ronda';
+import Link from 'next/link';
+import { Fragment } from 'react';
+import { ETIQUETA_RONDA, fechaCorta, nombreRonda, type SenalRonda } from '@/lib/senal-ronda';
+import { resolveInvestors } from '@/lib/investors';
 
 // La señal de ronda en una etiqueta. Verde: ronda detectada (cerrada y
 // anunciada). Azul: buscando ronda. Sin confirmar, el borde es discontinuo,
@@ -21,18 +24,57 @@ export function EtiquetaRonda({ senal, tam = 'sm' }: { senal: SenalRonda | null;
   );
 }
 
-// Lo que va debajo, en la ficha: importe, fecha del anuncio y fuente.
-export function DetalleRonda({ senal }: { senal: SenalRonda | null }) {
-  if (!senal) return null;
+// El módulo de ronda de la cabecera de la ficha: TODO lo de la ronda en una
+// sola línea y una sola vez. Estado (la etiqueta), qué ronda e importe, cuándo,
+// con quién (los inversores llevan a su ficha) y la fuente. Antes la ronda
+// salía tres veces: la etiqueta, una línea de detalle y la fila antigua de
+// "RONDA series-a · 18M€" con un chip por inversor.
+export function ModuloRonda({ senal }: { senal: SenalRonda | null }) {
+  if (!senal) {
+    return <p className="font-mono text-xs text-[var(--soft)]">Sin ronda detectada</p>;
+  }
+  const qué = [nombreRonda(senal.ronda), senal.importe ? (senal.tipo === 'buscando' ? `buscan ${senal.importe}` : senal.importe) : null]
+    .filter(Boolean)
+    .join(' · ');
+  const inversores = resolveInvestors(senal.inversores);
+  const visibles = inversores.slice(0, 3);
+  const resto = inversores.length - visibles.length;
+
+  const partes: React.ReactNode[] = [];
+  if (qué) partes.push(<span className="font-medium text-[var(--text)]">{qué}</span>);
+  partes.push(<span>{fechaCorta(senal.fecha)}</span>);
+  if (visibles.length) {
+    partes.push(
+      <span title={inversores.map((i) => i.name).join(', ')}>
+        con{' '}
+        {visibles.map((inv, i) => (
+          <Fragment key={inv.slug}>
+            {i > 0 && (i === visibles.length - 1 && resto === 0 ? ' y ' : ', ')}
+            <Link href={inv.href} className="text-[var(--text)] hover:underline">
+              {inv.name}
+            </Link>
+          </Fragment>
+        ))}
+        {resto > 0 && ` y ${resto} más`}
+      </span>,
+    );
+  }
+  if (senal.fuente) {
+    partes.push(
+      <a href={senal.fuente} target="_blank" rel="noreferrer" className="hover:text-[var(--text)] hover:underline">
+        fuente ↗
+      </a>,
+    );
+  }
   return (
-    <span className="inline-flex flex-wrap items-center gap-x-2 font-mono text-xs text-[var(--muted)]">
-      {senal.importe && <span>{senal.tipo === 'buscando' ? `buscan ${senal.importe}` : senal.importe}</span>}
-      <span>{fechaCorta(senal.fecha)}</span>
-      {senal.fuente && (
-        <a href={senal.fuente} target="_blank" rel="noreferrer" className="hover:text-[var(--text)] hover:underline">
-          fuente ↗
-        </a>
-      )}
-    </span>
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[var(--muted)]">
+      <EtiquetaRonda senal={senal} />
+      {partes.map((p, i) => (
+        <Fragment key={i}>
+          {i > 0 && <span aria-hidden="true" className="text-[var(--soft)]">·</span>}
+          {p}
+        </Fragment>
+      ))}
+    </div>
   );
 }

@@ -18,7 +18,6 @@ import { buildPitch } from '@/lib/pitch';
 import { storedScanReport, retencionDeScan, notaRetenida } from '@/lib/scan-report';
 import { buildCallBriefPrompt, buildLeadContext } from '@/lib/lead-prompts';
 import { stageLabel as stageLabelFor, displayName, companyLabel, estadoScan } from '@/lib/types';
-import { resolveInvestors } from '@/lib/investors';
 import { getTeamMembers, leadOwner } from '@/lib/team';
 import { userLabel } from '@/lib/leaderboard';
 import { ScanButton } from './scan-button';
@@ -41,7 +40,7 @@ import { ScoreRing } from '../../score-ring';
 import { Heat } from '../../heat';
 import { Avatar } from '../../avatar';
 import { EditableText } from '../../editable-text';
-import { DetalleRonda, EtiquetaRonda } from '../../etiqueta-ronda';
+import { ModuloRonda } from '../../etiqueta-ronda';
 import { senalDeRonda } from '@/lib/senal-ronda';
 import { NivelCerradoSlot } from './nivel-cerrado-slot';
 import { AdoptarPasada } from './adoptar-pasada';
@@ -99,17 +98,8 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
     : null;
   const fundingSignals = signals.filter((s) => s.type === 'funding_round');
   const latestFunding = fundingSignals[0] ?? null;
-  // "Levantando ronda" no es una ronda cerrada, es el estado de AHORA: el
-  // momento en que necesitan narrativa para el deck. Se guardaba y puntuaba en
-  // el radar, pero la ficha solo miraba funding_round y quedaba invisible.
+  // "Buscando ronda": las rondas que están levantando ahora (panel de financiación).
   const raisingSignals = signals.filter((s) => s.type === 'levantando_ronda');
-  const raising = raisingSignals[0] ?? null;
-  const rd = raising?.detail;
-  const raisingHeadline = raising
-    ? [rd?.round, rd?.target_amount ? `buscan ${rd.target_amount}` : null]
-        .filter(Boolean)
-        .join(' · ') || 'en ronda'
-    : null;
   // El lead apunta siempre al scan MÁS RECIENTE, y ese puede venir retenido
   // por el Scanner (sin puntuación, en modo shadow). Pintar la ficha con él la
   // dejaba vacía y enterraba un scan bueno de media hora antes. La ficha se
@@ -240,10 +230,16 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
   // Lo que una subida en lote dejó pendiente, deducido de los datos (sin
   // columnas nuevas): marca sin nombre propio, y ningún fundador con un
   // perfil de LinkedIn válido. Desaparece solo al corregirlo.
-  const porRevisar = [
-    company.name === company.domain ? 'nombre por revisar' : null,
-    !founders.some((c) => c.linkedin_url) ? 'LinkedIn por verificar' : null,
-  ].filter(Boolean) as string[];
+  // Solo en lo que entró por lote: en las fichas antiguas el nombre guardado
+  // también es a menudo el dominio, pero se lee bien ("Trebellar") y el aviso
+  // era ruido en casi todas.
+  const porRevisar = (company.source === 'lote'
+    ? [
+        company.name === company.domain ? 'nombre por revisar' : null,
+        !founders.some((c) => c.linkedin_url) ? 'LinkedIn por verificar' : null,
+      ]
+    : []
+  ).filter(Boolean) as string[];
   // Ronda detectada / buscando ronda: de las señales que ya tiene. Sin
   // señal, nada cambia en la cabecera.
   const senalRonda = senalDeRonda(signals);
@@ -251,15 +247,6 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
   const firstName = displayName(contact?.full_name).split(' ')[0] || null;
   const temp = leadTemperature(bl);
   const score = scanVisible?.status === 'ready' ? scanVisible.score : null;
-
-  // Ronda para la cabecera (lo más "vendible" arriba del todo).
-  const fd = latestFunding?.detail;
-  const fundingHeadline = latestFunding
-    ? [fd?.round, fd?.amount].filter(Boolean).join(' · ') || 'ronda registrada'
-    : company.funding_stage || null;
-  // Los inversores salen de la cadena y pasan a ser puertas: cada uno lleva
-  // a su ficha, con toda su cartera dentro del radar.
-  const headlineInvestors = resolveInvestors(fd?.investors);
 
   return (
     <main className={PAGE_XL}>
@@ -299,92 +286,55 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
               size={86}
             />
           </EditableImage>
-          <div className="flex min-w-0 flex-col justify-between" style={{ minHeight: 86 }}>
-            <div className="flex flex-col gap-1.5">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                <EditableText
-                  initial={companyLabel(company.name, company.domain)}
-                  kind="company"
-                  id={company.id}
-                  as="h1"
-                  className="text-3xl font-semibold leading-none tracking-tight"
-                  label="Editar nombre de la marca"
-                />
-                <EtiquetaRonda senal={senalRonda} tam="md" />
-              </div>
-              <DetalleRonda senal={senalRonda} />
-            </div>
-            <div className="flex flex-wrap items-center gap-3 font-mono text-sm text-[var(--muted)]">
-              {porRevisar.map((p) => (
-                <span key={p} className="rounded border border-[var(--warning)]/50 px-1.5 py-0.5 text-[10px] text-[var(--warning)]">
-                  {p}
+          {/* Tres líneas, una cosa cada una: quién es (nombre), dónde está
+              (web, LinkedIn, tamaño, ubicación) y su ronda (un solo módulo). */}
+          <div className="flex min-w-0 flex-col justify-between gap-2" style={{ minHeight: 86 }}>
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <EditableText
+                initial={companyLabel(company.name, company.domain)}
+                kind="company"
+                id={company.id}
+                as="h1"
+                className="text-3xl font-semibold leading-none tracking-tight"
+                label="Editar nombre de la marca"
+              />
+              {porRevisar.length > 0 && (
+                <span className="font-mono text-[11px] text-[var(--warning)]" title="Lo dejó pendiente una subida en lote o falta el dato">
+                  {porRevisar.join(' · ')}
                 </span>
-              ))}
-              {company.domain?.includes('.') ? (
-                <a
-                  href={`https://${company.domain}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="hover:underline"
-                >
-                  {company.domain} ↗
-                </a>
-              ) : (
-                // Sin TLD no es un dominio navegable: se muestra plano en vez
-                // de un enlace a https://loquesea que no lleva a ninguna parte.
-                <span title="Dominio incompleto: falta el .com/.ai/… Edítalo para tener enlace.">
-                  {company.domain || 'sin dominio'}
-                </span>
-              )}
-              {company.linkedin_url && (
-                <a
-                  href={company.linkedin_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[var(--linkedin-soft)] hover:underline"
-                >
-                  LinkedIn ↗
-                </a>
               )}
             </div>
-            {/* Ronda, inversores y atributos en una sola línea. Sin ronda no se
-                deja el hueco vacío: se dice que no se ha detectado, que es una
-                señal en sí misma y un recordatorio de que se puede registrar. */}
-            <div className="flex flex-wrap items-center gap-2">
-              {/* En ronda ahora: por delante de la ronda cerrada. Una marca
-                  buscando dinero es el mejor momento para hablarle de marca. */}
-              {raisingHeadline && (
-                <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--accent)]/50 bg-[var(--accent)]/8 px-2.5 py-1 text-xs text-[var(--accent)]">
-                  <span className="font-semibold uppercase tracking-wider">En ronda</span>
-                  <span className="text-[var(--text)]">{raisingHeadline}</span>
-                </span>
-              )}
-              {fundingHeadline ? (
-                <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--cta)]/40 bg-[var(--cta)]/8 px-2.5 py-1 text-xs text-[var(--cta)]">
-                  <span className="font-semibold uppercase tracking-wider">Ronda</span>
-                  <span className="text-[var(--text)]">{fundingHeadline}</span>
-                </span>
-              ) : (
-                !raisingHeadline && (
-                  <span className="inline-flex items-center rounded-md border border-dashed border-[var(--border)] px-2.5 py-1 text-xs text-[var(--soft)]">
-                    Ronda no detectada
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-sm text-[var(--muted)]">
+              {[
+                company.domain?.includes('.') ? (
+                  <a key="web" href={`https://${company.domain}`} target="_blank" rel="noreferrer" className="hover:text-[var(--text)] hover:underline">
+                    {company.domain} ↗
+                  </a>
+                ) : (
+                  // Sin TLD no es un dominio navegable: se muestra plano.
+                  <span key="web" title="Dominio incompleto: falta el .com/.ai/… Edítalo para tener enlace.">
+                    {company.domain || 'sin dominio'}
                   </span>
-                )
-              )}
-              {headlineInvestors.map((inv) => (
-                <Link
-                  key={inv.slug}
-                  href={inv.href}
-                  title={`Ficha de ${inv.name}`}
-                  className="inline-flex items-center rounded-md border border-[var(--border)] px-2.5 py-1 text-xs text-[var(--muted)] transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)]"
-                >
-                  {inv.name}
-                </Link>
-              ))}
-              {company.size && <Chip>{company.size} personas</Chip>}
-              {company.city && <Chip>{company.city}</Chip>}
-              {company.hq_country && <Chip>{company.hq_country}</Chip>}
+                ),
+                company.linkedin_url ? (
+                  <a key="li" href={company.linkedin_url} target="_blank" rel="noreferrer" className="text-[var(--linkedin-soft)] hover:underline">
+                    LinkedIn ↗
+                  </a>
+                ) : null,
+                company.size ? <span key="size">{company.size} personas</span> : null,
+                company.city || company.hq_country ? (
+                  <span key="lugar">{[company.city, company.hq_country].filter(Boolean).join(', ')}</span>
+                ) : null,
+              ]
+                .filter(Boolean)
+                .map((el, i) => (
+                  <span key={i} className="inline-flex items-center gap-2">
+                    {i > 0 && <span aria-hidden="true" className="text-[var(--soft)]">·</span>}
+                    {el}
+                  </span>
+                ))}
             </div>
+            <ModuloRonda senal={senalRonda} />
           </div>
         </div>
         <div className="flex items-center gap-4">
