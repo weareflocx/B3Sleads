@@ -149,7 +149,8 @@ export function resumen(counts: {
   seguimientos: number;
   caducan: number;
   conectados?: number;
-  invitaciones?: number;
+  invitaciones?: number; // las que piden algo hoy (aviso sin revisar)
+  vuelven?: number;
 }): string {
   const partes: string[] = [];
   const conectados = counts.conectados ?? 0;
@@ -171,7 +172,11 @@ export function resumen(counts: {
     partes.push(counts.caducan === 1 ? '1 señal a punto de perder fuerza' : `${counts.caducan} señales a punto de perder fuerza`);
   }
   if (invitaciones > 0) {
-    partes.push(invitaciones === 1 ? '1 invitación pendiente' : `${invitaciones} invitaciones pendientes`);
+    partes.push(invitaciones === 1 ? '1 invitación por revisar' : `${invitaciones} invitaciones por revisar`);
+  }
+  const vuelven = counts.vuelven ?? 0;
+  if (vuelven > 0) {
+    partes.push(vuelven === 1 ? '1 marca que no aceptó vuelve al radar' : `${vuelven} marcas que no aceptaron vuelven al radar`);
   }
   if (partes.length === 0) return 'Día tranquilo: sin novedades y sin cola. Buen momento para alimentar el radar.';
   const frase = partes.join(', ');

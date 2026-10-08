@@ -51,6 +51,15 @@ export interface DraftInput {
   contactName: string | null;
   channel: 'linkedin' | 'email';
   lang: 'en' | 'es';
+  // 'nota': la nota de la invitación de conexión de LinkedIn (≤300).
+  formato?: 'mensaje' | 'nota';
+}
+
+export const MAX_NOTA = 300;
+
+function canalDe(input: DraftInput): string {
+  if (input.formato === 'nota') return `Nota de la invitación de conexión de LinkedIn (máx ${MAX_NOTA} caracteres)`;
+  return input.channel === 'linkedin' ? 'LinkedIn (max 500 caracteres)' : 'email corto';
 }
 
 export async function generateDraft(input: DraftInput): Promise<string> {
@@ -62,7 +71,7 @@ export async function generateDraft(input: DraftInput): Promise<string> {
     `Hallazgos del Scanner sobre su marca:\n${input.scannerFindings}`,
     input.personalAngle ? `Ángulo personal (del perfil del founder): ${input.personalAngle}` : null,
     input.contactName ? `Destinatario: ${input.contactName}` : null,
-    `Canal: ${input.channel === 'linkedin' ? 'LinkedIn (max 500 caracteres)' : 'email corto'}`,
+    `Canal: ${canalDe(input)}`,
     `Idioma: ${input.lang === 'es' ? 'español' : 'inglés'}`,
   ]
     .filter(Boolean)
@@ -76,7 +85,23 @@ export async function generateDraft(input: DraftInput): Promise<string> {
   });
   const block = res.content.find((b) => b.type === 'text');
   if (!block || block.type !== 'text') throw new Error('Respuesta sin texto');
-  return block.text.trim();
+  const text = block.text.trim();
+  if (input.formato !== 'nota' || text.length <= MAX_NOTA) return text;
+
+  // LinkedIn corta la nota en 300: una segunda pasada para acortarla, que
+  // recortar a mano rompería la frase.
+  const corta = await client().messages.create({
+    model: MODEL,
+    max_tokens: 300,
+    system,
+    messages: [
+      { role: 'user', content: user },
+      { role: 'assistant', content: text },
+      { role: 'user', content: `Tiene ${text.length} caracteres. Déjala en menos de ${MAX_NOTA} sin perder el hallazgo.` },
+    ],
+  });
+  const b2 = corta.content.find((b) => b.type === 'text');
+  return b2 && b2.type === 'text' ? b2.text.trim() : text;
 }
 
 export function draftInputFromLead(bl: BriefingLead): DraftInput {

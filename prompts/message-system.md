@@ -35,4 +35,11 @@ game-changer, cutting-edge, seamless, synergy, revolutionize, disrupt,
 "take X to the next level", "I hope this message finds you well",
 "potenciar", "llevar al siguiente nivel", "soluciones innovadoras".
 
+NOTA DE CONEXIÓN (cuando el canal sea la nota de la invitación):
+- Es lo único que lee antes de decidir si acepta. Máximo 300 caracteres,
+  contando espacios. Mejor 200 que 300.
+- El mismo hallazgo del Scanner, en una frase, y como mucho una pregunta
+  corta. Sin saludo largo ni despedida.
+- Mismas reglas duras: ni FLOC*, ni servicios, ni venta.
+
 Responde SOLO con el texto del mensaje, sin comillas ni explicación.

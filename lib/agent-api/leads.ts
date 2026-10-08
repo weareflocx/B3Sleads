@@ -83,8 +83,12 @@ export async function patchAgentLead(leadId: string, patch: LeadPatch) {
   if (patch.ownerEmail !== undefined) {
     update.owner_email = patch.ownerEmail;
   }
-  // Fecha propia de la invitación de LinkedIn (migración 20261008).
-  if (patch.stage === 'invited') update.invited_at = now;
+  // Fechas propias de la invitación y de la pausa (migraciones 20261008…).
+  if (patch.stage === 'invited') {
+    update.invited_at = now;
+    update.invite_checked_at = null;
+  }
+  if (patch.stage === 'paused') update.paused_at = now;
 
   let { data, error } = await db
     .from('leads')
@@ -92,9 +96,10 @@ export async function patchAgentLead(leadId: string, patch: LeadPatch) {
     .eq('id', leadId)
     .select('id')
     .maybeSingle();
-  // Sin la migración la columna no existe: la etapa se guarda igual.
-  if (error && update.invited_at && /invited_at/.test(error.message)) {
-    delete update.invited_at;
+  // Sin las migraciones esas columnas no existen: la etapa se guarda igual.
+  for (const col of ['invited_at', 'invite_checked_at', 'paused_at'] as const) {
+    if (!error || !(col in update) || !error.message.includes(col)) continue;
+    delete update[col];
     ({ data, error } = await db.from('leads').update(update).eq('id', leadId).select('id').maybeSingle());
   }
   if (error) {

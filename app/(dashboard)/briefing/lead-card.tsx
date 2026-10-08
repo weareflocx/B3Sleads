@@ -94,6 +94,9 @@ export function LeadCard({ initial, modo = 'cola' }: { initial: BriefingLead; mo
   const [discarding, setDiscarding] = useState(false);
   const [copied, setCopied] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
+  // La nota de la invitación (≤300). Se genera a demanda y no se guarda.
+  const [nota, setNota] = useState<string | null>(null);
+  const [notaCopiada, setNotaCopiada] = useState(false);
   // El mensaje al que pertenece el borrador que se ve: cambia al regenerar.
   const [mensaje, setMensaje] = useState<{ id: string | null; draft: string }>({
     id: bl.message?.id ?? null,
@@ -176,6 +179,38 @@ export function LeadCard({ initial, modo = 'cola' }: { initial: BriefingLead; mo
       setAviso('No se pudo regenerar: sin conexión con el servidor.');
     } finally {
       setBusy(null);
+    }
+  }
+
+  async function generarNota() {
+    setBusy('nota');
+    setAviso(null);
+    try {
+      const res = await fetch('/api/messages/nota', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId: bl.lead.id }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { nota?: string; error?: string };
+      if (json.nota) setNota(json.nota);
+      else setAviso(`No se pudo escribir la nota: ${json.error ?? `error ${res.status}`}`);
+    } catch {
+      setAviso('No se pudo escribir la nota: sin conexión con el servidor.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function copiarNota() {
+    if (!nota) return;
+    const copia = navigator.clipboard.writeText(nota);
+    if (bl.contact?.linkedin_url) window.open(bl.contact.linkedin_url, '_blank');
+    try {
+      await copia;
+      setNotaCopiada(true);
+      setTimeout(() => setNotaCopiada(false), 2000);
+    } catch {
+      setAviso('No pude copiar la nota. Selecciónala y cópiala a mano.');
     }
   }
 
@@ -341,6 +376,40 @@ export function LeadCard({ initial, modo = 'cola' }: { initial: BriefingLead; mo
         </div>
       )}
 
+      {/* La nota de la invitación: lo único que lee antes de aceptar. */}
+      {modo === 'cola' && nota !== null && (
+        <div className="mt-4 border-t border-[var(--border)] pt-4">
+          <p className="mb-2 flex items-baseline justify-between text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
+            Nota de la invitación
+            <span className={`font-mono font-normal normal-case ${nota.length > 300 ? 'text-[var(--danger)]' : 'text-[var(--soft)]'}`}>
+              {nota.length}/300
+            </span>
+          </p>
+          <textarea
+            value={nota}
+            onChange={(e) => setNota(e.target.value)}
+            rows={3}
+            className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] p-3 text-sm leading-relaxed outline-none transition-colors focus:border-[var(--cta)]"
+          />
+          <div className="mt-2 flex flex-wrap gap-2 text-sm">
+            <button
+              onClick={copiarNota}
+              disabled={nota.length > 300}
+              className="rounded-md bg-[var(--linkedin)] px-3 py-1.5 font-medium text-[var(--linkedin-text)] transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              {notaCopiada ? 'Copiada ✓ · abriendo LinkedIn' : 'Copiar nota y abrir LinkedIn'}
+            </button>
+            <button
+              onClick={generarNota}
+              disabled={busy === 'nota'}
+              className="rounded-md border border-[var(--border)] px-3 py-1.5 hover:border-[var(--muted)] disabled:opacity-50"
+            >
+              {busy === 'nota' ? 'Escribiendo…' : 'Otra nota'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {aviso && (
         <p role="status" className="mt-3 text-xs text-[var(--danger)]">
           {aviso}
@@ -353,6 +422,16 @@ export function LeadCard({ initial, modo = 'cola' }: { initial: BriefingLead; mo
             contacto. */}
         {modo === 'cola' ? (
           <>
+            {nota === null && (
+              <button
+                onClick={generarNota}
+                disabled={busy !== null}
+                title="Una nota de 300 caracteres o menos para la invitación, con el hallazgo del Scanner"
+                className="rounded-md border border-[var(--border)] px-3 py-1.5 transition-colors hover:border-[var(--muted)] disabled:opacity-50"
+              >
+                {busy === 'nota' ? 'Escribiendo nota…' : 'Nota de invitación'}
+              </button>
+            )}
             <button
               onClick={() => patchLead('invited')}
               disabled={busy !== null}

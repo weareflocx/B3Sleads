@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getBriefingLeads, updateLeadStage } from '@/lib/data';
+import { getBriefingLeads, marcaInvitacionRevisada, updateLeadStage } from '@/lib/data';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 
 export async function GET() {
@@ -11,14 +11,26 @@ export async function GET() {
   }
 }
 
-// PATCH { leadId, stage?, discardReason?, ownerEmail? }
+// PATCH { leadId, stage?, discardReason?, ownerEmail?, inviteChecked? }
 //  - stage: mover de etapa / descartar
+//  - inviteChecked: la invitación sigue sin aceptar (silencia el aviso)
 //  - ownerEmail: delegar el lead. Cadena vacía lo devuelve a quien lo detectó.
 export async function PATCH(req: NextRequest) {
   try {
-    const { leadId, stage, discardReason, ownerEmail } = await req.json();
+    const { leadId, stage, discardReason, ownerEmail, inviteChecked } = await req.json();
     if (!leadId) {
       return NextResponse.json({ error: 'leadId requerido' }, { status: 400 });
+    }
+
+    if (inviteChecked === true) {
+      const ok = await marcaInvitacionRevisada(leadId);
+      if (!ok) {
+        return NextResponse.json(
+          { error: 'Falta aplicar la migración 20261008110000 (invite_checked_at) en Supabase.' },
+          { status: 409 },
+        );
+      }
+      return NextResponse.json({ ok: true });
     }
 
     if (typeof ownerEmail === 'string') {

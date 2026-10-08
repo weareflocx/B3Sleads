@@ -274,7 +274,25 @@ const NOTA_DE_ETAPA: Record<string, (motivo?: string) => string> = {
   invited: () => 'Invitación de LinkedIn enviada.',
   connected: () => 'Aceptó la invitación de LinkedIn. Falta enviar el mensaje.',
   paused: (motivo) => (motivo ? `En pausa: ${motivo}.` : 'En pausa.'),
+  detected: () => 'Vuelve a la cola.',
 };
+
+// Columnas de las migraciones de la invitación (20261008…). Si aún no están
+// aplicadas, el cambio se guarda sin ellas: la etapa manda, la fecha es extra.
+const COLUMNAS_OPCIONALES = ['invited_at', 'invite_checked_at', 'paused_at'];
+
+async function actualizaLead(
+  db: NonNullable<ReturnType<typeof getServiceSupabase>>,
+  leadId: string,
+  cambio: Record<string, string | null>,
+) {
+  for (;;) {
+    const res = await db.from('leads').update(cambio).eq('id', leadId).select('company_id').maybeSingle();
+    const falta = res.error && COLUMNAS_OPCIONALES.find((c) => c in cambio && res.error!.message.includes(c));
+    if (!falta) return res;
+    delete cambio[falta];
+  }
+}
 
 export async function updateLeadStage(
   leadId: string,
@@ -289,16 +307,15 @@ export async function updateLeadStage(
     discard_reason: discardReason ?? null,
     updated_at: now,
   };
-  // La invitación lleva su fecha propia: updated_at la mueve cualquier nota o
-  // scan, y los avisos de "sin aceptar" se cuentan desde aquí.
-  if (stage === 'invited') cambio.invited_at = now;
-  let { data, error } = await db.from('leads').update(cambio).eq('id', leadId).select('company_id').maybeSingle();
-  // Sin la migración 20261008 la columna no existe: se cambia la etapa igual
-  // y la fecha cae a updated_at.
-  if (error && 'invited_at' in cambio && /invited_at/.test(error.message)) {
-    delete cambio.invited_at;
-    ({ data, error } = await db.from('leads').update(cambio).eq('id', leadId).select('company_id').maybeSingle());
+  // La invitación y la pausa llevan fecha propia: updated_at la mueve
+  // cualquier nota o scan. Desde invited_at se cuentan los avisos de "sin
+  // aceptar"; desde paused_at, las señales que lo devuelven al radar.
+  if (stage === 'invited') {
+    cambio.invited_at = now;
+    cambio.invite_checked_at = null;
   }
+  if (stage === 'paused') cambio.paused_at = now;
+  const { data, error } = await actualizaLead(db, leadId, cambio);
   if (error) throw error;
 
   const nota = NOTA_DE_ETAPA[stage];
@@ -312,6 +329,20 @@ export async function updateLeadStage(
       .eq('lead_id', leadId)
       .is('sent_at', null);
   }
+}
+
+// "Sigue pendiente": se miró en LinkedIn y no ha aceptado. Silencia el aviso
+// una semana. Sin la migración no hay dónde guardarlo y se dice.
+export async function marcaInvitacionRevisada(leadId: string): Promise<boolean> {
+  if (isDemoMode()) return true;
+  const db = getServiceSupabase()!;
+  const { error } = await db
+    .from('leads')
+    .update({ invite_checked_at: new Date().toISOString() })
+    .eq('id', leadId);
+  if (error && error.message.includes('invite_checked_at')) return false;
+  if (error) throw error;
+  return true;
 }
 
 export async function saveEditedMessage(messageId: string, editedFinal: string): Promise<void> {

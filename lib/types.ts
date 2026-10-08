@@ -214,6 +214,10 @@ export interface Lead {
   // Migración 20261008: cuándo se envió la invitación de LinkedIn. undefined
   // hasta aplicarla; entonces la fecha de respaldo es updated_at.
   invited_at?: string | null;
+  // Migración 20261008110000: última revisión de la invitación sin aceptar y
+  // desde cuándo está en pausa.
+  invite_checked_at?: string | null;
+  paused_at?: string | null;
 }
 
 // Una entrada de la bitácora del lead (migración 003).

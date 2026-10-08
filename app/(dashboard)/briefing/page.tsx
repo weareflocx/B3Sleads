@@ -13,8 +13,8 @@ import {
 } from '@/lib/briefing';
 import { displayName } from '@/lib/types';
 import { LeadCard } from './lead-card';
-import { Invitaciones } from './invitaciones';
-import { invitacionesPendientes } from '@/lib/invitacion';
+import { Invitaciones, VuelvenAlRadar } from './invitaciones';
+import { invitacionesPendientes, vuelvenAlRadar } from '@/lib/invitacion';
 import { AnadirComoLead } from './anadir-como-lead';
 import { companyLabel } from '@/lib/types';
 import { fechaAnuncio, fechaCorta, senalDeRonda } from '@/lib/senal-ronda';
@@ -65,6 +65,9 @@ export default async function BriefingPage() {
   // nada: el canal está abierto) y quien no, se revisa a mano.
   const conectados = leads.filter((l) => l.lead.stage === 'connected' && l.company);
   const invitaciones = invitacionesPendientes(leads);
+  const porRevisar = invitaciones.filter((i) => i.activa).length;
+  // Aparcados porque no aceptaron, con una señal nueva desde la pausa.
+  const vuelven = vuelvenAlRadar(leads);
 
   const frase = resumen({
     cola: cola.length,
@@ -72,7 +75,8 @@ export default async function BriefingPage() {
     seguimientos: pendientes.length,
     caducan: caducan.length,
     conectados: conectados.length,
-    invitaciones: invitaciones.length,
+    invitaciones: porRevisar,
+    vuelven: vuelven.length,
   });
 
   // Rondas de la semana: las cerradas que se anunciaron en los últimos 7 días
@@ -281,6 +285,14 @@ export default async function BriefingPage() {
         <section id="invitaciones" className="mb-8">
           <SectionTitle count={invitaciones.length}>Invitaciones pendientes</SectionTitle>
           <Invitaciones pendientes={invitaciones} />
+        </section>
+      )}
+
+      {/* No aceptaron, pero la marca se ha movido: motivo nuevo para invitar. */}
+      {vuelven.length > 0 && (
+        <section id="vuelven" className="mb-8">
+          <SectionTitle count={vuelven.length}>Vuelven al radar</SectionTitle>
+          <VuelvenAlRadar items={vuelven} />
         </section>
       )}
 
