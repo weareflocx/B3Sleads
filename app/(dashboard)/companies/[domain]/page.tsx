@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
   getCompanyFiche,
+  getLeadsDeMarca,
   getCompanyScans,
   getCompanySignals,
   getLeadNotes,
@@ -34,6 +35,8 @@ import { AddLeadButton } from '../../add-lead-modal';
 import { CompanyLogo } from '../../company-logo';
 import { CompanyBio } from './company-bio';
 import { BrandCard } from './brand-card';
+import { AvisoDuplicados, EliminarMarca } from './marca-acciones';
+import { planDeUnion } from '@/lib/unir-leads';
 import { buildCardCells, cardCoverage, defaultHighlight } from '@/lib/brand-card';
 import { EditableImage } from '../../editable-image';
 import { ScoreRing } from '../../score-ring';
@@ -82,7 +85,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
   if (!bl || !bl.company) notFound();
 
   const { company, contact, scan, lead, message } = bl;
-  const [scanHistory, signals, notes, team, sectorVocab, selections, allContacts] = await Promise.all([
+  const [scanHistory, signals, notes, team, sectorVocab, selections, allContacts, leadsMarca] = await Promise.all([
     getCompanyScans(company.id),
     getCompanySignals(company.id),
     getLeadNotes(lead.id),
@@ -90,7 +93,10 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
     getSectorVocabulary(),
     getComponentSelections(company.id),
     getCompanyContacts(company.id),
+    getLeadsDeMarca(company.id),
   ]);
+  // Leads repetidos de la marca (sin founder, o del mismo founder).
+  const duplicados = planDeUnion(leadsMarca).reduce((n, p) => n + p.sobran.length, 0);
   const ownerEmail = leadOwner(lead);
   const owner = { email: ownerEmail, label: userLabel(ownerEmail) };
   const detectedBy = lead.created_by_email
@@ -362,6 +368,8 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
           )}
         </div>
       </header>
+
+      {duplicados > 0 && <AvisoDuplicados companyId={company.id} duplicados={duplicados} />}
 
       {/* El ancho total se reparte en 4 cuartos armónicos: la columna
           principal ocupa 3 (Bio 2 + Estado 1) y la lateral 1. Así "Estado"
@@ -842,6 +850,11 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
               raisingSignals={raisingSignals}
             />
           </Section>
+
+          {/* Al final y discreto: borrar es la excepción, descartar la norma. */}
+          <div className="border-t border-[var(--border)] pt-4">
+            <EliminarMarca companyId={company.id} domain={company.domain} />
+          </div>
         </aside>
       </div>
     </main>

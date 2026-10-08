@@ -4,6 +4,7 @@ import { cache } from 'react';
 import { getServiceSupabase, isDemoMode } from './supabase';
 import { DEMO_LEADS } from './demo-data';
 import { anotaEnBitacora } from './bitacora';
+import { planDeUnion } from './unir-leads';
 import { mergeSectorVocabulary, parseSectorList } from './sectors';
 import type { BriefingLead, Company, Contact, Lead, Message, Note, Scan, Signal, Study } from './types';
 
@@ -672,4 +673,63 @@ export async function guardarEstudio(
     { onConflict: 'company_id' },
   );
   if (error) throw error;
+}
+
+// ---------- leads duplicados y borrado de marcas ----------
+// Todos los leads de una marca, para detectar duplicados en la ficha.
+export async function getLeadsDeMarca(companyId: string): Promise<Lead[]> {
+  if (isDemoMode()) return DEMO_LEADS.filter((l) => l.company?.id === companyId).map((l) => l.lead);
+  const db = getServiceSupabase()!;
+  const { data } = await db.from('leads').select('*').eq('company_id', companyId);
+  return (data as Lead[] | null) ?? [];
+}
+
+// Une los leads duplicados de una marca (ver lib/unir-leads.ts): la bitácora y
+// los mensajes de los duplicados pasan al que se conserva, que se queda con la
+// etapa más avanzada, y los duplicados se borran. Devuelve cuántos se unieron.
+export async function unirLeadsDeMarca(companyId: string): Promise<number> {
+  if (isDemoMode()) return 0;
+  const db = getServiceSupabase()!;
+  const planes = planDeUnion(await getLeadsDeMarca(companyId));
+  let unidos = 0;
+  for (const p of planes) {
+    const ids = p.sobran.map((l) => l.id);
+    // Primero lo que cuelga de los duplicados: si se borrara antes, la
+    // cascada se llevaría la bitácora y los mensajes.
+    const notas = await db.from('notes').update({ lead_id: p.queda.id }).in('lead_id', ids);
+    if (notas.error) throw notas.error;
+    const mensajes = await db.from('messages').update({ lead_id: p.queda.id }).in('lead_id', ids);
+    if (mensajes.error) throw mensajes.error;
+    const cambio: Record<string, string | null> = { stage: p.stage, updated_at: new Date().toISOString() };
+    if (p.scanId && !p.queda.scan_id) cambio.scan_id = p.scanId;
+    if (p.contactId && !p.queda.contact_id) cambio.contact_id = p.contactId;
+    const queda = await db.from('leads').update(cambio).eq('id', p.queda.id);
+    if (queda.error) throw queda.error;
+    const borrado = await db.from('leads').delete().in('id', ids);
+    if (borrado.error) throw borrado.error;
+    unidos += ids.length;
+    await anotaEnBitacora(
+      db,
+      companyId,
+      p.queda.id,
+      ids.length === 1 ? 'Unido un lead duplicado de esta marca.' : `Unidos ${ids.length} leads duplicados de esta marca.`,
+    );
+  }
+  return unidos;
+}
+
+// Borra una marca y todo lo que cuelga de ella: leads (con su bitácora y
+// mensajes), founders, señales, scans, versiones de componente y estudio.
+// Exige el dominio como confirmación: es irreversible.
+export async function eliminarMarca(companyId: string, dominioConfirmado: string): Promise<void> {
+  if (isDemoMode()) return;
+  const db = getServiceSupabase()!;
+  const { data: company, error } = await db.from('companies').select('id, domain').eq('id', companyId).maybeSingle();
+  if (error) throw error;
+  if (!company) throw new Error('Esa marca ya no existe.');
+  if ((company.domain as string).toLowerCase() !== dominioConfirmado.trim().toLowerCase()) {
+    throw new Error('El dominio no coincide: no se ha borrado nada.');
+  }
+  const borrado = await db.from('companies').delete().eq('id', companyId);
+  if (borrado.error) throw borrado.error;
 }

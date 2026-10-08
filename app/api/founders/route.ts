@@ -202,12 +202,40 @@ export async function POST(req: NextRequest) {
         stage,
         priority_score: replied ? 100 : base,
       };
-      // created_by_email requiere la migración 004; si aún no está, reintenta sin él
-      if (addedBy) leadRow.created_by_email = addedBy;
-      const { error: leadErr } = await db.from('leads').insert(leadRow);
-      if (leadErr && /created_by_email/.test(leadErr.message)) {
-        delete leadRow.created_by_email;
-        await db.from('leads').insert(leadRow);
+      // Si la marca ya tiene un lead SIN founder (alta desde "Rondas de la
+      // semana" o por dominio), el founder lo completa: crear otro duplicaba
+      // la marca en la cola y el kanban.
+      let completado = false;
+      if (companyId && contactId) {
+        const { data: huerfano } = await db
+          .from('leads')
+          .select('id, scan_id')
+          .eq('company_id', companyId)
+          .is('contact_id', null)
+          .not('stage', 'in', '(discarded,won,lost)')
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (huerfano) {
+          const cambio: Record<string, unknown> = { contact_id: contactId, updated_at: new Date().toISOString() };
+          if (scanId && !huerfano.scan_id) cambio.scan_id = scanId;
+          // Te respondió por privado: el lead entra ya en conversación.
+          if (replied) {
+            cambio.stage = stage;
+            cambio.priority_score = 100;
+          }
+          const { error } = await db.from('leads').update(cambio).eq('id', huerfano.id);
+          completado = !error;
+        }
+      }
+      if (!completado) {
+        // created_by_email requiere la migración 004; si aún no está, reintenta sin él
+        if (addedBy) leadRow.created_by_email = addedBy;
+        const { error: leadErr } = await db.from('leads').insert(leadRow);
+        if (leadErr && /created_by_email/.test(leadErr.message)) {
+          delete leadRow.created_by_email;
+          await db.from('leads').insert(leadRow);
+        }
       }
 
       const scanNote = domain
