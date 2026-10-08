@@ -7,11 +7,14 @@ import { STAGES, displayName, companyLabel } from '@/lib/types';
 import { CompanyLogo } from '../company-logo';
 import { computeRadar } from '@/lib/radar';
 import { EtiquetaRonda } from '../etiqueta-ronda';
+import { diasDesdeInvitacion } from '@/lib/invitacion';
 import { comparaPorAnuncio, FILTROS_RONDA, pasaFiltroRonda, senalDeRonda, type FiltroRonda } from '@/lib/senal-ronda';
 
 // Columnas visibles del kanban (detected y briefed se agrupan como "Detectado")
 const COLUMNS: { key: LeadStage; label: string; includes: LeadStage[] }[] = [
   { key: 'briefed', label: 'Detectado', includes: ['detected', 'briefed'] },
+  // La invitación de LinkedIn y su aceptación: aún no hay mensaje enviado.
+  { key: 'invited', label: 'Invitación', includes: ['invited', 'connected'] },
   { key: 'contacted', label: 'Contactado', includes: ['contacted'] },
   { key: 'conversation', label: 'Conversación', includes: ['conversation'] },
   { key: 'call', label: 'Call', includes: ['call'] },
@@ -156,6 +159,17 @@ export function Kanban({ initial }: { initial: BriefingLead[] }) {
                     <div className="mt-2">
                       <EtiquetaRonda senal={senales.get(bl.lead.id) ?? null} />
                     </div>
+                  )}
+                  {bl.lead.stage === 'invited' && (
+                    <p className="mt-1.5 font-mono text-xs text-[var(--muted)]">
+                      Invitación {(() => {
+                        const d = diasDesdeInvitacion(bl.lead);
+                        return d === 0 ? 'de hoy' : d === 1 ? 'de hace 1 día' : `de hace ${d} días`;
+                      })()}
+                    </p>
+                  )}
+                  {bl.lead.stage === 'connected' && (
+                    <p className="mt-1.5 text-xs text-[var(--success)]">Aceptó · falta el mensaje</p>
                   )}
                   {bl.lead.discard_reason && (
                     <p className="mt-1.5 text-xs text-[var(--danger)]/80">{bl.lead.discard_reason}</p>

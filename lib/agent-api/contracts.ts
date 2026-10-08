@@ -4,6 +4,8 @@ import { AgentApiError } from './errors';
 export const API_LEAD_STAGES: LeadStage[] = [
   'detected',
   'briefed',
+  'invited',
+  'connected',
   'contacted',
   'conversation',
   'call',

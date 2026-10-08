@@ -15,6 +15,8 @@ import { leadTemperature, type Temperature } from './scoring';
 export const STAGE_POINTS: Record<LeadStage, number> = {
   detected: 1,
   briefed: 1,
+  invited: 2,
+  connected: 2,
   contacted: 3,
   conversation: 8,
   call: 12,

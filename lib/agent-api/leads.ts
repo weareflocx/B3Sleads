@@ -83,13 +83,20 @@ export async function patchAgentLead(leadId: string, patch: LeadPatch) {
   if (patch.ownerEmail !== undefined) {
     update.owner_email = patch.ownerEmail;
   }
+  // Fecha propia de la invitación de LinkedIn (migración 20261008).
+  if (patch.stage === 'invited') update.invited_at = now;
 
-  const { data, error } = await db
+  let { data, error } = await db
     .from('leads')
     .update(update)
     .eq('id', leadId)
     .select('id')
     .maybeSingle();
+  // Sin la migración la columna no existe: la etapa se guarda igual.
+  if (error && update.invited_at && /invited_at/.test(error.message)) {
+    delete update.invited_at;
+    ({ data, error } = await db.from('leads').update(update).eq('id', leadId).select('id').maybeSingle());
+  }
   if (error) {
     throw new AgentApiError(500, 'lead_update_failed', 'No se pudo actualizar el lead.');
   }

@@ -148,8 +148,16 @@ export function resumen(counts: {
   novedades: number;
   seguimientos: number;
   caducan: number;
+  conectados?: number;
+  invitaciones?: number;
 }): string {
   const partes: string[] = [];
+  const conectados = counts.conectados ?? 0;
+  const invitaciones = counts.invitaciones ?? 0;
+  // Lo primero, quien aceptó: es el único con el canal ya abierto.
+  if (conectados > 0) {
+    partes.push(conectados === 1 ? '1 founder aceptó tu invitación y espera el mensaje' : `${conectados} founders aceptaron tu invitación y esperan el mensaje`);
+  }
   if (counts.novedades > 0) {
     partes.push(counts.novedades === 1 ? 'una novedad desde ayer' : `${counts.novedades} novedades desde ayer`);
   }
@@ -161,6 +169,9 @@ export function resumen(counts: {
   }
   if (counts.caducan > 0) {
     partes.push(counts.caducan === 1 ? '1 señal a punto de perder fuerza' : `${counts.caducan} señales a punto de perder fuerza`);
+  }
+  if (invitaciones > 0) {
+    partes.push(invitaciones === 1 ? '1 invitación pendiente' : `${invitaciones} invitaciones pendientes`);
   }
   if (partes.length === 0) return 'Día tranquilo: sin novedades y sin cola. Buen momento para alimentar el radar.';
   const frase = partes.join(', ');

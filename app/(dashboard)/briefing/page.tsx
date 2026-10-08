@@ -13,6 +13,8 @@ import {
 } from '@/lib/briefing';
 import { displayName } from '@/lib/types';
 import { LeadCard } from './lead-card';
+import { Invitaciones } from './invitaciones';
+import { invitacionesPendientes } from '@/lib/invitacion';
 import { AnadirComoLead } from './anadir-como-lead';
 import { companyLabel } from '@/lib/types';
 import { fechaAnuncio, fechaCorta, senalDeRonda } from '@/lib/senal-ronda';
@@ -59,12 +61,18 @@ export default async function BriefingPage() {
   const cambios = novedades(leads);
   const pendientes = seguimientos(leads);
   const caducan = caducidades(activos);
+  // La invitación de LinkedIn: quien aceptó espera el mensaje (va antes que
+  // nada: el canal está abierto) y quien no, se revisa a mano.
+  const conectados = leads.filter((l) => l.lead.stage === 'connected' && l.company);
+  const invitaciones = invitacionesPendientes(leads);
 
   const frase = resumen({
     cola: cola.length,
     novedades: cambios.length,
     seguimientos: pendientes.length,
     caducan: caducan.length,
+    conectados: conectados.length,
+    invitaciones: invitaciones.length,
   });
 
   // Rondas de la semana: las cerradas que se anunciaron en los últimos 7 días
@@ -214,6 +222,18 @@ export default async function BriefingPage() {
         </section>
       )}
 
+      {/* Aceptaron la invitación: el canal está abierto y el mensaje, listo. */}
+      {conectados.length > 0 && (
+        <section id="conectados" className="mb-8">
+          <SectionTitle count={conectados.length}>Aceptaron tu invitación · envía el mensaje</SectionTitle>
+          <div className="space-y-4">
+            {conectados.map((bl) => (
+              <LeadCard key={bl.lead.id} initial={bl} modo="conectado" />
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* ¿Qué se está escapando? Contactados sin respuesta y conversaciones
           enfriándose. Es la sección que más dinero recupera: el fallo típico
           no es contactar mal, es no volver a aparecer. */}
@@ -253,6 +273,14 @@ export default async function BriefingPage() {
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {/* Invitaciones sin aceptar: se miran en LinkedIn y se marcan aquí. */}
+      {invitaciones.length > 0 && (
+        <section id="invitaciones" className="mb-8">
+          <SectionTitle count={invitaciones.length}>Invitaciones pendientes</SectionTitle>
+          <Invitaciones pendientes={invitaciones} />
         </section>
       )}
 

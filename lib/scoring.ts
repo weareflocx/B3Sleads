@@ -50,6 +50,8 @@ export function leadTemperature(bl: BriefingLead): Temperature {
   const stageScore: Partial<Record<string, number>> = {
     detected: 8,
     briefed: 10,
+    invited: 14, // invitación de LinkedIn sin aceptar: aún no hay canal
+    connected: 20, // aceptó: el canal está abierto, falta el mensaje
     contacted: 28,
     conversation: 60,
     call: 74,

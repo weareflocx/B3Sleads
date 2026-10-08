@@ -4,8 +4,26 @@
     {
       "name": "b3s-leads",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 3000
+    },
+    {
+      "name": "b3s-leads-demo",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "NEXT_PUBLIC_SUPABASE_URL=",
+        "SUPABASE_SERVICE_ROLE_KEY=",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY=",
+        "npx",
+        "next",
+        "dev",
+        "-p",
+        "3001"
+      ],
+      "port": 3001
     },
     {
       "name": "sas-preview",

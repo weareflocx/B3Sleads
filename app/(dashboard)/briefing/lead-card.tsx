@@ -75,7 +75,16 @@ function RadarLine({ radar }: { radar: Radar }) {
   );
 }
 
-export function LeadCard({ initial }: { initial: BriefingLead }) {
+// Qué se ha hecho con el lead al quitarlo de la lista.
+const HECHO: Record<string, string> = {
+  invited: 'Invitación enviada',
+  contacted: 'Contactado',
+  discarded: 'Descartado',
+};
+
+// modo 'cola': aún no hay conexión en LinkedIn, el paso es invitar.
+// modo 'conectado': aceptó la invitación, el paso es enviar el mensaje.
+export function LeadCard({ initial, modo = 'cola' }: { initial: BriefingLead; modo?: 'cola' | 'conectado' }) {
   const bl = initial;
   const radar = computeRadar(bl, bl.signals);
   const [draft, setDraft] = useState(bl.message?.draft ?? '');
@@ -111,7 +120,7 @@ export function LeadCard({ initial }: { initial: BriefingLead }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ leadId: bl.lead.id, stage, discardReason }),
       });
-      if (res.ok) setGone(stage === 'contacted' ? 'Contactado' : 'Descartado');
+      if (res.ok) setGone(HECHO[stage] ?? stage);
       else setAviso('No se pudo cambiar la etapa. Vuelve a intentarlo.');
     } catch {
       setAviso('No se pudo cambiar la etapa: sin conexión con el servidor.');
@@ -226,7 +235,13 @@ export function LeadCard({ initial }: { initial: BriefingLead }) {
 
       {/* Por qué está aquí este lead. Ningún número del radar se muestra sin
           la señal que lo produjo: fecha, evidencia literal y fuente. */}
-      <RadarLine radar={radar} />
+      {modo === 'conectado' ? (
+        <p className="mt-2 text-sm text-[var(--success)]">
+          Aceptó tu invitación. Ya podéis hablar: envía el mensaje.
+        </p>
+      ) : (
+        <RadarLine radar={radar} />
+      )}
 
       {bl.scan && (
         <div className="mt-4 text-sm">
@@ -333,13 +348,36 @@ export function LeadCard({ initial }: { initial: BriefingLead }) {
       )}
 
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[var(--border)] pt-4 text-sm">
-        <button
-          onClick={() => patchLead('contacted')}
-          disabled={busy !== null}
-          className="rounded-md border border-[var(--cta)]/50 px-3 py-1.5 text-[var(--cta)] transition-colors hover:bg-[var(--cta)]/10 disabled:opacity-50"
-        >
-          → Contactado
-        </button>
+        {/* En LinkedIn el mensaje no sale hasta que acepta la conexión: en la
+            cola el paso es invitar, y "Contactado" queda para quien ya es
+            contacto. */}
+        {modo === 'cola' ? (
+          <>
+            <button
+              onClick={() => patchLead('invited')}
+              disabled={busy !== null}
+              className="rounded-md border border-[var(--cta)]/50 px-3 py-1.5 text-[var(--cta)] transition-colors hover:bg-[var(--cta)]/10 disabled:opacity-50"
+            >
+              → Invitación enviada
+            </button>
+            <button
+              onClick={() => patchLead('contacted')}
+              disabled={busy !== null}
+              title="Ya erais contactos y le has enviado el mensaje"
+              className="rounded-md border border-[var(--border)] px-3 py-1.5 text-[var(--muted)] transition-colors hover:border-[var(--muted)] disabled:opacity-50"
+            >
+              Ya es contacto · → Contactado
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={() => patchLead('contacted')}
+            disabled={busy !== null}
+            className="rounded-md border border-[var(--cta)]/50 px-3 py-1.5 text-[var(--cta)] transition-colors hover:bg-[var(--cta)]/10 disabled:opacity-50"
+          >
+            Mensaje enviado · → Contactado
+          </button>
+        )}
         {discarding ? (
           <select
             autoFocus

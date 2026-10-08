@@ -42,6 +42,8 @@ export type ScanStatus = 'queued' | 'running' | 'blocked' | 'ready' | 'failed' |
 export type LeadStage =
   | 'detected'
   | 'briefed'
+  | 'invited'
+  | 'connected'
   | 'contacted'
   | 'conversation'
   | 'call'
@@ -209,6 +211,9 @@ export interface Lead {
   created_by_email?: string | null;
   // Migración 009: quién lo trabaja ahora. Nulo = quien lo detectó.
   owner_email?: string | null;
+  // Migración 20261008: cuándo se envió la invitación de LinkedIn. undefined
+  // hasta aplicarla; entonces la fecha de respaldo es updated_at.
+  invited_at?: string | null;
 }
 
 // Una entrada de la bitácora del lead (migración 003).
@@ -254,6 +259,8 @@ export interface BriefingLead {
 // del pipeline nocturno (dossier preparado) que se muestra como 'Detectado'.
 export const STAGES: { key: LeadStage; label: string }[] = [
   { key: 'detected', label: 'Detectado' },
+  { key: 'invited', label: 'Invitación enviada' },
+  { key: 'connected', label: 'Conectado' },
   { key: 'contacted', label: 'Contactado' },
   { key: 'conversation', label: 'Conversación' },
   { key: 'call', label: 'Call' },

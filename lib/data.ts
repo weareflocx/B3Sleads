@@ -3,6 +3,7 @@
 import { cache } from 'react';
 import { getServiceSupabase, isDemoMode } from './supabase';
 import { DEMO_LEADS } from './demo-data';
+import { anotaEnBitacora } from './bitacora';
 import { mergeSectorVocabulary, parseSectorList } from './sectors';
 import type { BriefingLead, Company, Contact, Lead, Message, Note, Scan, Signal, Study } from './types';
 
@@ -267,6 +268,14 @@ export const getStartups = cache(async (): Promise<BriefingLead[]> => {
   return [...byDomain.values()];
 });
 
+// Lo que queda en la bitácora al cambiar de etapa por la invitación de
+// LinkedIn: el historial de cuándo se invitó, aceptó o se retiró.
+const NOTA_DE_ETAPA: Record<string, (motivo?: string) => string> = {
+  invited: () => 'Invitación de LinkedIn enviada.',
+  connected: () => 'Aceptó la invitación de LinkedIn. Falta enviar el mensaje.',
+  paused: (motivo) => (motivo ? `En pausa: ${motivo}.` : 'En pausa.'),
+};
+
 export async function updateLeadStage(
   leadId: string,
   stage: string,
@@ -274,15 +283,26 @@ export async function updateLeadStage(
 ): Promise<void> {
   if (isDemoMode()) return; // no-op en demo
   const db = getServiceSupabase()!;
-  const { error } = await db
-    .from('leads')
-    .update({
-      stage,
-      discard_reason: discardReason ?? null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', leadId);
+  const now = new Date().toISOString();
+  const cambio: Record<string, string | null> = {
+    stage,
+    discard_reason: discardReason ?? null,
+    updated_at: now,
+  };
+  // La invitación lleva su fecha propia: updated_at la mueve cualquier nota o
+  // scan, y los avisos de "sin aceptar" se cuentan desde aquí.
+  if (stage === 'invited') cambio.invited_at = now;
+  let { data, error } = await db.from('leads').update(cambio).eq('id', leadId).select('company_id').maybeSingle();
+  // Sin la migración 20261008 la columna no existe: se cambia la etapa igual
+  // y la fecha cae a updated_at.
+  if (error && 'invited_at' in cambio && /invited_at/.test(error.message)) {
+    delete cambio.invited_at;
+    ({ data, error } = await db.from('leads').update(cambio).eq('id', leadId).select('company_id').maybeSingle());
+  }
   if (error) throw error;
+
+  const nota = NOTA_DE_ETAPA[stage];
+  if (nota && data?.company_id) await anotaEnBitacora(db, data.company_id as string, leadId, nota(discardReason));
 
   // Al pasar a contactado, marcar sent_at del último mensaje (spec §10.2)
   if (stage === 'contacted') {

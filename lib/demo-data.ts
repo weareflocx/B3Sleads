@@ -116,10 +116,12 @@ const DEMO_LEADS_RAW: Omit<BriefingLead, 'signals'>[] = [
       company_id: 'demo-co-2',
       contact_id: 'demo-ct-2',
       scan_id: 'demo-sc-2',
-      stage: 'briefed',
+      // Aceptó la invitación de LinkedIn: el mensaje espera en el briefing.
+      stage: 'connected',
       priority_score: 74,
       discard_reason: null,
       updated_at: daysAgo(0),
+      invited_at: daysAgo(4),
     },
     company: {
       id: 'demo-co-2',
@@ -217,10 +219,12 @@ const DEMO_LEADS_RAW: Omit<BriefingLead, 'signals'>[] = [
       company_id: 'demo-co-3',
       contact_id: 'demo-ct-3',
       scan_id: 'demo-sc-3',
-      stage: 'detected',
+      // Invitación sin aceptar: sale en "Invitaciones pendientes".
+      stage: 'invited',
       priority_score: 91,
       discard_reason: null,
       updated_at: daysAgo(0),
+      invited_at: daysAgo(9),
     },
     company: {
       id: 'demo-co-3',

@@ -111,7 +111,9 @@ curl -s -X POST https://b3slead.netlify.app/api/v1/leads \
 
 ### `PATCH /api/v1/leads/{leadId}`
 
-Cambiar la etapa: `{ "stage": "contacted" }`. Descartar exige motivo:
+Cambiar la etapa: `{ "stage": "contacted" }`. La invitación de LinkedIn tiene
+dos etapas propias antes de `contacted`: `invited` (invitación enviada, guarda
+la fecha) y `connected` (aceptó, falta el mensaje). Descartar exige motivo:
 `{ "stage": "discarded", "discardReason": "Fuera de ICP" }`.
 
 ### `POST /api/v1/notes`
