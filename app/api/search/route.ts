@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUser } from '@/lib/auth';
 import { getBriefingLeads } from '@/lib/data';
 import { searchLeads } from '@/lib/search';
 
 // Búsqueda global: startups y founders del radar. GET ?q=texto
 export async function GET(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   const q = req.nextUrl.searchParams.get('q') ?? '';
   if (q.trim().length < 2) return NextResponse.json({ hits: [] });
   try {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { guardarMarcaEstudio } from '@/lib/data';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
-import { currentUserEmail } from '@/lib/auth';
+import { requireUser } from '@/lib/auth';
 import { saneaParcheMarca } from '@/lib/battle-cards';
 
 // La ficha de criterio de UNA marca dentro de un estudio: rol, capa,
@@ -18,6 +18,8 @@ import { saneaParcheMarca } from '@/lib/battle-cards';
 // Un campo con valor null se borra de la ficha: es lo que manda el selector
 // al volver a "sin asignar".
 export async function PATCH(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const { domain, marca, parche } = (await req.json()) as {
       domain?: string;
@@ -42,7 +44,7 @@ export async function PATCH(req: NextRequest) {
       .maybeSingle();
     if (!company) return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 });
 
-    await guardarMarcaEstudio(company.id, marca, limpio, await currentUserEmail());
+    await guardarMarcaEstudio(company.id, marca, limpio, auth.email);
     return NextResponse.json({ ok: true, parche: limpio });
   } catch (e) {
     const msg = mensajeDeError(e);

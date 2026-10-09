@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
-import { currentUserEmail } from '@/lib/auth';
+import { requireUser } from '@/lib/auth';
 import { storedScanReport } from '@/lib/scan-report';
 import { canonDimension, DIMENSION_LABELS, hasReadings } from '@/lib/scan-versions';
 import type { Scan } from '@/lib/types';
@@ -13,6 +13,8 @@ import type { Scan } from '@/lib/types';
 // POST   { companyId, scanId } → todas las dimensiones detectadas, a ese run
 // DELETE { companyId, scanId } → quita las selecciones que apuntan a ese run
 export async function POST(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const { companyId, scanId } = await req.json();
     if (!companyId || !scanId) {
@@ -44,7 +46,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Esa pasada no detectó ningún componente' }, { status: 400 });
     }
 
-    const email = await currentUserEmail();
+    const email = auth.email;
     const ahora = new Date().toISOString();
     const { error } = await db.from('component_selections').upsert(
       dimensiones.map((dimension) => ({
@@ -66,6 +68,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const { companyId, scanId } = await req.json();
     if (!companyId || !scanId) {

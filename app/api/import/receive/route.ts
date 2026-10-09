@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'node:fs';
 import path from 'node:path';
+import { requireUser } from '@/lib/auth';
 
 // Receptor de datasets en desarrollo (ej: TSVs cosechados desde el navegador).
 // Solo activo fuera de producción. Escribe en data/ (gitignored).
@@ -17,6 +18,11 @@ export async function OPTIONS() {
 export async function POST(req: NextRequest) {
   if (process.env.NODE_ENV === 'production') {
     return NextResponse.json({ error: 'Solo disponible en desarrollo' }, { status: 403, headers: CORS });
+  }
+  const auth = await requireUser();
+  if (auth instanceof Response) {
+    for (const [k, v] of Object.entries(CORS)) auth.headers.set(k, v);
+    return auth;
   }
   try {
     const { filename, content } = await req.json();

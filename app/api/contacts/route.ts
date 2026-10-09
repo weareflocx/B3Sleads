@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUser } from '@/lib/auth';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 
 // Editar el contacto. Notas de seguimiento (ángulo personal) y/o el nombre
 // del founder (edición inline en la ficha, para corregir un alta mal parseada).
 // PATCH { contactId, notes?, full_name?, role?, avatar_url? }
 export async function PATCH(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const { contactId, notes, full_name, role, avatar_url } = await req.json();
     if (!contactId) {

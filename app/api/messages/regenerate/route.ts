@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUser } from '@/lib/auth';
 import { getLeadFiche } from '@/lib/data';
 import { generateDraft, draftInputFromLead } from '@/lib/claude';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
@@ -13,6 +14,8 @@ import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 // Antes escribía con el cliente anónimo, sin permisos: el insert fallaba en
 // silencio y el borrador regenerado no se guardaba nunca.
 export async function POST(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const { leadId } = await req.json();
     const bl = await getLeadFiche(leadId);

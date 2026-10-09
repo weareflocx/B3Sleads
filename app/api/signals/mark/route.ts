@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUser } from '@/lib/auth';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import { signalMeta } from '@/lib/radar';
 import { anotaEnBitacora } from '@/lib/bitacora';
@@ -15,6 +16,8 @@ import type { Signal } from '@/lib/types';
 //
 // POST { companyId, type, occurredAt, evidence, sourceUrl?, detail? }
 export async function POST(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const { companyId, type, occurredAt, evidence, sourceUrl, detail } = await req.json();
 

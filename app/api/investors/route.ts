@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUser } from '@/lib/auth';
 import { normalizarDominio } from '@/lib/dominio';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import type { Company, Investor } from '@/lib/types';
@@ -13,6 +14,8 @@ function normalizeDomain(raw: string): string {
 }
 
 export async function PATCH(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const body = await req.json();
     const slug = String(body.slug || '').trim();

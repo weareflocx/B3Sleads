@@ -1,5 +1,4 @@
-import { NextRequest } from 'next/server';
-import { POST as foundersPost } from '@/app/api/founders/route';
+import { altaDeFounders } from '@/lib/alta-founders';
 import {
   parseCompatibleLeadListQuery,
   parseLeadCreate,
@@ -62,31 +61,20 @@ export async function POST(request: Request) {
       idempotencyKey: optionalIdempotencyKey(request),
       payload: input,
       execute: async () => {
-        const inner = new NextRequest('http://internal/api/founders', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ entries: [entry] }),
-        });
-        const response = await foundersPost(inner);
-        const body = await response.json().catch(() => null);
-        if (!response.ok) {
-          const message =
-            body && typeof body === 'object' && typeof body.error === 'string'
-              ? body.error
-              : 'No se pudo crear el lead.';
-          throw new AgentApiError(response.status, 'lead_create_failed', message);
+        // La misma alta que /api/founders, llamada directamente: esa ruta exige
+        // la sesión de un usuario y la Agent API no la tiene. Sin usuario, el
+        // lead no se atribuye a nadie, igual que antes.
+        const { status, body } = await altaDeFounders({ entries: [entry] }, null);
+        if ('error' in body) {
+          throw new AgentApiError(status, 'lead_create_failed', body.error || 'No se pudo crear el lead.');
         }
-        const first =
-          body && typeof body === 'object' && Array.isArray(body.results) ? body.results[0] : null;
+        const first = body.results[0];
         await recordAgentAction(context, {
           action: 'create_lead',
           resourceType: 'lead',
-          resourceId:
-            first && typeof first === 'object' && typeof first.domain === 'string'
-              ? first.domain
-              : domain ?? linkedin ?? null,
+          resourceId: first?.domain ?? domain ?? linkedin ?? null,
         });
-        return { body, status: response.status };
+        return { body, status };
       },
     });
   });

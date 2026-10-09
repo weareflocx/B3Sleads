@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUser } from '@/lib/auth';
 import { unirLeadsDeMarca } from '@/lib/data';
 
 // POST { companyId } — une los leads duplicados de una marca en uno.
 export async function POST(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const { companyId } = await req.json();
     if (!companyId) return NextResponse.json({ error: 'companyId requerido' }, { status: 400 });
