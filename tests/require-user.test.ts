@@ -6,6 +6,7 @@ import type { User } from '@supabase/supabase-js';
 import { NextRequest } from 'next/server';
 import { requireUser } from '../lib/auth';
 import { PATCH as patchContact } from '../app/api/contacts/route';
+import { POST as createLeadV1 } from '../app/api/v1/leads/route';
 
 const envNames = [
   'NEXT_PUBLIC_SUPABASE_URL',
@@ -13,6 +14,8 @@ const envNames = [
   'SUPABASE_SERVICE_ROLE_KEY',
   'LOCAL_AUTH_BYPASS',
   'NODE_ENV',
+  'B3S_AGENT_API_KEY',
+  'B3SLEADS_API_KEYS',
 ] as const;
 const originalEnv = new Map<string, string | undefined>();
 // NODE_ENV está tipado como solo lectura en los tipos de Next.
@@ -101,18 +104,32 @@ test('una ruta del dashboard sin sesión responde 401 antes de leer el cuerpo', 
   assert.equal(res.status, 401);
 });
 
+test('la Agent API sigue dando de alta leads sin sesión de usuario', async () => {
+  // Con Supabase configurado y sin service role key, el alta no toca la base
+  // y responde en modo demo, sin red. Antes de sacar la lógica a
+  // lib/alta-founders.ts, /api/v1/leads llamaba a /api/founders y esta alta
+  // habría respondido 401 al exigir sesión.
+  conSupabase();
+  const token = 'b3s_test_123456789012345678901234567890';
+  env.B3S_AGENT_API_KEY = token;
+  const res = await createLeadV1(
+    new Request('https://leads.test/api/v1/leads', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ domain: 'acme.test' }),
+    }),
+  );
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.results[0].status, 'demo');
+});
+
 const API_DIR = join(process.cwd(), 'app', 'api');
 
 // Rutas sin esta barrera: la Agent API valida su propia clave, health es
-// público y Eclipse es la campaña pública. founders queda fuera mientras
-// /api/v1/leads la llame en proceso con la clave de la Agent API, sin sesión.
+// público y Eclipse es la campaña pública.
 function excluida(ruta: string): boolean {
-  return (
-    ruta.startsWith('v1/') ||
-    ruta.startsWith('health/') ||
-    ruta.startsWith('eclipse/') ||
-    ruta === 'founders/route.ts'
-  );
+  return ruta.startsWith('v1/') || ruta.startsWith('health/') || ruta.startsWith('eclipse/');
 }
 
 function ficherosDeRuta(dir: string): string[] {
