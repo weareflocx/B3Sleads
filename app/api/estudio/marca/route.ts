@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { absoluteB3SUrl, apiConfigured, B3SApiError, createScan, storedScanStatus } from '@/lib/brand3';
 import { scanEnMarcha, syncStoredScan } from '@/lib/b3s-scan-storage';
-import { normalizarDominio } from '@/lib/eclipse';
+import { normalizarDominio } from '@/lib/dominio';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import type { Scan } from '@/lib/types';
 
