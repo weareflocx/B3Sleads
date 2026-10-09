@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
-import { currentUserEmail } from '@/lib/auth';
+import { requireUser } from '@/lib/auth';
 import { normalizarDominio } from '@/lib/dominio';
 import { priorityScore } from '@/lib/scoring';
 import { humanizeHandle, type Company, type Signal } from '@/lib/types';
@@ -34,6 +34,8 @@ interface Resultado {
 const MAX_FILAS = 40;
 
 export async function POST(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const body = (await req.json()) as {
       accion?: string;
@@ -57,7 +59,7 @@ export async function POST(req: NextRequest) {
       if (filas.length > MAX_FILAS) {
         return NextResponse.json({ error: `Como mucho ${MAX_FILAS} filas por petición.` }, { status: 400 });
       }
-      const autor = await currentUserEmail();
+      const autor = auth.email;
       const hoy = new Date().toLocaleDateString('es-ES', { timeZone: 'Europe/Madrid', day: '2-digit', month: '2-digit', year: 'numeric' });
       const resultados: Resultado[] = [];
       // Fila a fila: un error no para el resto.

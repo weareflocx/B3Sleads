@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getComposicion, guardarComposicion } from '@/lib/data';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
-import { currentUserEmail } from '@/lib/auth';
+import { requireUser } from '@/lib/auth';
 import type { Grupo } from '@/lib/benchmark';
 
 // La composición de un estudio: qué marcas hay, en qué grupo y en qué orden.
@@ -26,6 +26,8 @@ async function empresa(domain: string) {
 }
 
 export async function GET(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   const domain = req.nextUrl.searchParams.get('domain') ?? '';
   if (!domain) return NextResponse.json({ error: 'domain requerido' }, { status: 400 });
   if (isDemoMode()) return NextResponse.json({ grupos: [], updated_at: null });
@@ -38,11 +40,15 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  return guardar(req);
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
+  return guardar(req, auth.email);
 }
 
 export async function POST(req: NextRequest) {
-  return guardar(req);
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
+  return guardar(req, auth.email);
 }
 
 // Nombres con contenido, dominios en minúsculas y sin repetir, y ocultas
@@ -82,7 +88,7 @@ function sanea(gs: unknown): Grupo[] {
     .filter((g) => g.nombre);
 }
 
-async function guardar(req: NextRequest) {
+async function guardar(req: NextRequest, email: string | null) {
   try {
     const cuerpo = (await req.json()) as { domain?: string; grupos?: unknown; base?: unknown };
     if (!cuerpo.domain || !Array.isArray(cuerpo.grupos)) {
@@ -97,7 +103,7 @@ async function guardar(req: NextRequest) {
       c.id,
       sanea(cuerpo.grupos),
       Array.isArray(cuerpo.base) ? sanea(cuerpo.base) : null,
-      await currentUserEmail(),
+      email,
     );
     // Se devuelve lo que quedó guardado de verdad, con lo de los demás
     // dentro: quien escribe lo adopta y ve al instante lo que no tenía.

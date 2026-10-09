@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUser } from '@/lib/auth';
 import { esInformePublico, syncStoredScan } from '@/lib/b3s-scan-storage';
 import { apiConfigured, B3SApiError, getPublicReport } from '@/lib/brand3';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
@@ -26,6 +27,8 @@ export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ scanId: string }> },
 ) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const { scanId } = await params;
     if (isDemoMode()) return NextResponse.json({ ok: true, demo: true });

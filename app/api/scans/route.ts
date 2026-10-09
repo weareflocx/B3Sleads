@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUser } from '@/lib/auth';
 import { normalizarDominio } from '@/lib/dominio';
 import { absoluteB3SUrl, createScan, storedScanStatus } from '@/lib/brand3';
 import { syncStoredScan } from '@/lib/b3s-scan-storage';
@@ -9,6 +10,8 @@ import type { Company, Scan } from '@/lib/types';
 // POST { url, name?, source? } — alta manual/engaged: crea company + scan + lead.
 // Lo usa la vista Engaged (source='engaged', bonus +20 en scoring).
 export async function POST(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const { url, name, source = 'manual' } = await req.json();
     if (!url) return NextResponse.json({ error: 'url requerida' }, { status: 400 });

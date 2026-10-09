@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUser } from '@/lib/auth';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import { eliminarMarca } from '@/lib/data';
 
 // Editar la ficha de compañía desde la propia ficha (edición inline).
 // PATCH { companyId, name?, logo_url?, description?, sectors? }
 export async function PATCH(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const { companyId, name, logo_url, description, sectors } = await req.json();
     if (!companyId) {
@@ -43,6 +46,8 @@ export async function PATCH(req: NextRequest) {
 // DELETE { companyId, confirmDomain } — borra la marca y todo lo que cuelga de
 // ella. Irreversible: exige escribir el dominio para confirmar.
 export async function DELETE(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const { companyId, confirmDomain } = await req.json();
     if (!companyId || typeof confirmDomain !== 'string') {

@@ -7,7 +7,7 @@ import {
   marcarClaim,
 } from '@/lib/data';
 import { isDemoMode } from '@/lib/supabase';
-import { currentUserEmail } from '@/lib/auth';
+import { requireUser } from '@/lib/auth';
 import { companyLabel } from '@/lib/types';
 import { fusionaNotas, parseGrupos, visibles } from '@/lib/benchmark';
 import {
@@ -42,6 +42,8 @@ async function contexto(domain: string, g: string | null) {
 }
 
 export async function GET(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const p = req.nextUrl.searchParams;
     const domain = (p.get('domain') ?? '').toLowerCase().trim();
@@ -96,6 +98,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const body = (await req.json()) as {
       domain?: string;
@@ -110,7 +114,7 @@ export async function PATCH(req: NextRequest) {
 
     const cliente = await getCorpusBrand(domain);
     if (!cliente) return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 });
-    const email = await currentUserEmail();
+    const email = auth.email;
 
     // El vocabulario de tipos, entero.
     if (body.tipos) {

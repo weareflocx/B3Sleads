@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUser } from '@/lib/auth';
 import { getCorpusBrand, getCorpusBrands, getEstudio } from '@/lib/data';
 import { csvDelEstudio } from '@/lib/export-estudio';
 import { companyLabel } from '@/lib/types';
@@ -14,6 +15,8 @@ export const dynamic = 'force-dynamic';
 // El parámetro g permite exportar exactamente lo que se está viendo, igual
 // que hace la página.
 export async function GET(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const p = req.nextUrl.searchParams;
     const domain = (p.get('domain') ?? '').toLowerCase().trim();

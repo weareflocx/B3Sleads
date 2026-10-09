@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUser } from '@/lib/auth';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import { apiConfigured, dominioDelInforme, getBrandProfile, getReportByUrl, informeEsDe } from '@/lib/brand3';
 import { persistImportedScan } from '@/lib/b3s-scan-storage';
@@ -9,6 +10,8 @@ import type { Company, Scan } from '@/lib/types';
 // usa en servidor; reportUrl y domain son dos formas de resolver el scan_id.
 // POST { reportUrl?, domain?, leadId?, companyId? }
 export async function POST(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const { reportUrl, domain: rawDomain, leadId, companyId } = await req.json();
     if (!reportUrl && !rawDomain) {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
-import { currentUserEmail } from '@/lib/auth';
+import { requireUser } from '@/lib/auth';
 import { DIMENSION_LABELS, hasReadings } from '@/lib/scan-versions';
 import type { Scan } from '@/lib/types';
 
@@ -20,6 +20,8 @@ function missingTable(message: string): boolean {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const { companyId, dimension, scanId, note } = await req.json();
     if (!companyId || !dimension || !scanId) {
@@ -60,7 +62,7 @@ export async function POST(req: NextRequest) {
         dimension,
         scan_id: scanId,
         is_manual: true,
-        selected_by_email: await currentUserEmail(),
+        selected_by_email: auth.email,
         selected_at: new Date().toISOString(),
         note: typeof note === 'string' && note.trim() ? note.trim() : null,
       },
@@ -79,6 +81,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const { companyId, dimension } = await req.json();
     if (!companyId || !dimension) {

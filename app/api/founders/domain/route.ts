@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUser } from '@/lib/auth';
 import { normalizarDominio } from '@/lib/dominio';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import { getBrandProfile } from '@/lib/brand3';
@@ -11,6 +12,8 @@ import type { Company, Scan } from '@/lib/types';
 // Crea/encuentra la compañía, la vincula al lead e importa su último scan B3S.
 // POST { leadId, domain, companyName? }
 export async function POST(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const { leadId, domain: rawDomain, companyName } = await req.json();
     if (!leadId || !rawDomain) {

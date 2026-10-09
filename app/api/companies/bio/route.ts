@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUser } from '@/lib/auth';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import { discoverBio } from '@/lib/bio-discovery';
 import { extractSectors } from '@/lib/claude';
@@ -9,6 +10,8 @@ import type { Company, Scan } from '@/lib/types';
 // fuente para que se apruebe una desde la ficha, igual que las rondas.
 // POST { companyId }
 export async function POST(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const { companyId } = await req.json();
     if (!companyId) return NextResponse.json({ error: 'companyId requerido' }, { status: 400 });

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { guardarMarcaEstudio } from '@/lib/data';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
-import { currentUserEmail } from '@/lib/auth';
+import { requireUser } from '@/lib/auth';
 import { NOTA_MAX } from '@/lib/battle-cards';
 
 // El porqué de una marca en el estudio. PATCH { domain, marca, nota }.
@@ -14,6 +14,8 @@ import { NOTA_MAX } from '@/lib/battle-cards';
 // ya no pasa por aquí (usa la clasificación), pero una pestaña abierta antes
 // del cambio sí, y así también escribe en el sitio bueno.
 export async function PATCH(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const { domain, marca, nota } = (await req.json()) as {
       domain?: string;
@@ -38,7 +40,7 @@ export async function PATCH(req: NextRequest) {
       company.id,
       marca.trim().toLowerCase(),
       { note: texto || null },
-      await currentUserEmail(),
+      auth.email,
     );
     return NextResponse.json({ ok: true });
   } catch (e) {

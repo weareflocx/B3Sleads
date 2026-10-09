@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUser } from '@/lib/auth';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 
 // Bitácora del lead: cada nota es un registro con su fecha, no un campo que
@@ -12,6 +13,8 @@ import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 // email en cada nota sería ruido. Cuando entre el equipo, columna aparte.
 // POST { leadId, companyId?, contactId?, body, kind? }
 export async function POST(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const { leadId, companyId, contactId, body, kind } = await req.json();
     if (!leadId || typeof body !== 'string' || !body.trim()) {
@@ -49,6 +52,8 @@ export async function POST(req: NextRequest) {
 
 // DELETE { noteId } — para una nota mal pegada o duplicada.
 export async function DELETE(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const { noteId } = await req.json();
     if (!noteId) return NextResponse.json({ error: 'noteId requerido' }, { status: 400 });

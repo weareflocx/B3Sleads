@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUser } from '@/lib/auth';
 import { absoluteB3SUrl, apiConfigured, B3SApiError, createScan, storedScanStatus } from '@/lib/brand3';
 import { scanEnMarcha, syncStoredScan } from '@/lib/b3s-scan-storage';
 import { normalizarDominio } from '@/lib/eclipse';
@@ -15,6 +16,8 @@ import type { Scan } from '@/lib/types';
 // Idempotente por dominio: si ya existe con scan listo, lo devuelve; si
 // existe sin scan (o falló), lanza uno; si hay uno en marcha, lo reutiliza.
 export async function POST(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     // `intento`: un id por pulsación. Sin él, la clave de idempotencia era por
     // día y "reescanear" una marca el mismo día devolvía el MISMO trabajo del
