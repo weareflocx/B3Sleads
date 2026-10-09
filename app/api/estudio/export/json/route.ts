@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUser } from '@/lib/auth';
 import { getCorpusBrand, getCorpusBrands, getEstudio } from '@/lib/data';
 import { companyLabel } from '@/lib/types';
 import {
@@ -22,6 +23,8 @@ export const dynamic = 'force-dynamic';
 //
 // GET /api/estudio/export/json?domain=cliente.com[&g=...]
 export async function GET(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const p = req.nextUrl.searchParams;
     const domain = (p.get('domain') ?? '').toLowerCase().trim();

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCorpusBrand, getEstudio } from '@/lib/data';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
-import { currentUserEmail } from '@/lib/auth';
+import { requireUser } from '@/lib/auth';
 import { fusionaNotas, parseGrupos } from '@/lib/benchmark';
 import { ImportInvalido, preparaImport } from '@/lib/import-estudio';
 
@@ -16,6 +16,8 @@ export const dynamic = 'force-dynamic';
 // se puede ver qué va a pasar antes de que pase, que con cuarenta y cuatro
 // marcas y una sola pantalla de deshacer no es un lujo.
 export async function POST(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const { domain, estudio, soloProbar } = (await req.json()) as {
       domain?: string;
@@ -59,7 +61,7 @@ export async function POST(req: NextRequest) {
         axes: plan.axes,
         client_positions: plan.clientPositions,
         excluded_terms: plan.excludedTerms,
-        updated_by_email: await currentUserEmail(),
+        updated_by_email: auth.email,
         updated_at: new Date().toISOString(),
       })
       .eq('company_id', cliente.company.id);

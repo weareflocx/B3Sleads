@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUser } from '@/lib/auth';
 import { medirImagen, type MedidaImagen } from '@/lib/imagen';
 
 // El logo de una marca por su dominio, elegido entre varias fuentes y cacheado.
@@ -115,6 +116,8 @@ function valor(c: Candidata): number {
 }
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ domain: string }> }) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   const { domain } = await params;
   const dominio = decodeURIComponent(domain).trim().toLowerCase();
   if (!DOMINIO.test(dominio)) {

@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUser } from '@/lib/auth';
 import { saveEditedMessage } from '@/lib/data';
 
 // PATCH { messageId, editedFinal } — guarda lo que Sergio realmente envió (feedback loop)
 export async function PATCH(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const { messageId, editedFinal } = await req.json();
     if (!messageId || typeof editedFinal !== 'string') {

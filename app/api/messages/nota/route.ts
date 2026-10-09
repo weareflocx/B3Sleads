@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUser } from '@/lib/auth';
 import { getLeadFiche } from '@/lib/data';
 import { generateDraft, draftInputFromLead, MAX_NOTA } from '@/lib/claude';
 
@@ -6,6 +7,8 @@ import { generateDraft, draftInputFromLead, MAX_NOTA } from '@/lib/claude';
 // con el mismo hallazgo del Scanner que el mensaje. No se guarda: es de usar
 // y tirar, y el mensaje del lead sigue siendo el borrador de después.
 export async function POST(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const { leadId } = await req.json();
     const bl = await getLeadFiche(leadId);

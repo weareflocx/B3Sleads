@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUser } from '@/lib/auth';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import { priorityScore } from '@/lib/scoring';
 import { parseInvestors } from '@/lib/funding';
@@ -79,6 +80,8 @@ function lineaRonda(sig: Signal): string {
 // la prioridad del lead (la recencia de ronda pesa un 40% del score).
 // POST { companyId, leadId?, round, amount?, investors?, date?, sourceUrl? }
 export async function POST(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const { companyId, leadId, round, amount, amountEur, investors, date, sourceUrl, confirmada } =
       await req.json();
@@ -120,6 +123,8 @@ export async function POST(req: NextRequest) {
 // resto del detail (source_url, procedencia del pipeline) se conserva.
 // PATCH { signalId, leadId?, round?, amount?, amountEur?, investors?, date? }
 export async function PATCH(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const body = await req.json();
     const { signalId, leadId } = body;
@@ -175,6 +180,8 @@ export async function PATCH(req: NextRequest) {
 // Borrar una ronda mal registrada (duplicada o de otra empresa).
 // DELETE { signalId, leadId? }
 export async function DELETE(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const { signalId, leadId } = await req.json();
     if (!signalId) return NextResponse.json({ error: 'signalId requerido' }, { status: 400 });

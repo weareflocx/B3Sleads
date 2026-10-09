@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { unstable_cache } from 'next/cache';
 import { getCorpusBrand, getCorpusBrands, getEstudio, excluirTermino } from '@/lib/data';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
-import { currentUserEmail } from '@/lib/auth';
+import { requireUser } from '@/lib/auth';
 import { companyLabel, type Scan } from '@/lib/types';
 import { fusionaNotas, parseGrupos, ultimoPublicable } from '@/lib/benchmark';
 import { cruzaVocabulario } from '@/lib/vocabulario';
@@ -46,6 +46,8 @@ const scansDeContraste = unstable_cache(
 );
 
 export async function GET(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const p = req.nextUrl.searchParams;
     const domain = (p.get('domain') ?? '').toLowerCase().trim();
@@ -105,6 +107,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const { domain, termino, excluir } = (await req.json()) as {
       domain?: string;
@@ -124,7 +128,7 @@ export async function PATCH(req: NextRequest) {
       .maybeSingle();
     if (!company) return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 });
 
-    await excluirTermino(company.id, termino, excluir !== false, await currentUserEmail());
+    await excluirTermino(company.id, termino, excluir !== false, auth.email);
     return NextResponse.json({ ok: true });
   } catch (e) {
     let msg = e instanceof Error ? e.message : String(e);

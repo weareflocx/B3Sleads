@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { borrarEje, guardarEjes, guardarPuntuacionEje } from '@/lib/data';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
-import { currentUserEmail } from '@/lib/auth';
+import { requireUser } from '@/lib/auth';
 import { saneaEjes, saneaPosicionesCliente, saneaPuntuacionEje } from '@/lib/battle-cards';
 
 // Los ejes de posicionamiento de un estudio.
@@ -25,6 +25,8 @@ async function idDelCliente(domain: string): Promise<string | null> {
 }
 
 export async function PUT(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   return conErrores(async () => {
     const { domain, axes, clientPositions } = (await req.json()) as {
       domain?: string;
@@ -41,12 +43,14 @@ export async function PUT(req: NextRequest) {
     // eje que no existe no debe llegar a guardarse.
     const limpios = saneaEjes(axes);
     const posiciones = saneaPosicionesCliente(clientPositions, limpios);
-    await guardarEjes(id, limpios, posiciones, await currentUserEmail());
+    await guardarEjes(id, limpios, posiciones, auth.email);
     return NextResponse.json({ ok: true, axes: limpios, clientPositions: posiciones });
   });
 }
 
 export async function PATCH(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   return conErrores(async () => {
     const { domain, marca, eje, valor } = (await req.json()) as {
       domain?: string;
@@ -64,12 +68,14 @@ export async function PATCH(req: NextRequest) {
 
     // null borra la puntuación. No es un 0: el 0 es el extremo izquierdo.
     const n = valor === null || valor === '' ? null : saneaPuntuacionEje(valor);
-    await guardarPuntuacionEje(id, marca, eje, n, await currentUserEmail());
+    await guardarPuntuacionEje(id, marca, eje, n, auth.email);
     return NextResponse.json({ ok: true, valor: n });
   });
 }
 
 export async function DELETE(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   return conErrores(async () => {
     const { domain, eje } = (await req.json()) as { domain?: string; eje?: string };
     if (!domain || !eje) {
@@ -80,7 +86,7 @@ export async function DELETE(req: NextRequest) {
     const id = await idDelCliente(domain);
     if (!id) return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 });
 
-    await borrarEje(id, eje, await currentUserEmail());
+    await borrarEje(id, eje, auth.email);
     return NextResponse.json({ ok: true });
   });
 }

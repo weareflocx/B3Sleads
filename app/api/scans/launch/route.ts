@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUser } from '@/lib/auth';
 import { absoluteB3SUrl, apiConfigured, createScan, storedScanStatus } from '@/lib/brand3';
 import { scanEnMarcha, syncStoredScan } from '@/lib/b3s-scan-storage';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
@@ -8,6 +9,8 @@ import type { Company, Scan } from '@/lib/types';
 // permanecen en servidor; el cliente sólo recibe la fila local de Supabase.
 // POST { companyId, leadId? }
 export async function POST(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const { companyId, leadId } = (await req.json()) as {
       companyId?: string;

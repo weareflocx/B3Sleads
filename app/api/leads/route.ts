@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUser } from '@/lib/auth';
 import { getBriefingLeads, marcaInvitacionRevisada, updateLeadStage } from '@/lib/data';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 
 export async function GET() {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const leads = await getBriefingLeads();
     return NextResponse.json({ leads });
@@ -16,6 +19,8 @@ export async function GET() {
 //  - inviteChecked: la invitación sigue sin aceptar (silencia el aviso)
 //  - ownerEmail: delegar el lead. Cadena vacía lo devuelve a quien lo detectó.
 export async function PATCH(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
   try {
     const { leadId, stage, discardReason, ownerEmail, inviteChecked } = await req.json();
     if (!leadId) {
