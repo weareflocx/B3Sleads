@@ -8,7 +8,7 @@ import type { Scan } from '@/lib/types';
 
 // Alta de una marca en el corpus para un estudio. POST { domain }.
 //
-// Es deliberadamente distinta del alta de lead (/api/scans): crea la company
+// Es deliberadamente distinta del alta de lead (/api/founders): crea la company
 // y lanza el scan, pero NO crea lead. Un competidor entra en el corpus para
 // medirlo, no para perseguirlo; si un día interesa como cliente, convertirlo
 // es un paso explícito. Así el estudio nunca ensucia el pipeline.
