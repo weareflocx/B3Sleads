@@ -121,7 +121,7 @@ test('the calibration page renders mixed and all-undated runs without phantom pa
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify(rows));
   });
-  const envNames = ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY'] as const;
+  const envNames = ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'DATABASE_URL'] as const;
   const originalEnv = new Map(envNames.map((name) => [name, process.env[name]]));
   try {
     await new Promise<void>((resolve, reject) => {
@@ -131,6 +131,9 @@ test('the calibration page renders mixed and all-undated runs without phantom pa
     process.env.NEXT_PUBLIC_SUPABASE_URL = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'synthetic-calibration-test-key';
     delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    // The monorepo also has a lib/db path: this test must only use the local HTTP fixture.
+    delete process.env.DATABASE_URL;
+    assert.equal('DATABASE_URL' in process.env, false, 'The page test must not inherit DATABASE_URL');
 
     rows = [scan('undated', null, 99), scan('newer', '2026-10-03T10:00:00Z', 64), scan('older', '2026-10-01T10:00:00Z', 60)];
     const mixed = renderToStaticMarkup(await CalibracionPage());
