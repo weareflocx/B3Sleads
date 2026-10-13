@@ -659,22 +659,6 @@ export async function getComposicion(
   return data ? { grupos: (data.grupos as Study['grupos']) ?? [], updated_at: data.updated_at as string } : null;
 }
 
-export async function guardarEstudio(
-  companyId: string,
-  grupos: Study['grupos'],
-  email: string | null,
-): Promise<void> {
-  if (isDemoMode()) return;
-  const db = getServiceSupabase()!;
-  // upsert por company_id: un estudio por cliente, y guardar es siempre la
-  // misma operación tanto si existe como si no.
-  const { error } = await db.from('studies').upsert(
-    { company_id: companyId, grupos, updated_by_email: email, updated_at: new Date().toISOString() },
-    { onConflict: 'company_id' },
-  );
-  if (error) throw error;
-}
-
 // ---------- leads duplicados y borrado de marcas ----------
 // Todos los leads de una marca, para detectar duplicados en la ficha.
 export async function getLeadsDeMarca(companyId: string): Promise<Lead[]> {
