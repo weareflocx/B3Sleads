@@ -124,7 +124,9 @@ function stdev(values: number[]): number | null {
 export function componentVersions(scans: Scan[]): DimensionVersions[] {
   const usable = scans
     .filter(hasReadings)
-    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+    // Undated runs keep their readings, but cannot outrank a dated version.
+    // Equal dates (including two NULLs) retain their existing input order.
+    .sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''));
 
   const byDimension = new Map<string, ComponentVersion[]>();
 
@@ -281,7 +283,9 @@ export function globalScoreDeviation(
 ): { deviation: number | null; pairs: number } {
   const diffs: number[] = [];
   for (const c of scansByCompany) {
-    const s = [...c.scores].sort((a, b) => a.at.localeCompare(b.at));
+    // An undated run cannot establish a seven-day interval. In particular,
+    // new Date(null) is the epoch, not an unknown date.
+    const s = c.scores.filter((run) => run.at != null).sort((a, b) => a.at.localeCompare(b.at));
     for (let i = 1; i < s.length; i++) {
       const days = (new Date(s[i].at).getTime() - new Date(s[i - 1].at).getTime()) / 86_400_000;
       if (days <= 7) diffs.push(Math.abs(s[i].score - s[i - 1].score));
