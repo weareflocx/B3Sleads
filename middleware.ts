@@ -24,9 +24,6 @@ export async function middleware(request: NextRequest) {
     process.env.NODE_ENV !== 'production' && process.env.LOCAL_AUTH_BYPASS === 'true';
   if (localAuthBypass) return NextResponse.next();
 
-  // El Eclipse Scan NO es público aquí: vive en su propio sitio (ECLIPSE_ONLY).
-  // En B3S Leads queda detrás del login como cualquier otra ruta, para que la
-  // campaña tenga una sola URL y una sola tarjeta Open Graph.
   const isPublic = PUBLIC_PATHS.includes(pathname) || pathname.startsWith('/auth');
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -60,9 +57,6 @@ export async function middleware(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  const path = request.nextUrl.pathname;
-  const isPublic = PUBLIC_PATHS.includes(path) || path.startsWith('/auth');
 
   if (!user && !isPublic) {
     // Una llamada a la API sin sesión recibe un 401 en JSON, no el HTML del login.
