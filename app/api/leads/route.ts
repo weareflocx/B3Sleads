@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
-import { getBriefingLeads, marcaInvitacionRevisada, updateLeadStage } from '@/lib/data';
+import { eliminarLeadSinMarca, getBriefingLeads, marcaInvitacionRevisada, updateLeadStage } from '@/lib/data';
 import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 
 export async function GET() {
@@ -59,5 +59,21 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
+  }
+}
+
+// DELETE { leadId } — borra un lead SIN marca (un founder suelto). Los que
+// tienen marca se borran con la marca desde su ficha.
+export async function DELETE(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof Response) return auth;
+  try {
+    const { leadId } = await req.json();
+    if (!leadId) return NextResponse.json({ error: 'leadId requerido' }, { status: 400 });
+    await eliminarLeadSinMarca(leadId);
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : (e as { message?: string })?.message ?? String(e);
+    return NextResponse.json({ error: msg }, { status: 400 });
   }
 }

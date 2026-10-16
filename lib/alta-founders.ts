@@ -5,6 +5,7 @@ import { persistImportedScan } from '@/lib/b3s-scan-storage';
 import { fetchSiteDescription } from '@/lib/site-meta';
 import { priorityScore } from '@/lib/scoring';
 import { parseLinkedInHandle, linkedInUrlFromHandle, humanizeHandle } from '@/lib/types';
+import { mismaPersona } from '@/lib/persona';
 import type { Company } from '@/lib/types';
 
 // Alta manual de founders desde LinkedIn.
@@ -160,7 +161,42 @@ export async function altaDeFounders(
       // Contacto solo si hay founder. El nombre se humaniza desde el handle
       // (estilo LinkedIn: "javier-palomino" → "Javier Palomino").
       let contactId: string | null = null;
-      if (handle) {
+      // ¿Ya estaba en la ficha por su nombre, sin LinkedIn (alta desde un lote
+      // o una noticia)? Entonces es la misma persona: se le completa el perfil
+      // en lugar de crear otra, que duplicaba founder y lead (lib/persona.ts).
+      let completaPersona: { id: string; full_name: string } | null = null;
+      if (handle && companyId) {
+        const { data: sinPerfil } = await db
+          .from('contacts')
+          .select('id, full_name, linkedin_handle, role, headline, notes')
+          .eq('company_id', companyId)
+          .is('linkedin_handle', null);
+        const nombre = e.name || humanizeHandle(handle);
+        const igual = (sinPerfil ?? []).find((c) => mismaPersona(c, { full_name: nombre }));
+        if (igual) {
+          const relleno: Record<string, string> = { linkedin_url: linkedinUrl!, linkedin_handle: handle };
+          if (!igual.role && e.role) relleno.role = e.role;
+          if (!igual.headline && e.headline) relleno.headline = e.headline;
+          if (!igual.notes && e.note) relleno.notes = e.note;
+          const { error } = await db.from('contacts').update(relleno).eq('id', igual.id);
+          if (!error) completaPersona = { id: igual.id, full_name: igual.full_name };
+        }
+      }
+      if (completaPersona) {
+        contactId = completaPersona.id;
+        const { data: suLead } = await db.from('leads').select('id').eq('contact_id', contactId).limit(1).maybeSingle();
+        if (suLead) {
+          // Ya tenía su lead: basta con el perfil. Nada que crear.
+          results.push({
+            input: handle!,
+            status: 'ok',
+            domain: domain || undefined,
+            name: completaPersona.full_name,
+            detail: `LinkedIn añadido a ${completaPersona.full_name}, que ya estaba en la ficha`,
+          });
+          continue;
+        }
+      } else if (handle) {
         const { data: contact, error: cErr } = await db
           .from('contacts')
           .insert({

@@ -4,6 +4,7 @@ import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import { requireUser } from '@/lib/auth';
 import { normalizarDominio } from '@/lib/dominio';
 import { priorityScore } from '@/lib/scoring';
+import { mismaPersona } from '@/lib/persona';
 import { humanizeHandle, type Company, type Signal } from '@/lib/types';
 import { AVISO_LINKEDIN, AVISO_NOMBRE, linkedinDePerfil, type FilaLote } from '@/lib/lote';
 
@@ -269,8 +270,26 @@ async function rellenaVacios(db: SupabaseClient, c: Company, f: ReturnType<typeo
 async function creaFundadores(db: SupabaseClient, companyId: string, fundadores: ReturnType<typeof revalida>['fundadores']) {
   const creados: { id: string; conLinkedin: boolean }[] = [];
   const yaEnOtra: string[] = [];
+  // Quien ya está en la ficha por su nombre es la misma persona aunque ahora
+  // venga con LinkedIn (o al revés): se completa, no se duplica.
+  const { data: actuales } = await db
+    .from('contacts')
+    .select('id, full_name, linkedin_handle, linkedin_url')
+    .eq('company_id', companyId);
+  const enFicha = (actuales ?? []) as { id: string; full_name: string | null; linkedin_handle: string | null; linkedin_url: string | null }[];
   for (const x of fundadores) {
     if (!x.url && !x.nombre) continue;
+    const igual = enFicha.find(
+      (c) => (!c.linkedin_handle || !x.handle) && mismaPersona(c, { full_name: x.nombre, linkedin_handle: x.handle }),
+    );
+    if (igual) {
+      if (x.handle && !igual.linkedin_handle) {
+        const { error } = await db.from('contacts').update({ linkedin_url: x.url, linkedin_handle: x.handle }).eq('id', igual.id);
+        if (error) throw error;
+      }
+      creados.push({ id: igual.id, conLinkedin: Boolean(x.url || igual.linkedin_url) });
+      continue;
+    }
     if (x.handle) {
       // La identidad del fundador es su perfil: si ya está en otra ficha no
       // se duplica (y el índice único lo impediría igual).

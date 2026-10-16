@@ -33,6 +33,22 @@ export function Kanban({ initial }: { initial: BriefingLead[] }) {
   const [porAnuncio, setPorAnuncio] = useState(false);
   const senales = new Map(leads.map((l) => [l.lead.id, senalDeRonda(l.signals)]));
 
+  // Un founder suelto, sin marca, no tiene ficha donde borrarlo: se borra aquí.
+  async function eliminar(bl: BriefingLead) {
+    const nombre = displayName(bl.contact?.full_name) || 'este lead';
+    if (!window.confirm(`¿Eliminar a ${nombre}? Se borra el lead y su founder, y no se puede deshacer.`)) return;
+    const res = await fetch('/api/leads', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leadId: bl.lead.id }),
+    });
+    if (res.ok) setLeads((ls) => ls.filter((l) => l.lead.id !== bl.lead.id));
+    else {
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      window.alert(`No se pudo eliminar: ${json.error ?? res.status}`);
+    }
+  }
+
   async function moveTo(leadId: string, stage: LeadStage) {
     const prev = leads;
     setLeads((ls) =>
@@ -155,6 +171,14 @@ export function Kanban({ initial }: { initial: BriefingLead[] }) {
                         ? 'founder sin empresa'
                         : ''}
                   </p>
+                  {!bl.company && (
+                    <button
+                      onClick={() => eliminar(bl)}
+                      className="mt-1.5 text-xs text-[var(--muted)] underline-offset-2 transition-colors hover:text-[var(--danger)] hover:underline"
+                    >
+                      Eliminar
+                    </button>
+                  )}
                   {senales.get(bl.lead.id) && (
                     <div className="mt-2">
                       <EtiquetaRonda senal={senales.get(bl.lead.id) ?? null} />

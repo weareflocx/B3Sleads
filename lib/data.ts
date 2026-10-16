@@ -674,7 +674,8 @@ export async function getLeadsDeMarca(companyId: string): Promise<Lead[]> {
 export async function unirLeadsDeMarca(companyId: string): Promise<number> {
   if (isDemoMode()) return 0;
   const db = getServiceSupabase()!;
-  const planes = planDeUnion(await getLeadsDeMarca(companyId));
+  const { data: contactos } = await db.from('contacts').select('*').eq('company_id', companyId);
+  const planes = planDeUnion(await getLeadsDeMarca(companyId), (contactos as Contact[] | null) ?? []);
   let unidos = 0;
   for (const p of planes) {
     const ids = p.sobran.map((l) => l.id);
@@ -686,11 +687,33 @@ export async function unirLeadsDeMarca(companyId: string): Promise<number> {
     if (mensajes.error) throw mensajes.error;
     const cambio: Record<string, string | null> = { stage: p.stage, updated_at: new Date().toISOString() };
     if (p.scanId && !p.queda.scan_id) cambio.scan_id = p.scanId;
-    if (p.contactId && !p.queda.contact_id) cambio.contact_id = p.contactId;
+    if (p.contactId && p.contactId !== p.queda.contact_id) cambio.contact_id = p.contactId;
     const queda = await db.from('leads').update(cambio).eq('id', p.queda.id);
     if (queda.error) throw queda.error;
     const borrado = await db.from('leads').delete().in('id', ids);
     if (borrado.error) throw borrado.error;
+    // La misma persona dos veces como contacto: lo que el que se queda no
+    // tenga (cargo, email, notas…) se le pasa, y el repetido se borra. Ya no
+    // lo apunta ningún lead.
+    if (p.contactId && p.contactosSobran.length) {
+      const todos = ((contactos as Contact[] | null) ?? []);
+      const destino = todos.find((c) => c.id === p.contactId);
+      const rellena: Record<string, string> = {};
+      for (const otro of todos.filter((c) => p.contactosSobran.includes(c.id))) {
+        for (const campo of ['role', 'email', 'headline', 'notes', 'city', 'phone', 'avatar_url'] as const) {
+          const v = (otro as unknown as Record<string, unknown>)[campo];
+          if (destino && !(destino as unknown as Record<string, unknown>)[campo] && typeof v === 'string' && v && !rellena[campo]) {
+            rellena[campo] = v;
+          }
+        }
+      }
+      if (Object.keys(rellena).length) {
+        const r = await db.from('contacts').update(rellena).eq('id', p.contactId);
+        if (r.error) throw r.error;
+      }
+      const sinUso = await db.from('contacts').delete().in('id', p.contactosSobran);
+      if (sinUso.error) throw sinUso.error;
+    }
     unidos += ids.length;
     await anotaEnBitacora(
       db,
@@ -716,4 +739,29 @@ export async function eliminarMarca(companyId: string, dominioConfirmado: string
   }
   const borrado = await db.from('companies').delete().eq('id', companyId);
   if (borrado.error) throw borrado.error;
+}
+
+// Borra un lead que no tiene marca (un founder suelto que nunca llegó a
+// asociarse a ninguna). Los que tienen marca se borran desde su ficha, con la
+// marca entera, o se descartan. Si su founder se queda sin ningún lead y sin
+// marca, se borra también: no tendría dónde verse.
+export async function eliminarLeadSinMarca(leadId: string): Promise<void> {
+  if (isDemoMode()) return;
+  const db = getServiceSupabase()!;
+  const { data: lead, error } = await db.from('leads').select('id, company_id, contact_id').eq('id', leadId).maybeSingle();
+  if (error) throw error;
+  if (!lead) throw new Error('Ese lead ya no existe.');
+  if (lead.company_id) throw new Error('Este lead tiene marca: elimínalo desde su ficha o descártalo.');
+  const borrado = await db.from('leads').delete().eq('id', leadId);
+  if (borrado.error) throw borrado.error;
+  if (lead.contact_id) {
+    const [{ count }, { data: contacto }] = await Promise.all([
+      db.from('leads').select('id', { count: 'exact', head: true }).eq('contact_id', lead.contact_id),
+      db.from('contacts').select('company_id').eq('id', lead.contact_id).maybeSingle(),
+    ]);
+    if (!count && !contacto?.company_id) {
+      const r = await db.from('contacts').delete().eq('id', lead.contact_id);
+      if (r.error) throw r.error;
+    }
+  }
 }

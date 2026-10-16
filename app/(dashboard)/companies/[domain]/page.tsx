@@ -96,7 +96,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
     getLeadsDeMarca(company.id),
   ]);
   // Leads repetidos de la marca (sin founder, o del mismo founder).
-  const duplicados = planDeUnion(leadsMarca).reduce((n, p) => n + p.sobran.length, 0);
+  const duplicados = planDeUnion(leadsMarca, allContacts).reduce((n, p) => n + p.sobran.length, 0);
   const ownerEmail = leadOwner(lead);
   const owner = { email: ownerEmail, label: userLabel(ownerEmail) };
   const detectedBy = lead.created_by_email
