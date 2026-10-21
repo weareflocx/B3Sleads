@@ -4,7 +4,7 @@ import { getServiceSupabase, isDemoMode } from '@/lib/supabase';
 import { requireUser } from '@/lib/auth';
 import { normalizarDominio } from '@/lib/dominio';
 import { priorityScore } from '@/lib/scoring';
-import { mismaPersona } from '@/lib/persona';
+import { completaPerfil, contactoDeLaFicha } from '@/lib/persona';
 import { humanizeHandle, type Company, type Signal } from '@/lib/types';
 import { AVISO_LINKEDIN, AVISO_NOMBRE, linkedinDePerfil, type FilaLote } from '@/lib/lote';
 
@@ -279,13 +279,12 @@ async function creaFundadores(db: SupabaseClient, companyId: string, fundadores:
   const enFicha = (actuales ?? []) as { id: string; full_name: string | null; linkedin_handle: string | null; linkedin_url: string | null }[];
   for (const x of fundadores) {
     if (!x.url && !x.nombre) continue;
-    const igual = enFicha.find(
-      (c) => (!c.linkedin_handle || !x.handle) && mismaPersona(c, { full_name: x.nombre, linkedin_handle: x.handle }),
-    );
+    const igual = contactoDeLaFicha(enFicha, { full_name: x.nombre, linkedin_handle: x.handle });
     if (igual) {
       if (x.handle && !igual.linkedin_handle) {
         const { error } = await db.from('contacts').update({ linkedin_url: x.url, linkedin_handle: x.handle }).eq('id', igual.id);
         if (error) throw error;
+        completaPerfil(igual, x.handle, x.url);
       }
       creados.push({ id: igual.id, conLinkedin: Boolean(x.url || igual.linkedin_url) });
       continue;
