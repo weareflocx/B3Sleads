@@ -52,11 +52,36 @@ export function planDeUnion(leads: Lead[], contactos: ContactoMin[] = []): PlanU
   const sinFounder = leads.filter((l) => !l.contact_id);
 
   // Cada contacto, a la persona que representa: el primero de los contactos
-  // que son la misma persona hace de clave del grupo.
+  // de una persona hace de clave del grupo. mismaPersona no es transitiva (un
+  // contacto sin LinkedIn puede tener el nombre de dos perfiles distintos), así
+  // que no se agrupa por el orden de llegada. Primero los contactos con
+  // LinkedIn: cada perfil es una persona y solo cuenta su handle. Después los
+  // que solo tienen nombre, que no pueden juntar dos perfiles:
+  //  - si el nombre es el de un solo perfil, van con él;
+  //  - si es el de dos o más no se sabe de quién son, y se quedan aparte: ni con
+  //    un perfil ni con otros sin perfil;
+  //  - si no es el de ninguno, se juntan con los sin perfil del mismo nombre.
+  // El orden de la lista solo decide cuál de los contactos de una persona hace
+  // de clave, no quién va con quién.
   const persona = new Map<string, string>();
-  for (const c of contactos) {
-    const igual = contactos.find((o) => persona.get(o.id) === o.id && mismaPersona(o, c));
+  const conPerfil = contactos.filter((c) => c.linkedin_handle);
+  for (const c of conPerfil) {
+    const igual = conPerfil.find((o) => persona.get(o.id) === o.id && mismaPersona(o, c));
     persona.set(c.id, igual ? igual.id : c.id);
+  }
+  // Las claves de los sin perfil que no coinciden con ningún perfil: una por nombre.
+  const claves: ContactoMin[] = [];
+  for (const c of contactos.filter((c) => !c.linkedin_handle)) {
+    const perfiles = [...new Set(conPerfil.filter((o) => mismaPersona(o, c)).map((o) => persona.get(o.id) ?? o.id))];
+    if (perfiles.length === 1) {
+      persona.set(c.id, perfiles[0]);
+    } else if (perfiles.length > 1) {
+      persona.set(c.id, c.id);
+    } else {
+      const igual = claves.find((o) => mismaPersona(o, c));
+      persona.set(c.id, igual ? igual.id : c.id);
+      if (!igual) claves.push(c);
+    }
   }
   const claveDe = (contactId: string) => persona.get(contactId) ?? contactId;
   const porId = new Map(contactos.map((c) => [c.id, c]));
