@@ -67,3 +67,31 @@ test('sin sesión, la API responde 401 en JSON y las páginas van al login', asy
   // La Agent API valida su propia clave: el middleware no la toca.
   assert.ok(dejaPasar(await pedir('/api/v1/leads')));
 });
+
+test('sin sesión, solo /auth/callback y la Agent API se libran: lo que se les parece, no', async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://supabase.test';
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-de-prueba';
+
+  for (const path of ['/auth/callback', '/api/v1', '/api/v1/leads']) {
+    assert.ok(dejaPasar(await pedir(path)), path);
+  }
+  for (const path of ['/auth', '/authors', '/auth/otra']) {
+    const pagina = await pedir(path);
+    assert.equal(pagina.status, 307, path);
+    assert.equal(new URL(pagina.headers.get('location') ?? '').pathname, '/login', path);
+  }
+  for (const path of ['/api/v1x', '/api/v10/leads', '/api/v1-interna']) {
+    const api = await pedir(path);
+    assert.equal(api.status, 401, path);
+    assert.match((await api.json()).error, /Sesión requerida/, path);
+  }
+});
+
+test('sin clave anónima, lo que solo se parece a una ruta pública también se cierra', async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://supabase.test';
+
+  assert.equal((await pedir('/authors')).status, 503);
+  const api = await pedir('/api/v1x');
+  assert.equal(api.status, 503);
+  assert.match((await api.json()).error, /NEXT_PUBLIC_SUPABASE_ANON_KEY/);
+});
