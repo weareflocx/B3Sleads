@@ -3,8 +3,10 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 // Protege el dashboard: sin sesión → /login, y las rutas /api → 401. Público:
 // la landing (/), el login y el callback de auth. Sin URL de Supabase la app
-// está en modo demo, sin datos reales, y se deja pasar todo.
-const PUBLIC_PATHS = ['/', '/login', '/api/health'];
+// está en modo demo, sin datos reales, y se deja pasar todo. Son rutas
+// exactas: con el prefijo /auth, también /authors o /auth/otra quedaban
+// abiertas.
+const PUBLIC_PATHS = ['/', '/login', '/auth/callback', '/api/health'];
 
 // La Agent API (/api/v1) no usa la sesión del navegador: cada ruta valida su
 // propia clave Bearer con scopes (lib/agent-api/auth).
@@ -14,7 +16,8 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   // Evita convertir un error de autenticación de la API en un redirect HTML.
-  if (pathname.startsWith(API_V1_PREFIX)) {
+  // Se compara el segmento entero: /api/v1x o /api/v10 no son la Agent API.
+  if (pathname === API_V1_PREFIX || pathname.startsWith(`${API_V1_PREFIX}/`)) {
     return NextResponse.next();
   }
 
@@ -24,7 +27,7 @@ export async function middleware(request: NextRequest) {
     process.env.NODE_ENV !== 'production' && process.env.LOCAL_AUTH_BYPASS === 'true';
   if (localAuthBypass) return NextResponse.next();
 
-  const isPublic = PUBLIC_PATHS.includes(pathname) || pathname.startsWith('/auth');
+  const isPublic = PUBLIC_PATHS.includes(pathname);
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -83,11 +86,13 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Todo menos estáticos e imágenes, y la carpeta /scanner, que guarda la
-  // animática del Scanner que se ve en la landing pública: sin esto un
-  // visitante anónimo recibía el login dentro del hueco de la película. Es
-  // una carpeta de archivos estáticos, sin rutas de la app detrás. Igual
-  // /media, con el vídeo de fondo de la landing (un .mp4 no es imagen y
-  // también acababa en el login).
-  matcher: ['/((?!_next/static|_next/image|scanner/|media/|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)'],
+  // Todo menos los estáticos de verdad: los de Next, favicon.ico, icon.svg (el
+  // favicon de la landing y del login, de app/icon.svg; sin sesión acababa en
+  // el login) y la carpeta /scanner, que guarda la animática del Scanner que se
+  // ve en la landing pública: sin esto un visitante anónimo recibía el login
+  // dentro del hueco de la película. Es una carpeta de archivos estáticos, sin
+  // rutas de la app detrás. Igual /media, con el vídeo de fondo de la landing.
+  // No se excluye por extensión: con .png, .svg y demás fuera,
+  // /companies/x.png llegaba a la página sin pasar por aquí.
+  matcher: ['/((?!_next/static|_next/image|scanner/|media/|favicon\\.ico$|icon\\.svg$).*)'],
 };

@@ -4,7 +4,10 @@ import { join, relative } from 'node:path';
 import { afterEach, beforeEach, test } from 'node:test';
 import type { User } from '@supabase/supabase-js';
 import { NextRequest } from 'next/server';
-import { requireUser } from '../lib/auth';
+import { getURLFromRedirectError } from 'next/dist/client/components/redirect';
+import { isRedirectError } from 'next/dist/client/components/redirect-error';
+import { requireDashboardUser, requireUser } from '../lib/auth';
+import DashboardLayout from '../app/(dashboard)/layout';
 import { PATCH as patchContact } from '../app/api/contacts/route';
 import { POST as createLeadV1 } from '../app/api/v1/leads/route';
 
@@ -92,6 +95,47 @@ test('LOCAL_AUTH_BYPASS deja pasar en desarrollo y nunca en producción', async 
   const enProduccion = await requireUser(sinSesion);
   assert.ok(enProduccion instanceof Response);
   assert.equal(enProduccion.status, 401);
+});
+
+// redirect() de Next lanza un error que lleva el destino en su digest.
+async function destinoDelRedirect(promesa: Promise<unknown>): Promise<string> {
+  try {
+    await promesa;
+  } catch (error) {
+    if (isRedirectError(error)) return getURLFromRedirectError(error);
+    throw error;
+  }
+  assert.fail('no redirigió');
+}
+
+test('el layout del dashboard sin sesión manda al login, aunque el middleware no haya corrido', async () => {
+  conSupabase();
+  assert.equal(await destinoDelRedirect(requireDashboardUser(sinSesion)), '/login');
+  // El propio layout, fuera de una petición y sin cookies: no pinta el dashboard.
+  assert.equal(await destinoDelRedirect(DashboardLayout({ children: null })), '/login');
+});
+
+test('el layout del dashboard recibe el mismo usuario que antes con sesión, en modo demo y en desarrollo', async () => {
+  assert.deepEqual(await requireDashboardUser(sinSesion), { email: null, name: null });
+
+  conSupabase();
+  const usuario = { id: 'u1', email: 'ana@floc.test', user_metadata: { name: 'Ana' } } as unknown as User;
+  assert.deepEqual(await requireDashboardUser(async () => usuario), { email: 'ana@floc.test', name: 'Ana' });
+
+  env.LOCAL_AUTH_BYPASS = 'true';
+  env.NODE_ENV = 'development';
+  assert.deepEqual(await requireDashboardUser(sinSesion), { email: null, name: null });
+  env.NODE_ENV = 'production';
+  assert.equal(await destinoDelRedirect(requireDashboardUser(sinSesion)), '/login');
+});
+
+test('el layout del dashboard sin clave anónima falla sin pintar nada y sin mandar al login', async () => {
+  env.NEXT_PUBLIC_SUPABASE_URL = 'https://supabase.test';
+  await assert.rejects(
+    requireDashboardUser(sinSesion),
+    (error: unknown) =>
+      !isRedirectError(error) && error instanceof Error && /NEXT_PUBLIC_SUPABASE_ANON_KEY/.test(error.message),
+  );
 });
 
 test('una ruta del dashboard sin sesión responde 401 antes de leer el cuerpo', async () => {

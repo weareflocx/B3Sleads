@@ -1,5 +1,5 @@
 import { isDemoMode } from '@/lib/supabase';
-import { currentUser } from '@/lib/auth';
+import { requireDashboardUser } from '@/lib/auth';
 import { Sidebar } from './sidebar';
 import { Footer } from './footer';
 import { PAGE } from './page-width';
@@ -8,7 +8,8 @@ import { PAGE } from './page-width';
 // el contenido a la derecha con un ancho de lectura acotado y su pie. La
 // cuenta y el tema viven al pie del menú; el logo lleva a home.
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const user = await currentUser();
+  // Sin sesión, al login, también cuando el middleware no ha corrido.
+  const user = await requireDashboardUser();
 
   return (
     <div className="flex min-h-screen">
