@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import type { User } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { NextResponse } from 'next/server';
 
 export interface SessionUser {
@@ -73,4 +74,19 @@ export async function requireUser(
     return NextResponse.json({ error: SESION_REQUERIDA }, { status: 401, headers: NO_STORE });
   }
   return aSessionUser(user);
+}
+
+// La misma barrera para las páginas, desde el layout del dashboard: el matcher
+// del middleware también deja fuera, por ejemplo, /companies/x.png. Sin sesión
+// manda al login; sin Auth completo lanza un error y la página no se pinta.
+// No sustituye al middleware: un layout no se vuelve a ejecutar al navegar
+// dentro del dashboard (Partial Rendering).
+// `cargar` solo existe para los tests.
+export async function requireDashboardUser(
+  cargar: () => Promise<User | null> = sessionUser,
+): Promise<SessionUser> {
+  const auth = await requireUser(cargar);
+  if (!(auth instanceof Response)) return auth;
+  if (auth.status === 401) redirect('/login');
+  throw new Error(((await auth.json()) as { error: string }).error);
 }
