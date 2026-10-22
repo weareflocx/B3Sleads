@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test } from 'node:test';
+import { unstable_doesMiddlewareMatch } from 'next/experimental/testing/server';
 import { NextRequest } from 'next/server';
-import { middleware } from '../middleware';
+import { config, middleware } from '../middleware';
 
 const envNames = [
   'NEXT_PUBLIC_SUPABASE_URL',
@@ -94,4 +95,77 @@ test('sin clave anónima, lo que solo se parece a una ruta pública también se 
   const api = await pedir('/api/v1x');
   assert.equal(api.status, 503);
   assert.match((await api.json()).error, /NEXT_PUBLIC_SUPABASE_ANON_KEY/);
+});
+
+// Si Next ejecuta el middleware para esa URL, con el mismo matcher que la build.
+const pasaPorElMiddleware = (path: string) =>
+  unstable_doesMiddlewareMatch({ config, url: `https://leads.test${path}` });
+
+test('una página protegida con extensión de imagen en la ruta pasa por el middleware y va al login', async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://supabase.test';
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-de-prueba';
+
+  for (const path of ['/companies/x.png', '/investors/x.svg', '/marcas/x.jpg', '/marcas/cliente.test/x.webp']) {
+    assert.ok(pasaPorElMiddleware(path), path);
+    const pagina = await pedir(path);
+    assert.equal(pagina.status, 307, path);
+    assert.equal(new URL(pagina.headers.get('location') ?? '').pathname, '/login', path);
+  }
+  // La API con extensión tampoco se lo salta: antes solo la frenaba requireUser.
+  assert.ok(pasaPorElMiddleware('/api/logo/x.ico'));
+  assert.equal((await pedir('/api/logo/x.ico')).status, 401);
+});
+
+test('una petición RSC a una página protegida con extensión de imagen también va al login', async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://supabase.test';
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-de-prueba';
+
+  // Como una navegación desde dentro del dashboard: ese layout ya está montado
+  // y no se vuelve a ejecutar, así que la barrera tiene que ser el middleware.
+  const rsc = {
+    rsc: '1',
+    'next-router-state-tree': encodeURIComponent(
+      JSON.stringify(['', { children: ['(dashboard)', { children: ['home', {}] }] }, null, null, true]),
+    ),
+  };
+  for (const path of ['/companies/x.png', '/investors/x.svg', '/marcas/x.jpg', '/marcas/cliente.test/x.webp']) {
+    const url = `https://leads.test${path}?_rsc=abc12`;
+    assert.ok(unstable_doesMiddlewareMatch({ config, url, headers: rsc }), path);
+    const res = await middleware(new NextRequest(url, { headers: rsc }));
+    assert.equal(res.status, 307, path);
+    assert.equal(new URL(res.headers.get('location') ?? '').pathname, '/login', path);
+  }
+});
+
+test('los estáticos de verdad siguen sin pasar por el middleware', () => {
+  for (const path of [
+    '/_next/static/chunks/main.js',
+    '/_next/image?url=%2Fmedia%2Fhero-b3scan.jpg&w=640&q=75',
+    '/scanner/flujo.html',
+    '/media/hero-b3scan.jpg',
+    '/media/hero-b3scan.mp4',
+    '/favicon.ico',
+  ]) {
+    assert.equal(pasaPorElMiddleware(path), false, path);
+  }
+});
+
+// Lo que hace Next con una petición: ejecuta el middleware solo si el matcher
+// coincide; si no, la sirve sin pasar por él (null).
+const atender = async (path: string) => (pasaPorElMiddleware(path) ? pedir(path) : null);
+
+test('/icon.svg, el favicon de la landing y del login, no pasa por el middleware: sin sesión no redirige', async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://supabase.test';
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-de-prueba';
+
+  assert.equal(pasaPorElMiddleware('/icon.svg'), false);
+  assert.equal((await atender('/icon.svg'))?.headers.get('location') ?? null, null);
+  // Por el mismo camino, una página protegida sí va al login.
+  assert.equal((await atender('/companies/x.png'))?.status, 307);
+  // Es la exclusión la que lo salva: el middleware, si corriera, lo mandaría al login.
+  assert.equal((await pedir('/icon.svg')).status, 307);
+  // Exacta, como favicon.ico: lo que solo se le parece sí pasa por el middleware.
+  for (const path of ['/icon.svg.png', '/companies/icon.svg']) {
+    assert.ok(pasaPorElMiddleware(path), path);
+  }
 });

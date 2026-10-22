@@ -86,11 +86,13 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Todo menos estáticos e imágenes, y la carpeta /scanner, que guarda la
-  // animática del Scanner que se ve en la landing pública: sin esto un
-  // visitante anónimo recibía el login dentro del hueco de la película. Es
-  // una carpeta de archivos estáticos, sin rutas de la app detrás. Igual
-  // /media, con el vídeo de fondo de la landing (un .mp4 no es imagen y
-  // también acababa en el login).
-  matcher: ['/((?!_next/static|_next/image|scanner/|media/|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)'],
+  // Todo menos los estáticos de verdad: los de Next, favicon.ico, icon.svg (el
+  // favicon de la landing y del login, de app/icon.svg; sin sesión acababa en
+  // el login) y la carpeta /scanner, que guarda la animática del Scanner que se
+  // ve en la landing pública: sin esto un visitante anónimo recibía el login
+  // dentro del hueco de la película. Es una carpeta de archivos estáticos, sin
+  // rutas de la app detrás. Igual /media, con el vídeo de fondo de la landing.
+  // No se excluye por extensión: con .png, .svg y demás fuera,
+  // /companies/x.png llegaba a la página sin pasar por aquí.
+  matcher: ['/((?!_next/static|_next/image|scanner/|media/|favicon\\.ico$|icon\\.svg$).*)'],
 };
