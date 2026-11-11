@@ -241,8 +241,15 @@ export interface Message {
   edited_final: string | null;
   sent_at: string | null;
   replied: boolean;
+  // Qué es el mensaje (migración 20261111…). null = primer mensaje o
+  // anterior a la columna: hasta ahí solo se guardaban primeros mensajes.
+  kind?: MessageKind | null;
   created_at: string;
 }
+
+// first: el primer mensaje · followup: un toque más sin respuesta ·
+// reply: contestación a lo que dijo el founder (no cuenta como toque).
+export type MessageKind = 'first' | 'followup' | 'reply';
 
 // Lead hidratado para el briefing (join de todas las tablas).
 // company es opcional: un founder añadido desde LinkedIn puede no tener aún

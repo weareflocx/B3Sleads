@@ -157,6 +157,64 @@ export function buildDraftPrompt(bl: BriefingLead): string | null {
   return `${system}\n\n---\n\n${context}`;
 }
 
+// ---------- Seguimientos y respuestas (pasos 6 y 7) ----------
+// El contexto lo monta lib/seguimiento.ts (lógica pura); aquí solo vive la
+// llamada al modelo y el prompt copiable, igual que con el primer mensaje.
+
+// Margen holgado: en los modelos con razonamiento activado por defecto, el
+// tope cuenta también lo que piensa antes de escribir.
+const MAX_TOKENS_REDACCION = 3000;
+
+async function redacta(system: string, user: string): Promise<string> {
+  const res = await client().messages.create({
+    model: MODEL,
+    max_tokens: MAX_TOKENS_REDACCION,
+    system,
+    messages: [{ role: 'user', content: user }],
+  });
+  if (res.stop_reason === 'refusal') throw new Error('El modelo ha rechazado la petición');
+  const block = res.content.find((b) => b.type === 'text');
+  if (!block || block.type !== 'text') throw new Error('Respuesta sin texto');
+  return block.text.trim();
+}
+
+// El borrador del seguimiento. Si se pasa del tope de LinkedIn para ese
+// tipo, una segunda pasada lo acorta (recortar a mano rompe la frase).
+export async function generateFollowUp(contexto: string, max: number): Promise<string> {
+  const system = loadPrompt('followup-system.md');
+  const text = await redacta(system, contexto);
+  if (text.length <= max) return text;
+  const res = await client().messages.create({
+    model: MODEL,
+    max_tokens: MAX_TOKENS_REDACCION,
+    system,
+    messages: [
+      { role: 'user', content: contexto },
+      { role: 'assistant', content: text },
+      { role: 'user', content: `Tiene ${text.length} caracteres. Déjalo en menos de ${max} sin perder la idea.` },
+    ],
+  });
+  const b2 = res.content.find((b) => b.type === 'text');
+  return b2 && b2.type === 'text' ? b2.text.trim() : text;
+}
+
+// Lee la respuesta del founder. Devuelve el texto del modelo (un JSON):
+// lo valida parseLectura, que también decide la etapa.
+export async function readReply(contexto: string): Promise<string> {
+  return redacta(loadPrompt('reply-system.md'), contexto);
+}
+
+// Los mismos dos trabajos sin API: reglas + contexto para pegar en el Claude
+// de Sergio. Mismo material, cero coste.
+export function promptCopiable(cual: 'seguimiento' | 'respuesta', contexto: string): string {
+  const system = loadPrompt(cual === 'seguimiento' ? 'followup-system.md' : 'reply-system.md');
+  return `${system}\n\n---\n\n${contexto}`;
+}
+
+export function claudeConfigurado(): boolean {
+  return Boolean(process.env.ANTHROPIC_API_KEY);
+}
+
 // ---------- QA de muestra (patrón Explee: verificar antes de aceptar) ----------
 
 export interface QaResult {

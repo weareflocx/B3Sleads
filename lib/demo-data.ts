@@ -293,7 +293,50 @@ const DEMO_LEADS_RAW: Omit<BriefingLead, 'signals'>[] = [
   },
 ];
 
-export const DEMO_LEADS: BriefingLead[] = DEMO_LEADS_RAW.map((bl) => ({
+// Un contactado hace seis días sin respuesta, para que "Seguimientos que
+// tocan" tenga algo que enseñar en demo. Reutiliza la ficha del primer lead
+// con otra marca y su mensaje ya enviado.
+const base = DEMO_LEADS_RAW[0];
+const DEMO_CONTACTADO: Omit<BriefingLead, 'signals'> = {
+  ...base,
+  lead: {
+    ...base.lead,
+    id: 'demo-lead-4',
+    company_id: 'demo-co-4',
+    contact_id: 'demo-ct-4',
+    scan_id: 'demo-sc-4',
+    stage: 'contacted',
+    priority_score: 62,
+    updated_at: daysAgo(6),
+  },
+  company: { ...base.company!, id: 'demo-co-4', name: 'Lumen Freight', domain: 'lumenfreight.io' },
+  signal: base.signal ? { ...base.signal, id: 'demo-sg-4', company_id: 'demo-co-4' } : null,
+  scan: base.scan ? { ...base.scan, id: 'demo-sc-4', company_id: 'demo-co-4' } : null,
+  contact: base.contact
+    ? {
+        ...base.contact,
+        id: 'demo-ct-4',
+        company_id: 'demo-co-4',
+        full_name: 'Marta Vidal',
+        linkedin_url: 'https://www.linkedin.com/in/martavidal',
+        linkedin_handle: 'martavidal',
+      }
+    : null,
+  message: {
+    id: 'demo-msg-4',
+    lead_id: 'demo-lead-4',
+    channel: 'linkedin',
+    lang: 'es',
+    draft:
+      'Marta, la web de Lumen explica muy bien qué mueve, pero no por qué confiarle la carga a un equipo nuevo. ¿Cómo lo estáis contando en las primeras llamadas con cargadores?',
+    edited_final: null,
+    sent_at: daysAgo(6),
+    replied: false,
+    created_at: daysAgo(6),
+  },
+};
+
+export const DEMO_LEADS: BriefingLead[] = [...DEMO_LEADS_RAW, DEMO_CONTACTADO].map((bl) => ({
   ...bl,
   signals: bl.signal ? [bl.signal] : [],
 }));

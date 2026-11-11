@@ -19,12 +19,14 @@ import { buildPitch } from '@/lib/pitch';
 import { storedScanReport, retencionDeScan, notaRetenida } from '@/lib/scan-report';
 import { buildCallBriefPrompt, buildLeadContext } from '@/lib/lead-prompts';
 import { stageLabel as stageLabelFor, displayName, companyLabel, estadoScan } from '@/lib/types';
+import type { LeadStage } from '@/lib/types';
 import { getTeamMembers, leadOwner } from '@/lib/team';
 import { userLabel } from '@/lib/leaderboard';
 import { ScanButton } from './scan-button';
 import { ScoreHistory } from './score-history';
 import { FollowUp } from './follow-up';
 import { NotesLog } from './notes-log';
+import { RespuestaFounder } from './respuesta-founder';
 import { LeadOwner } from './lead-owner';
 import { FundingPanel } from './funding-panel';
 import { LeadTools } from './lead-tools';
@@ -49,6 +51,10 @@ import { NivelCerradoSlot } from './nivel-cerrado-slot';
 import { AdoptarPasada } from './adoptar-pasada';
 
 export const dynamic = 'force-dynamic';
+
+// Etapas en las que el founder ya ha recibido algo nuestro (una invitación
+// con nota o un mensaje) y puede haber contestado.
+const ETAPAS_CON_RESPUESTA: LeadStage[] = ['invited', 'connected', 'contacted', 'conversation', 'call', 'proposal', 'paused'];
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -655,6 +661,18 @@ export default async function CompanyPage({ params }: { params: Promise<{ domain
           {scan?.status === 'ready' && (
             <Section title="Trabajar el lead">
               <LeadTools callBriefPrompt={callBriefPrompt} leadContext={leadContext} />
+            </Section>
+          )}
+
+          {/* Desde que se le ha escrito, puede contestar: aquí se pega lo
+              que diga y sale la lectura y el borrador de contestación. */}
+          {ETAPAS_CON_RESPUESTA.includes(lead.stage) && (
+            <Section title="Respuesta del founder">
+              <RespuestaFounder
+                leadId={lead.id}
+                founder={displayName(contact?.full_name) || null}
+                linkedinUrl={contact?.linkedin_url ?? null}
+              />
             </Section>
           )}
 

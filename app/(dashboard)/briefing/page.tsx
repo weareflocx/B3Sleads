@@ -14,6 +14,7 @@ import {
 import { displayName } from '@/lib/types';
 import { LeadCard } from './lead-card';
 import { Invitaciones, VuelvenAlRadar } from './invitaciones';
+import { Seguimientos } from './seguimientos';
 import { invitacionesPendientes, vuelvenAlRadar } from '@/lib/invitacion';
 import { AnadirComoLead } from './anadir-como-lead';
 import { companyLabel } from '@/lib/types';
@@ -244,39 +245,17 @@ export default async function BriefingPage() {
       {pendientes.length > 0 && (
         <section id="seguimientos" className="mb-8">
           <SectionTitle count={pendientes.length}>Seguimientos que tocan</SectionTitle>
-          <ul className="divide-y divide-[var(--border)] rounded-lg border border-[var(--border)] bg-[var(--surface)]">
-            {pendientes.map(({ bl, days, reason }) => (
-              <li key={bl.lead.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-                <Link
-                  href={`/companies/${bl.company!.domain}`}
-                  className="font-medium hover:underline"
-                >
-                  {bl.company!.name}
-                </Link>
-                {bl.contact && (
-                  <span className="truncate text-[var(--muted)]">
-                    {displayName(bl.contact.full_name)}
-                  </span>
-                )}
-                <span className="min-w-0 flex-1 truncate text-xs text-[var(--muted)]">
-                  {reason === 'sin_respuesta'
-                    ? `contactado ${diasLabel(days)}, sin respuesta`
-                    : `conversación parada ${diasLabel(days)}`}
-                </span>
-                {bl.contact?.linkedin_url && (
-                  <a
-                    href={bl.contact.linkedin_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label={`Abrir LinkedIn de ${displayName(bl.contact.full_name)}`}
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[var(--linkedin)]/40 font-sans text-[13px] font-bold text-[var(--linkedin)] transition-colors hover:border-[var(--linkedin)] hover:bg-[var(--linkedin)]/10"
-                  >
-                    in
-                  </a>
-                )}
-              </li>
-            ))}
-          </ul>
+          <Seguimientos
+            items={pendientes.map(({ bl, days, reason }) => ({
+              leadId: bl.lead.id,
+              domain: bl.company!.domain,
+              company: bl.company!.name,
+              founder: displayName(bl.contact?.full_name) || null,
+              linkedinUrl: bl.contact?.linkedin_url ?? null,
+              days,
+              reason,
+            }))}
+          />
         </section>
       )}
 

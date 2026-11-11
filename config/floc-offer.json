@@ -13,5 +13,10 @@
   ],
   "customer_problem": "Founders con buena tecnología y una marca que no está a la altura. El producto funciona pero los inversores no lo entienden en los tres primeros minutos. Su web parece cualquier otro lanzamiento de Product Hunt. Han probado herramientas de IA o freelancers baratos y acabaron con algo genérico que no genera confianza. El dolor real: cualquiera puede clonar su tecnología en semanas, pero no tienen nada que haga que su proyecto se sienta distinto.",
   "proof": "60+ marcas. Clientes de referencia: MetaMask, Eigen, Bankless, Rarible, Tutellus, Wonderland, Charms.",
+  "call": {
+    "description": "Cómo se propone la primera conversación cuando un founder responde con interés. Si booking_url está vacío, el borrador ofrece dos huecos que Sergio rellena a mano.",
+    "minutes": 20,
+    "booking_url": ""
+  },
   "icp_note": "Cualquier sector. El hallazgo EVO2.7 y la revisión de julio 2026: el buyer ya no es solo cripto/IA."
 }

@@ -6,7 +6,7 @@ import { DEMO_LEADS } from './demo-data';
 import { anotaEnBitacora } from './bitacora';
 import { planDeUnion } from './unir-leads';
 import { mergeSectorVocabulary, parseSectorList } from './sectors';
-import type { BriefingLead, Company, Contact, Lead, Message, Note, Scan, Signal, Study } from './types';
+import type { BriefingLead, Company, Contact, Lead, Message, MessageKind, Note, Scan, Signal, Study } from './types';
 
 // Vocabulario de sectores para el picker: lista curada + los ya usados en la
 // BD, sin duplicar. Así "añadir uno nuevo" se incorpora al vocabulario.
@@ -178,6 +178,94 @@ export async function getLeadNotes(leadId: string): Promise<Note[]> {
     .eq('lead_id', leadId)
     .order('created_at', { ascending: false });
   return (data as Note[] | null) ?? [];
+}
+
+// Todos los mensajes del lead, del más antiguo al más reciente. El lead
+// hidratado solo trae el último; los seguimientos necesitan saber cuántos
+// se han enviado y qué decían.
+export async function getLeadMessages(leadId: string): Promise<Message[]> {
+  if (isDemoMode()) return DEMO_LEADS.flatMap((l) => (l.lead.id === leadId && l.message ? [l.message] : []));
+  const db = getServiceSupabase()!;
+  const { data, error } = await db
+    .from('messages')
+    .select('*')
+    .eq('lead_id', leadId)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data as Message[] | null) ?? [];
+}
+
+// Un mensaje que Sergio ha enviado a mano por LinkedIn después del primero:
+// un seguimiento o la contestación a una respuesta. Se guarda ya enviado
+// (sent_at = ahora), así "Seguimientos que tocan" vuelve a contar desde hoy,
+// y deja rastro en la bitácora.
+export async function registraEnvio(input: {
+  leadId: string;
+  lang: string;
+  fila: { draft: string; edited_final: string; kind: MessageKind };
+  nota: string;
+}): Promise<void> {
+  if (isDemoMode()) return;
+  const db = getServiceSupabase()!;
+  const now = new Date().toISOString();
+  const fila: Record<string, string> = {
+    lead_id: input.leadId,
+    channel: 'linkedin',
+    lang: input.lang,
+    draft: input.fila.draft,
+    edited_final: input.fila.edited_final,
+    sent_at: now,
+    kind: input.fila.kind,
+  };
+  let { error } = await db.from('messages').insert(fila);
+  // Sin la migración de `kind` aún aplicada, se guarda sin ella.
+  if (error && error.message.includes('kind')) {
+    delete fila.kind;
+    ({ error } = await db.from('messages').insert(fila));
+  }
+  if (error) throw new Error(`No se pudo guardar el mensaje: ${error.message}`);
+  const { data: lead } = await db
+    .from('leads')
+    .update({ updated_at: now })
+    .eq('id', input.leadId)
+    .select('company_id')
+    .maybeSingle();
+  if (lead?.company_id) await anotaEnBitacora(db, lead.company_id as string, input.leadId, input.nota);
+}
+
+// Lo que ha contestado el founder, pegado por Sergio. Va a la bitácora tal
+// cual, marca el último mensaje como respondido y refresca contacts.notes
+// (de ahí beben el dossier y el argumentario, igual que con una nota).
+// Si ya está entre las últimas notas no se duplica (se puede releer):
+// devuelve si era nueva.
+export async function registraRespuesta(input: {
+  leadId: string;
+  companyId: string | null;
+  contactId: string | null;
+  nota: string;
+}): Promise<boolean> {
+  if (isDemoMode()) return false;
+  const db = getServiceSupabase()!;
+  const { data: recientes } = await db
+    .from('notes')
+    .select('body')
+    .eq('lead_id', input.leadId)
+    .order('created_at', { ascending: false })
+    .limit(5);
+  if ((recientes ?? []).some((n) => n.body === input.nota)) return false;
+
+  const { error } = await db
+    .from('notes')
+    .insert({ lead_id: input.leadId, company_id: input.companyId, body: input.nota, kind: 'note' });
+  if (error) throw new Error(`No se pudo guardar la respuesta: ${error.message}`);
+
+  const now = new Date().toISOString();
+  if (input.contactId) {
+    await db.from('contacts').update({ notes: input.nota, last_touch_at: now }).eq('id', input.contactId);
+  }
+  await db.from('leads').update({ updated_at: now }).eq('id', input.leadId);
+  await db.from('messages').update({ replied: true }).eq('lead_id', input.leadId).not('sent_at', 'is', null);
+  return true;
 }
 
 export async function getCompanyScans(companyId: string): Promise<Scan[]> {
