@@ -4,13 +4,13 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import type { SearchHit } from '@/lib/search';
-import { IconSearch, IconBuilding, IconFounders } from './nav-icons';
+import { IconSearch, IconBuilding, IconFounders, IconInvestor, IconNote } from './nav-icons';
 import { ScoreRing } from './score-ring';
 import { Avatar } from './avatar';
 
-// Buscador global de startups y founders. Se abre con Cmd/Ctrl+K o desde el
-// menú. El trigger se adapta al menú: caja con placeholder cuando está
-// expandido, solo la lupa cuando está comprimido.
+// Buscador global del CRM: marcas, contactos, inversores y notas. Se abre con
+// Cmd/Ctrl+K o desde el menú. El trigger se adapta al menú: caja con
+// placeholder cuando está expandido, solo la lupa cuando está comprimido.
 export function SearchCommand({ collapsed = false }: { collapsed?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -96,6 +96,8 @@ export function SearchCommand({ collapsed = false }: { collapsed?: boolean }) {
 
   const companies = hits.filter((h) => h.kind === 'company');
   const founders = hits.filter((h) => h.kind === 'founder');
+  const investors = hits.filter((h) => h.kind === 'investor');
+  const notes = hits.filter((h) => h.kind === 'note');
 
   return (
     <>
@@ -143,7 +145,7 @@ export function SearchCommand({ collapsed = false }: { collapsed?: boolean }) {
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   onKeyDown={onInputKey}
-                  placeholder="Buscar marcas y founders…"
+                  placeholder="Buscar marcas, contactos, inversores…"
                   className="flex-1 bg-transparent py-3.5 text-sm outline-none placeholder:text-[var(--soft)]"
                 />
                 {loading && <span className="text-xs text-[var(--soft)]">…</span>}
@@ -173,10 +175,34 @@ export function SearchCommand({ collapsed = false }: { collapsed?: boolean }) {
                       </Group>
                     )}
                     {founders.length > 0 && (
-                      <Group label="Founders">
+                      <Group label="Contactos">
                         {founders.map((h, i) => (
                           <Row
                             key={`f-${h.href}-${i}`}
+                            hit={h}
+                            activeHit={hits[active]}
+                            onSelect={go}
+                          />
+                        ))}
+                      </Group>
+                    )}
+                    {investors.length > 0 && (
+                      <Group label="Inversores">
+                        {investors.map((h, i) => (
+                          <Row
+                            key={`i-${h.href}-${i}`}
+                            hit={h}
+                            activeHit={hits[active]}
+                            onSelect={go}
+                          />
+                        ))}
+                      </Group>
+                    )}
+                    {notes.length > 0 && (
+                      <Group label="Notas">
+                        {notes.map((h, i) => (
+                          <Row
+                            key={`n-${h.href}-${i}`}
                             hit={h}
                             activeHit={hits[active]}
                             onSelect={go}
@@ -230,6 +256,14 @@ function Row({
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted)]">
           <IconBuilding size={15} />
         </span>
+      ) : hit.kind === 'investor' ? (
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted)]">
+          <IconInvestor size={15} />
+        </span>
+      ) : hit.kind === 'note' ? (
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted)]">
+          <IconNote size={15} />
+        </span>
       ) : (
         <Avatar name={hit.name} size={28} />
       )}
@@ -238,7 +272,11 @@ function Row({
         <span className="block truncate font-mono text-xs text-[var(--muted)]">
           {hit.kind === 'company'
             ? hit.domain
-            : [hit.role, hit.company].filter(Boolean).join(' · ') || 'founder'}
+            : hit.kind === 'investor'
+              ? [hit.kind_label, hit.hq].filter(Boolean).join(' · ') || 'inversor'
+              : hit.kind === 'note'
+                ? [hit.company, hit.date].filter(Boolean).join(' · ') || 'nota'
+                : [hit.role, hit.company].filter(Boolean).join(' · ') || 'contacto'}
         </span>
       </span>
       {hit.kind === 'company' && hit.score != null && <ScoreRing score={hit.score} size={26} />}
