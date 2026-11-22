@@ -112,3 +112,21 @@ export const IconBuilding = (p: IconProps) => (
     <path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2" />
   </Base>
 );
+
+// Inversores: gráfica de crecimiento.
+export const IconInvestor = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M3 20h18" />
+    <path d="m6 15 4-4 3 3 5-6" />
+    <path d="M17 8h1.5v1.5" />
+  </Base>
+);
+
+// Notas: documento con líneas de texto.
+export const IconNote = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8l-5-5Z" />
+    <path d="M14 3v5h5" />
+    <path d="M9 13h6M9 17h4" />
+  </Base>
+);
