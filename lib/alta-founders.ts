@@ -112,11 +112,18 @@ export async function altaDeFounders(
       if (handle) {
         const { data: existing } = await db
           .from('contacts')
-          .select('id, full_name')
+          .select('id, full_name, companies(domain)')
           .eq('linkedin_handle', handle)
           .maybeSingle();
         if (existing) {
-          results.push({ input: handle, status: 'dup', detail: `Ya existe: ${existing.full_name}` });
+          // Con su marca, el aviso del modal enlaza a la ficha donde ya está.
+          const marca = (existing as { companies?: { domain?: string } | null }).companies?.domain;
+          results.push({
+            input: handle,
+            status: 'dup',
+            detail: `Ya existe: ${existing.full_name}`,
+            ...(marca ? { domain: marca } : {}),
+          });
           continue;
         }
       }
@@ -154,7 +161,7 @@ export async function altaDeFounders(
 
       // Solo marca, sin founder, y la marca ya existía → nada nuevo que crear
       if (!handle && !companyWasNew) {
-        results.push({ input: domain, status: 'dup', detail: 'Esa marca ya estaba en el radar' });
+        results.push({ input: domain, status: 'dup', detail: 'Esa marca ya estaba en el radar', domain });
         continue;
       }
 

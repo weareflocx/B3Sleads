@@ -90,6 +90,9 @@ export function useAddLead(onAdded?: (rows: LogRow[]) => void) {
       }
       const rows = json.results as LogRow[];
       setLog(rows);
+      // Si no entró nada (ya estaba en el radar), lo escrito se queda: borrarlo
+      // dejaba el modal con "Añadir" apagado y sin decir por qué.
+      if (!rows.some((r) => r.status === 'ok')) return;
       setLinkedin('');
       setName('');
       setNameEdited(false);

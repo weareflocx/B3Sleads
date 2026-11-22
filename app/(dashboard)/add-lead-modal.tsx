@@ -227,6 +227,9 @@ function AddLeadDialog({
   const STEPS = presetDomain ? ALL_STEPS.filter((_, i) => i !== 1) : ALL_STEPS;
   const isLast = step === STEPS.length - 1;
   const error = lead.log.find((r) => r.status === 'error');
+  // "Ya existe": no es un fallo, pero hay que decirlo; si no, el modal se
+  // quedaba quieto en el último paso.
+  const yaEstaba = !error ? lead.log.find((r) => r.status !== 'ok') : undefined;
 
   function next() {
     if (isLast) lead.submit();
@@ -331,6 +334,21 @@ function AddLeadDialog({
             </div>
 
             {error && <p className="mt-4 text-sm text-[var(--danger)]">{error.detail}</p>}
+            {yaEstaba && (
+              <p className="mt-4 text-sm text-[var(--warning)]">
+                {yaEstaba.status === 'dup'
+                  ? `Ya estaba en el radar: ${yaEstaba.detail}. No se ha añadido de nuevo.`
+                  : yaEstaba.detail}
+                {yaEstaba.domain && (
+                  <>
+                    {' '}
+                    <a href={`/companies/${yaEstaba.domain}`} className="underline underline-offset-2">
+                      Ver ficha
+                    </a>
+                  </>
+                )}
+              </p>
+            )}
 
             {/* La acción, centrada y sola. Enter sigue avanzando: los pasos
                 2 y 3 son opcionales, así que el camino corto es pulsarlo. */}
